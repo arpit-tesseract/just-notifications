@@ -1,0 +1,20 @@
+from django.contrib import admin
+from .models import *
+# Register your models here.
+
+admin.site.register(Continent)
+admin.site.register(Country)
+admin.site.register(State)
+admin.site.register(City)
+admin.site.register(District)
+admin.site.register(Village)
+admin.site.register(Category)
+admin.site.register(Religion)
+admin.site.register(Sampraday)
+admin.site.register(Panth)
+admin.site.register(Varna)
+admin.site.register(Caste)
+admin.site.register(SubCaste)
+admin.site.register(Gotra)
+admin.site.register(SubGotra)
+admin.site.register(Pidhi)
