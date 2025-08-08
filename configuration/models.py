@@ -254,3 +254,174 @@ class Pidhi(models.Model):
 
     def __str__(self):
         return self.name
+
+class Section(models.Model):
+    name = models.CharField("Section", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+class Class(models.Model):
+    section = models.ForeignKey(Section, on_delete=models.CASCADE)
+    name = models.CharField("Class", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+class ProfCategory(models.Model):
+    profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
+    name = models.CharField("Category", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class ProfSubCategory(models.Model):
+    category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
+    name = models.CharField("Sub Category", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class Type(models.Model):
+    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
+    name = models.CharField("Type", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class Brand(models.Model):
+    type = models.ForeignKey(Type, on_delete=models.CASCADE)
+    name = models.CharField("Brand", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class PostModel(models.Model):
+    brand = models.ForeignKey(Brand, on_delete=models.CharField)
+    name = models.CharField("Post Model", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class Sector(models.Model):
+    name = models.CharField("Sector", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class SubSector(models.Model):
+    sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
+    name = models.CharField("Sub Sector", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class Department(models.Model):
+    name = models.CharField("Department", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class SubDepartment(models.Model):
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    name = models.CharField("Sub Department", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name

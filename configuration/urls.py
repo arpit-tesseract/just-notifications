@@ -19,6 +19,17 @@ router.register(r'subcaste', SubCasteViewSet)
 router.register(r'gotra', GotraViewSet)
 router.register(r'subgotra', SubGotraViewSet)
 router.register(r'pidhi', PidhiViewSet)
+router.register(r'section', SectionViewSet)
+router.register(r'class', ClassViewSet)
+router.register(r'profCategory', ProfCategoryViewSet)
+router.register(r'profSubCategory', ProfSubCategoryViewSet)
+router.register(r'type', TypeViewSet)
+router.register(r'brand', BrandViewSet)
+router.register(r'postmodel', PostModelViewSet)
+router.register(r'sector', SectorViewSet)
+router.register(r'subsector', SubSectorViewSet)
+router.register(r'department', DepartmentViewSet)
+router.register(r'subdepartment', SubDepartmentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -37,4 +48,15 @@ urlpatterns = [
     path("import/gotra/", ImportGotras.as_view()),
     path("import/subgotra/", ImportSubGotras.as_view()),
     path("import/pidhi/", ImportPidhis.as_view()),
+    path('import/section/', ImportSection.as_view()),
+    path('import/class/', ImportClass.as_view()),
+    path('import/profcategory/', ImportProfCategory.as_view()),
+    path('import/profsubcategory/', ImportProfSubCategory.as_view()),
+    path('import/type/', ImportType.as_view()),
+    path('import/brand/', ImportBrand.as_view()),
+    path('import/postmodel/', ImportPostModel.as_view()),
+    path('import/sector/', ImportSector.as_view()),
+    path('import/subsector/', ImportSubSector.as_view()),
+    path('import/department/', ImportDepartment.as_view()),
+    path('import/subdepartment/', ImportSubDepartment.as_view()),
 ]

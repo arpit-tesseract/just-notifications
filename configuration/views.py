@@ -9,6 +9,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import *
 from .serializers import *
 
+# ==================
+# CRUD Views
+# ==================
+
 class ContinentViewSet(viewsets.ModelViewSet):
     queryset = Continent.objects.all()
     serializer_class = ContinentSerializer
@@ -88,6 +92,66 @@ class PidhiViewSet(viewsets.ModelViewSet):
     queryset = Pidhi.objects.all()
     serializer_class = PidhiSerializer
     permission_classes = [AllowAny]
+
+class SectionViewSet(viewsets.ModelViewSet):
+    queryset = Section.objects.all()
+    serializer_class = SectionSerializer
+    permission_classes = [AllowAny]
+
+class ClassViewSet(viewsets.ModelViewSet):
+    queryset = Class.objects.all()
+    serializer_class = ClassSerializer
+    permission_classes = [AllowAny]
+
+class ProfCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ProfCategory.objects.all()
+    serializer_class = ProfCategorySerializer
+    permission_classes = [AllowAny]
+
+class ProfSubCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ProfSubCategory.objects.all()
+    serializer_class = ProfSubCategorySerializer
+    permission_classes = [AllowAny]
+
+class TypeViewSet(viewsets.ModelViewSet):
+    queryset = Type.objects.all()
+    serializer_class = TypeSerializer
+    permission_classes = [AllowAny]
+
+class BrandViewSet(viewsets.ModelViewSet):
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+    permission_classes = [AllowAny]
+
+class PostModelViewSet(viewsets.ModelViewSet):
+    queryset = PostModel.objects.all()
+    serializer_class = PostModelSerializer
+    permission_classes = [AllowAny]
+
+class SectorViewSet(viewsets.ModelViewSet):
+    queryset = Sector.objects.all()
+    serializer_class = SectorSerializer
+    permission_classes = [AllowAny]
+
+class SubSectorViewSet(viewsets.ModelViewSet):
+    queryset = SubSector.objects.all()
+    serializer_class = SubSectorSerializer
+    permission_classes = [AllowAny]
+
+class DepartmentViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.all()
+    serializer_class = DepartmentSerializer
+    permission_classes = [AllowAny]
+
+class SubDepartmentViewSet(viewsets.ModelViewSet):
+    queryset = SubDepartment.objects.all()
+    serializer_class = SubDepartmentSerializer
+    permission_classes = [AllowAny]
+
+
+# ==================
+# Import Features
+# ==================
 
 def clean(value):
     return str(value).strip() if pd.notnull(value) else None
@@ -715,5 +779,454 @@ class ImportPidhis(APIView):
                     created += 1
             except SubGotra.DoesNotExist:
                 errors.append(f"Row {row_num}: SubGotra with code '{subgotra_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportSection(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+        
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+        
+        created, errors = 0, []
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            name = clean(row.get("Section"))
+            code = clean(row.get("Code"))
+
+            if not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Section' or 'Code'")
+                continue
+
+            obj, is_created = Section.objects.get_or_create(
+                name__iexact=name,
+                code__iexact=code,
+                defaults={"name": name, "code": code}
+            )
+            if is_created:
+                created += 1
+
+        return Response({"created": created, "errors": errors})
+    
+class ImportClass(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            section_code = clean(row.get('Section Code')) 
+            name = clean(row.get('Class'))
+            code = clean(row.get('Code'))
+
+            if not section_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Section Code', 'Class' or 'Code'")
+                continue
+
+            try:
+                section = Section.objects.get(code__iexact=section_code)
+                obj, is_created = Class.objects.get_or_create(
+                    name__iexact=name,
+                    section=section,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "section": section}
+                )
+                if is_created:
+                    created +=1
+            
+            except Section.DoesNotExist:
+                errors.append(f"Row {row_num}: Section with code '{section_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportProfCategory(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            class_code = clean(row.get('Class Code')) 
+            name = clean(row.get('Category'))
+            code = clean(row.get('Code'))
+
+            if not class_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Class Code', 'Category' or 'Code'")
+                continue
+
+            try:
+                profclass = Class.objects.get(code__iexact=class_code)
+                obj, is_created = Category.objects.get_or_create(
+                    name__iexact=name,
+                    profclass=profclass,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "profclass": profclass}
+                )
+                if is_created:
+                    created +=1
+            
+            except Class.DoesNotExist:
+                errors.append(f"Row {row_num}: Class with code '{class_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportProfSubCategory(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            category_code = clean(row.get('Category Code')) 
+            name = clean(row.get('Sub Category'))
+            code = clean(row.get('Code'))
+
+            if not category_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Category Code', 'Sub Category' or 'Code'")
+                continue
+
+            try:
+                category = ProfCategory.objects.get(code__iexact=category_code)
+                obj, is_created = ProfSubCategory.objects.get_or_create(
+                    name__iexact=name,
+                    category=category,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "category": category}
+                )
+                if is_created:
+                    created +=1
+            
+            except ProfCategory.DoesNotExist:
+                errors.append(f"Row {row_num}: Category with code '{category_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportType(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            subcategory_code = clean(row.get('Sub Category Code')) 
+            name = clean(row.get('Type'))
+            code = clean(row.get('Code'))
+
+            if not subcategory_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Sub Category Code', 'Type' or 'Code'")
+                continue
+
+            try:
+                subcategory = ProfSubCategory.objects.get(code__iexact=subcategory_code)
+                obj, is_created = Type.objects.get_or_create(
+                    name__iexact=name,
+                    subcategory=subcategory,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "subcategory": subcategory}
+                )
+                if is_created:
+                    created +=1
+            
+            except ProfSubCategory.DoesNotExist:
+                errors.append(f"Row {row_num}: Sub Category with code '{subcategory_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportBrand(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            type_code = clean(row.get('Type Code')) 
+            name = clean(row.get('Brand'))
+            code = clean(row.get('Code'))
+
+            if not type_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Type Code', 'Brand' or 'Code'")
+                continue
+
+            try:
+                type = Type.objects.get(code__iexact=type_code)
+                obj, is_created = Brand.objects.get_or_create(
+                    name__iexact=name,
+                    type=type,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "type": type}
+                )
+                if is_created:
+                    created +=1
+            
+            except Type.DoesNotExist:
+                errors.append(f"Row {row_num}: Type with code '{type_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportPostModel(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            brand_code = clean(row.get('Brand Code')) 
+            name = clean(row.get('Post Model'))
+            code = clean(row.get('Code'))
+
+            if not brand_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Brand Code', 'Post Model' or 'Code'")
+                continue
+
+            try:
+                brand = Brand.objects.get(code__iexact=brand_code)
+                obj, is_created = PostModel.objects.get_or_create(
+                    name__iexact=name,
+                    brand=brand,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "brand": brand}
+                )
+                if is_created:
+                    created +=1
+            
+            except Brand.DoesNotExist:
+                errors.append(f"Row {row_num}: Brand with code '{brand_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportSector(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+        
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+        
+        created, errors = 0, []
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            name = clean(row.get("Sector"))
+            code = clean(row.get("Code"))
+
+            if not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Sector' or 'Code'")
+                continue
+
+            obj, is_created = Sector.objects.get_or_create(
+                name__iexact=name,
+                code__iexact=code,
+                defaults={"name": name, "code": code}
+            )
+            if is_created:
+                created += 1
+
+        return Response({"created": created, "errors": errors})
+
+class ImportSubSector(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            sector_code = clean(row.get('Sector Code')) 
+            name = clean(row.get('Sub Sector'))
+            code = clean(row.get('Code'))
+
+            if not sector_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Sector Code', 'Sub Sector' or 'Code'")
+                continue
+
+            try:
+                sector = Sector.objects.get(code__iexact=sector_code)
+                obj, is_created = SubSector.objects.get_or_create(
+                    name__iexact=name,
+                    sector=sector,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "sector": sector}
+                )
+                if is_created:
+                    created +=1
+            
+            except Sector.DoesNotExist:
+                errors.append(f"Row {row_num}: Sector with code '{sector_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportDepartment(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+        
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+        
+        created, errors = 0, []
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            name = clean(row.get("Department"))
+            code = clean(row.get("Code"))
+
+            if not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Department' or 'Code'")
+                continue
+
+            obj, is_created = Department.objects.get_or_create(
+                name__iexact=name,
+                code__iexact=code,
+                defaults={"name": name, "code": code}
+            )
+            if is_created:
+                created += 1
+
+        return Response({"created": created, "errors": errors})
+    
+class ImportSubDepartment(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response({"error": "No file Uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file)
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created, errors = 0, []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            department_code = clean(row.get('Department Code')) 
+            name = clean(row.get('Sub Department'))
+            code = clean(row.get('Code'))
+
+            if not department_code or not name or not code:
+                errors.append(f"Row {row_num}: Missing 'Department Code', 'Sub Department' or 'Code'")
+                continue
+
+            try:
+                department = Department.objects.get(code__iexact=department_code)
+                obj, is_created = SubDepartment.objects.get_or_create(
+                    name__iexact=name,
+                    department=department,
+                    code__iexact=code,
+                    defaults={"name": name, "code": code, "department": department}
+                )
+                if is_created:
+                    created +=1
+            
+            except Department.DoesNotExist:
+                errors.append(f"Row {row_num}: Department with code '{department_code}' not found")
 
         return Response({"created": created, "errors": errors})
