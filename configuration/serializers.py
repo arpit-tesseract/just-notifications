@@ -90,10 +90,74 @@ class VillageSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
+    
+class WardSerializer(serializers.ModelSerializer):
+    village = serializers.CharField(required=True)
 
-class CategorySerializer(serializers.ModelSerializer):
     class Meta:
-        model = Category
+        model = Ward
+        fields = '__all__'
+
+    def validate_village(self, value):
+        return get_object_by_name_or_error(Village, value, "code")
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+    
+class SocietySerializer(serializers.ModelSerializer):
+    ward = serializers.CharField(required=True)
+
+    class Meta:
+        model = Society
+        fields = '__all__'
+
+    def validate_ward(self, value):
+        return get_object_by_name_or_error(Ward, value)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+    
+class BlockSerializer(serializers.ModelSerializer):
+    society = serializers.CharField(required=True)
+
+    class Meta:
+        model = Block
+        fields = '__all__'
+
+    def validate_society(self, value):
+        return get_object_by_name_or_error(Society, value)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+    
+class HousesSerializer(serializers.ModelSerializer):
+    block = serializers.CharField(required=True)
+
+    class Meta:
+        model = Houses
+        fields = '__all__'
+
+    def validate_block(self, value):
+        return get_object_by_name_or_error(Block, value)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+
+class AccessesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Accesses
         fields = '__all__'
 
 class ReligionSerializer(serializers.ModelSerializer):

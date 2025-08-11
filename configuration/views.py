@@ -43,9 +43,29 @@ class VillageViewSet(viewsets.ModelViewSet):
     serializer_class = VillageSerializer
     permission_classes = [AllowAny]
 
-class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
+class WardViewSet(viewsets.ModelViewSet):
+    queryset = Ward.objects.all()
+    serializer_class = WardSerializer
+    permission_classes = [AllowAny]
+
+class SocietyViewSet(viewsets.ModelViewSet):
+    queryset = Society.objects.all()
+    serializer_class = SocietySerializer
+    permission_classes = [AllowAny]
+
+class BlockViewSet(viewsets.ModelViewSet):
+    queryset = Block.objects.all()
+    serializer_class = BlockSerializer
+    permission_classes = [AllowAny]
+
+class HousesViewSet(viewsets.ModelViewSet):
+    queryset = Houses.objects.all()
+    serializer_class = HousesSerializer
+    permission_classes = [AllowAny]
+
+class AccessesViewSet(viewsets.ModelViewSet):
+    queryset = Accesses.objects.all()
+    serializer_class = AccessesSerializer
     permission_classes = [AllowAny]
 
 class ReligionViewSet(viewsets.ModelViewSet):
@@ -413,6 +433,175 @@ class ImportVillages(APIView):
                 errors.append(f"Row {row_num}: District with code '{district_code}' not found")
 
         return Response({"created": created, "errors": errors})
+
+class ImportWards(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file, dtype={'Code': str})
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created = 0
+        errors = []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            village_code = clean(row.get("Village Code"))
+            name = clean(row.get("Ward"))
+            code = clean(row.get("Code"))
+
+            if not name or not code or not village_code:
+                errors.append(f"Row {row_num}: Missing 'Ward', 'Code', or 'Village Code'")
+                continue
+
+            try:
+                village = Village.objects.get(code__iexact=village_code)
+
+                obj, is_created = Ward.objects.get_or_create(
+                    name__iexact=name,
+                    code__iexact=code,
+                    village=village,
+                    defaults={"name": name, "code": code, "village": village}
+                )
+                if is_created:
+                    created += 1
+            except Village.DoesNotExist:
+                errors.append(f"Row {row_num}: Village with code '{village_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportSocities(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file, dtype={'Code': str})
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created = 0
+        errors = []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            ward_code = clean(row.get("Ward Code"))
+            name = clean(row.get("Society"))
+            code = clean(row.get("Code"))
+
+            if not name or not code or not ward_code:
+                errors.append(f"Row {row_num}: Missing 'Society', 'Code', or 'Ward Code'")
+                continue
+
+            try:
+                ward = Ward.objects.get(code__iexact=ward_code)
+
+                obj, is_created = Society.objects.get_or_create(
+                    name__iexact=name,
+                    code__iexact=code,
+                    ward=ward,
+                    defaults={"name": name, "code": code, "ward": ward}
+                )
+                if is_created:
+                    created += 1
+            except Ward.DoesNotExist:
+                errors.append(f"Row {row_num}: Ward with code '{ward_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportBlocks(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file, dtype={'Code': str})
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created = 0
+        errors = []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            society_code = clean(row.get("Society Code"))
+            name = clean(row.get("Block"))
+
+            if not name or not society_code:
+                errors.append(f"Row {row_num}: Missing 'Block' or 'Society Code'")
+                continue
+
+            try:
+                society = Society.objects.get(code__iexact=society_code)
+
+                obj, is_created = Block.objects.get_or_create(
+                    name__iexact=name,
+                    society=society,
+                    defaults={"name": name, "society": society}
+                )
+                if is_created:
+                    created += 1
+            except Society.DoesNotExist:
+                errors.append(f"Row {row_num}: Society with code '{society_code}' not found")
+
+        return Response({"created": created, "errors": errors})
+
+class ImportHouses(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file uploaded."}, status=400)
+
+        try:
+            df = pd.read_excel(file, dtype={'Code': str})
+        except Exception as e:
+            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+        created = 0
+        errors = []
+
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            block = clean(row.get("Block"))
+            no_of_house = clean(row.get("Number of Flats/Houses"))
+
+            if not no_of_house or not block:
+                errors.append(f"Row {row_num}: Missing 'Block' or 'Number of Flats/Houses'")
+                continue
+
+            try:
+                block = Block.objects.get(name__iexact=block)
+
+                obj, is_created = Houses.objects.get_or_create(
+                    no_of_house__iexact=no_of_house,
+                    block=block,
+                    defaults={"no_of_house": no_of_house, "block": block}
+                )
+                if is_created:
+                    created += 1
+            except Block.DoesNotExist:
+                errors.append(f"Row {row_num}: '{block}' not found")
+
+        return Response({"created": created, "errors": errors})
+
 
 class ImportReligions(APIView):
     parser_classes = [MultiPartParser]
@@ -889,7 +1078,7 @@ class ImportProfCategory(APIView):
 
             try:
                 profclass = Class.objects.get(code__iexact=class_code)
-                obj, is_created = Category.objects.get_or_create(
+                obj, is_created = ProfCategory.objects.get_or_create(
                     name__iexact=name,
                     profclass=profclass,
                     code__iexact=code,

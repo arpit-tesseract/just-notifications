@@ -9,7 +9,11 @@ router.register(r'states', StateViewSet)
 router.register(r'districts', DistrictViewSet)
 router.register(r'cities', CityViewSet)
 router.register(r'villages', VillageViewSet)
-router.register(r'categories', CategoryViewSet)
+router.register(r'wards', WardViewSet)
+router.register(r'societies', SocietyViewSet)
+router.register(r'blocks', BlockViewSet)
+router.register(r'housenums', HousesViewSet)
+router.register(r'accessactivity', AccessesViewSet)
 router.register(r'religion', ReligionViewSet)
 router.register(r'sampraday', SampradayViewSet)
 router.register(r'panth', PanthViewSet)
@@ -39,6 +43,10 @@ urlpatterns = [
     path("import/district/", ImportDistricts.as_view()),
     path("import/city/", ImportCities.as_view()),
     path("import/village/", ImportVillages.as_view()),
+    path("import/ward/", ImportWards.as_view()),
+    path("import/society/", ImportSocities.as_view()),
+    path("import/block/", ImportBlocks.as_view()),
+    path("import/housenum/", ImportHouses.as_view()),
     path("import/religion/", ImportReligions.as_view()),
     path("import/sampraday/", ImportSampradays.as_view()),
     path("import/panth/", ImportPanths.as_view()),

@@ -98,9 +98,71 @@ class Village(models.Model):
 
     def __str__(self):
         return f"{self.city or 'No City'} - {self.name} - {self.code}"
+    
+class Ward(models.Model):
+    village = models.ForeignKey(Village, on_delete=models.CASCADE)
+    # name = models.CharField("Ward", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.village} - {self.name} - {self.code}"
+    
+class Society(models.Model):
+    ward = models.ForeignKey(Ward, on_delete=models.CASCADE)
+    name = models.CharField("Society", max_length=200)
+    code = models.CharField("Code", max_length=10, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.ward} - {self.name} - {self.code}"
+
+class Block(models.Model):
+    society = models.ForeignKey(Society, on_delete=models.CASCADE)
+    name = models.CharField("Block", max_length=20)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.society} - {self.name}"
+
+class Houses(models.Model):
+    block = models.ForeignKey(Block, on_delete=models.CASCADE)
+    no_of_house = models.CharField("Number of Flats/Houses")
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.block} - {self.no_of_house}"
    
-class Category(models.Model):
-    name = models.CharField("Category", max_length=255)
+class Accesses(models.Model):
+    name = models.CharField("Access Activity", max_length=255)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
