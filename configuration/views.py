@@ -832,14 +832,12 @@ class ImportVarnas(APIView):
 
         for idx, row in df.iterrows():
             row_num = idx + 2
-            panth_code = clean(row.get("Panth Code"))
-            name = clean(row.get("Varna"))
-            code = clean(row.get("Code"))
+            panth_code = clean(row.get('Panth Code'))
+            name = clean(row.get('Varna'))
+            code = clean(row.get('Code'))
 
             if not name or not code or not panth_code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Varna' or 'Code' or 'Panth Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Varna' or 'Code' or 'Panth Code'")
                 continue
 
             try:
@@ -848,14 +846,12 @@ class ImportVarnas(APIView):
                     name__iexact=name,
                     code__iexact=code,
                     panth=panth,
-                    defaults={"name": name, "code": code, "panth": panth},
+                    defaults={"name": name, "code": code, "panth":panth}
                 )
                 if is_created:
-                    created += 1
+                    created+= 1
             except Panth.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Panth with code '{panth_code}' not found"
-                )
+                errors.append(f"Row {row_num}: Panth with code '{panth_code}' not found")
 
         return Response({"created": created, "errors": errors})
 
