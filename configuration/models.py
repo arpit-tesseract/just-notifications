@@ -1,9 +1,10 @@
 from django.db import models
 from datetime import timezone
 
+
 # Create your models here.
 class Continent(models.Model):
-    name = models.CharField("Continent", max_length=100,unique=True)
+    name = models.CharField("Continent", max_length=100, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -16,6 +17,7 @@ class Continent(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.code}"
+
 
 class Country(models.Model):
     continent = models.ForeignKey(Continent, on_delete=models.CASCADE)
@@ -33,6 +35,7 @@ class Country(models.Model):
     def __str__(self):
         return f"{self.continent.code} - {self.name} - {self.code}"
 
+
 class State(models.Model):
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
     name = models.CharField("State", max_length=200)
@@ -49,6 +52,7 @@ class State(models.Model):
     def __str__(self):
         return f"{self.country.code} - {self.name} - {self.code}"
 
+
 class District(models.Model):
     state = models.ForeignKey(State, on_delete=models.CASCADE)
     name = models.CharField("District", max_length=200)
@@ -64,6 +68,7 @@ class District(models.Model):
 
     def __str__(self):
         return f"{self.state.code} - {self.name} - {self.code}"
+
 
 class City(models.Model):
     district = models.ForeignKey(District, on_delete=models.CASCADE)
@@ -98,7 +103,8 @@ class Village(models.Model):
 
     def __str__(self):
         return f"{self.city or 'No City'} - {self.name} - {self.code}"
-    
+
+
 class Ward(models.Model):
     village = models.ForeignKey(Village, on_delete=models.CASCADE)
     # name = models.CharField("Ward", max_length=200)
@@ -113,8 +119,9 @@ class Ward(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.village} - {self.name} - {self.code}"
-    
+        return f"{self.village} - {self.code}"
+
+
 class Society(models.Model):
     ward = models.ForeignKey(Ward, on_delete=models.CASCADE)
     name = models.CharField("Society", max_length=200)
@@ -131,6 +138,7 @@ class Society(models.Model):
     def __str__(self):
         return f"{self.ward} - {self.name} - {self.code}"
 
+
 class Block(models.Model):
     society = models.ForeignKey(Society, on_delete=models.CASCADE)
     name = models.CharField("Block", max_length=20)
@@ -146,9 +154,10 @@ class Block(models.Model):
     def __str__(self):
         return f"{self.society} - {self.name}"
 
+
 class Houses(models.Model):
     block = models.ForeignKey(Block, on_delete=models.CASCADE)
-    no_of_house = models.CharField("Number of Flats/Houses")
+    code = models.CharField("House Code")
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
@@ -159,8 +168,9 @@ class Houses(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.block} - {self.no_of_house}"
-   
+        return f"{self.block} - {self.code}"
+
+
 class Accesses(models.Model):
     name = models.CharField("Access Activity", max_length=255)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -174,7 +184,8 @@ class Accesses(models.Model):
 
     def __str__(self):
         return self.name
-    
+
+
 class Religion(models.Model):
     name = models.CharField("Religion", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
@@ -189,6 +200,7 @@ class Religion(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Sampraday(models.Model):
     religion = models.ForeignKey(Religion, on_delete=models.CASCADE)
@@ -206,6 +218,7 @@ class Sampraday(models.Model):
     def __str__(self):
         return self.name
 
+
 class Panth(models.Model):
     sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE)
     name = models.CharField("Panth", max_length=200)
@@ -222,7 +235,9 @@ class Panth(models.Model):
     def __str__(self):
         return self.name
 
+
 class Varna(models.Model):
+    panth = models.ForeignKey(Panth, on_delete=models.CASCADE)
     name = models.CharField("Varna", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -236,6 +251,7 @@ class Varna(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Caste(models.Model):
     varna = models.ForeignKey(Varna, on_delete=models.CASCADE)
@@ -253,6 +269,7 @@ class Caste(models.Model):
     def __str__(self):
         return self.name
 
+
 class SubCaste(models.Model):
     caste = models.ForeignKey(Caste, on_delete=models.CASCADE)
     name = models.CharField("Sub-Caste", max_length=200)
@@ -269,8 +286,9 @@ class SubCaste(models.Model):
     def __str__(self):
         return self.name
 
+
 class Gotra(models.Model):
-    caste = models.ForeignKey(Caste, on_delete=models.CASCADE)
+    subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE)
     name = models.CharField("Gotra", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -284,6 +302,7 @@ class Gotra(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class SubGotra(models.Model):
     gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE)
@@ -301,6 +320,7 @@ class SubGotra(models.Model):
     def __str__(self):
         return self.name
 
+
 class Pidhi(models.Model):
     subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE)
     name = models.CharField("Pidhi", max_length=200)
@@ -317,6 +337,7 @@ class Pidhi(models.Model):
     def __str__(self):
         return self.name
 
+
 class Section(models.Model):
     name = models.CharField("Section", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
@@ -331,6 +352,8 @@ class Section(models.Model):
 
     def __str__(self):
         return self.name
+
+
 class Class(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE)
     name = models.CharField("Class", max_length=200)
@@ -346,6 +369,8 @@ class Class(models.Model):
 
     def __str__(self):
         return self.name
+
+
 class ProfCategory(models.Model):
     profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
     name = models.CharField("Category", max_length=200)
@@ -361,6 +386,7 @@ class ProfCategory(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class ProfSubCategory(models.Model):
     category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
@@ -378,55 +404,9 @@ class ProfSubCategory(models.Model):
     def __str__(self):
         return self.name
 
-class Type(models.Model):
-    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
-    name = models.CharField("Type", max_length=200)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
-
-class Brand(models.Model):
-    type = models.ForeignKey(Type, on_delete=models.CASCADE)
-    name = models.CharField("Brand", max_length=200)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
-
-class PostModel(models.Model):
-    brand = models.ForeignKey(Brand, on_delete=models.CharField)
-    name = models.CharField("Post Model", max_length=200)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
 
 class Sector(models.Model):
+    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
     name = models.CharField("Sector", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -440,6 +420,7 @@ class Sector(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class SubSector(models.Model):
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
@@ -457,7 +438,9 @@ class SubSector(models.Model):
     def __str__(self):
         return self.name
 
+
 class Department(models.Model):
+    subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
     name = models.CharField("Department", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -472,10 +455,78 @@ class Department(models.Model):
     def __str__(self):
         return self.name
 
+
 class SubDepartment(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     name = models.CharField("Sub Department", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class Type(models.Model):
+    subcategory = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
+    name = models.CharField("Type", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class Brand(models.Model):
+    type = models.ForeignKey(Type, on_delete=models.CASCADE)
+    name = models.CharField("Brand", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class PostModel(models.Model):
+    brand = models.ForeignKey(Brand, on_delete=models.CharField)
+    name = models.CharField("Post Model", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.hold_date and self.hold_date < timezone.now().date():
+            self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class RoomFlash(models.Model):
+    name = models.CharField("Room Name", max_length=20)
+    code = models.CharField("Number", max_length=10)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)

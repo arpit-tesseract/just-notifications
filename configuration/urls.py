@@ -34,6 +34,7 @@ router.register(r'sector', SectorViewSet)
 router.register(r'subsector', SubSectorViewSet)
 router.register(r'department', DepartmentViewSet)
 router.register(r'subdepartment', SubDepartmentViewSet)
+router.register(r'roomflash', RoomFlashViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -67,4 +68,5 @@ urlpatterns = [
     path('import/subsector/', ImportSubSector.as_view()),
     path('import/department/', ImportDepartment.as_view()),
     path('import/subdepartment/', ImportSubDepartment.as_view()),
+    path('import/roomflash/', ImportRoomFlash.as_view()),
 ]

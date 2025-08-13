@@ -198,9 +198,19 @@ class PanthSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class VarnaSerializer(serializers.ModelSerializer):
+    panth = serializers.CharField(required=True)
     class Meta:
         model = Varna
         fields = '__all__'
+
+    def validate_panth(self, value):
+        return get_object_by_name_or_error(Panth, value)
+    
+    def create(self, validated_data):
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
 
 class CasteSerializer(serializers.ModelSerializer):
     varna = serializers.CharField(required=True)
@@ -235,13 +245,13 @@ class SubCasteSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class GotraSerializer(serializers.ModelSerializer):
-    caste = serializers.CharField(required=True)
+    subcaste = serializers.CharField(required=True)
 
     class Meta:
         model = Gotra
         fields = '__all__'
 
-    def validate_caste(self, value):
+    def validate_subcaste(self, value):
         return get_object_by_name_or_error(SubCaste, value)
 
     def create(self, validated_data):
@@ -334,16 +344,81 @@ class ProfSubCategorySerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
+    
+class SectorSerializer(serializers.ModelSerializer):
+    subcategory = serializers.CharField(required=True)
+
+    class Meta:
+        model = Sector
+        fields = '__all__'
+
+    def validate_subcategory(self, value):
+        return get_object_by_name_or_error(ProfSubCategory, value)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+
+class SubSectorSerializer(serializers.ModelSerializer):
+    sector = serializers.CharField(required=True)
+
+    class Meta:
+        model = SubSector
+        fields = '__all__'
+
+    def validate_sector(self, value):
+        return get_object_by_name_or_error(Sector, value)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    subsector = serializers.CharField(required=True)
+
+    class Meta:
+        model = Department
+        fields = '__all__'
+
+    def validate_subsector(self, value):
+        return get_object_by_name_or_error(SubSector, value)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
+
+class SubDepartmentSerializer(serializers.ModelSerializer):
+    department = serializers.CharField(required=True)
+
+    class Meta:
+        model = SubDepartment
+        fields = '__all__'
+
+    def validate_department(self, value):
+        return get_object_by_name_or_error(Department, value)
+    
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
 
 class TypeSerializer(serializers.ModelSerializer):
-    subcategory = serializers.CharField(required=True)
+    subdepartment = serializers.CharField(required=True)
 
     class Meta:
         model = Type
         fields = '__all__'
 
-    def validate_subcategory(self, value):
-        return get_object_by_name_or_error(ProfSubCategory, value)
+    def validate_subdepartment(self, value):
+        return get_object_by_name_or_error(SubDepartment, value)
 
     def create(self, validated_data):
         return super().create(validated_data)
@@ -383,45 +458,9 @@ class PostModelSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
 
-class SectorSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Sector
-        fields = '__all__'
-
-class SubSectorSerializer(serializers.ModelSerializer):
-    sector = serializers.CharField(required=True)
+class RoomFlashSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = SubSector
+        model = RoomFlash
         fields = '__all__'
 
-    def validate_sector(self, value):
-        return get_object_by_name_or_error(Sector, value)
-
-    def create(self, validated_data):
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        return super().update(instance, validated_data)
-
-
-class DepartmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Department
-        fields = '__all__'
-
-class SubDepartmentSerializer(serializers.ModelSerializer):
-    department = serializers.CharField(required=True)
-
-    class Meta:
-        model = SubDepartment
-        fields = '__all__'
-
-    def validate_department(self, value):
-        return get_object_by_name_or_error(Department, value)
-    
-    def create(self, validated_data):
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        return super().update(instance, validated_data)
