@@ -204,12 +204,6 @@ class RoomFlashViewSet(viewsets.ModelViewSet):
     serializer_class = RoomFlashSerializer
     permission_classes = [AllowAny]
 
-class RoomFlashViewSet(viewsets.ModelViewSet):
-    queryset = RoomFlash.objects.all()
-    serializer_class = RoomFlashSerializer
-    permission_classes = [AllowAny]
-
-
 # ==================
 # Import Features
 # ==================
@@ -1270,9 +1264,7 @@ class ImportProfSubCategory(APIView):
                     created += 1
 
             except ProfCategory.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Category with code '{category_code}' not found"
-                )
+                errors.append(f"Row {row_num}: Category with code '{category_code}' not found")
 
         return Response({"created": created, "errors": errors})
 
@@ -1451,7 +1443,7 @@ class ImportType(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file Uploaded."}, status=400)
@@ -1489,13 +1481,12 @@ class ImportType(APIView):
 
         return Response({"created": created, "errors": errors})
 
-
 class ImportBrand(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file Uploaded."}, status=400)
@@ -1509,9 +1500,9 @@ class ImportBrand(APIView):
 
         for idx, row in df.iterrows():
             row_num = idx + 2
-            type_code = clean(row.get("Type Code"))
-            name = clean(row.get("Brand"))
-            code = clean(row.get("Code"))
+            type_code = clean(row.get('Type Code')) 
+            name = clean(row.get('Brand'))
+            code = clean(row.get('Code'))
 
             if not type_code or not name or not code:
                 errors.append(f"Row {row_num}: Missing 'Type Code', 'Brand' or 'Code'")
@@ -1523,23 +1514,22 @@ class ImportBrand(APIView):
                     name__iexact=name,
                     type=type,
                     code__iexact=code,
-                    defaults={"name": name, "code": code, "type": type},
+                    defaults={"name": name, "code": code, "type": type}
                 )
                 if is_created:
-                    created += 1
-
+                    created +=1
+            
             except Type.DoesNotExist:
                 errors.append(f"Row {row_num}: Type with code '{type_code}' not found")
 
         return Response({"created": created, "errors": errors})
-
 
 class ImportPostModel(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file Uploaded."}, status=400)
@@ -1553,14 +1543,12 @@ class ImportPostModel(APIView):
 
         for idx, row in df.iterrows():
             row_num = idx + 2
-            brand_code = clean(row.get("Brand Code"))
-            name = clean(row.get("Post Model"))
-            code = clean(row.get("Code"))
+            brand_code = clean(row.get('Brand Code')) 
+            name = clean(row.get('Post Model'))
+            code = clean(row.get('Code'))
 
             if not brand_code or not name or not code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Brand Code', 'Post Model' or 'Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Brand Code', 'Post Model' or 'Code'")
                 continue
 
             try:
@@ -1569,15 +1557,13 @@ class ImportPostModel(APIView):
                     name__iexact=name,
                     brand=brand,
                     code__iexact=code,
-                    defaults={"name": name, "code": code, "brand": brand},
+                    defaults={"name": name, "code": code, "brand": brand}
                 )
                 if is_created:
-                    created += 1
-
+                    created +=1
+            
             except Brand.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Brand with code '{brand_code}' not found"
-                )
+                errors.append(f"Row {row_num}: Brand with code '{brand_code}' not found")
 
         return Response({"created": created, "errors": errors})
 
