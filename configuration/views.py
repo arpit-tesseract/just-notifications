@@ -199,6 +199,10 @@ class SubDepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = SubDepartmentSerializer
     permission_classes = [AllowAny]
 
+class RoomFlashViewSet(viewsets.ModelViewSet):
+    queryset = RoomFlash.objects.all()
+    serializer_class = RoomFlashSerializer
+    permission_classes = [AllowAny]
 
 class RoomFlashViewSet(viewsets.ModelViewSet):
     queryset = RoomFlash.objects.all()
@@ -682,7 +686,6 @@ class ImportHouses(APIView):
 
         return Response({"created": created, "errors": errors})
 
-
 class ImportReligions(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
@@ -981,9 +984,7 @@ class ImportGotras(APIView):
             code = clean(row.get("Code"))
 
             if not name or not code or not subcaste_code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Gotra', 'Code', or 'SubCaste Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Gotra', 'Code', or 'SubCaste Code'")
                 continue
 
             try:
@@ -992,14 +993,12 @@ class ImportGotras(APIView):
                     name__iexact=name,
                     code__iexact=code,
                     subcaste=subcaste,
-                    defaults={"name": name, "code": code, "subcaste": subcaste},
+                    defaults={"name": name, "code": code, "subcaste": subcaste}
                 )
                 if is_created:
                     created += 1
             except Caste.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: SubCaste with code '{subcaste_code}' not found"
-                )
+                errors.append(f"Row {row_num}: SubCaste with code '{subcaste_code}' not found")
 
         return Response({"created": created, "errors": errors})
 
@@ -1277,22 +1276,21 @@ class ImportProfSubCategory(APIView):
 
         return Response({"created": created, "errors": errors})
 
-
 class ImportSector(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file uploaded."}, status=400)
-
+        
         try:
             df = pd.read_excel(file)
         except Exception as e:
             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
-
+        
         created, errors = 0, []
         for idx, row in df.iterrows():
             row_num = idx + 2
@@ -1301,36 +1299,32 @@ class ImportSector(APIView):
             code = clean(row.get("Code"))
 
             if not name or not code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Sector' or 'Code' or 'SubCategory Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Sector' or 'Code' or 'SubCategory Code'")
                 continue
 
             try:
                 subcategory = ProfSubCategory.objects.get(code__iexact=subcategory_code)
 
                 obj, is_created = Sector.objects.get_or_create(
-                    subcategory=subcategory,
+                    subcategory = subcategory,
                     name__iexact=name,
                     code__iexact=code,
-                    defaults={"name": name, "code": code, "subcategory": subcategory},
+                    defaults={"name": name, "code": code, "subcategory": subcategory}
                 )
                 if is_created:
                     created += 1
             except ProfSubCategory.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: SubCategory with code '{subcategory_code}' not found"
-                )
+                errors.append(f"Row {row_num}: SubCategory with code '{subcategory_code}' not found")
+
 
         return Response({"created": created, "errors": errors})
-
 
 class ImportSubSector(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file Uploaded."}, status=400)
@@ -1344,14 +1338,12 @@ class ImportSubSector(APIView):
 
         for idx, row in df.iterrows():
             row_num = idx + 2
-            sector_code = clean(row.get("Sector Code"))
-            name = clean(row.get("Sub Sector"))
-            code = clean(row.get("Code"))
+            sector_code = clean(row.get('Sector Code')) 
+            name = clean(row.get('Sub Sector'))
+            code = clean(row.get('Code'))
 
             if not sector_code or not name or not code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Sector Code', 'Sub Sector' or 'Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Sector Code', 'Sub Sector' or 'Code'")
                 continue
 
             try:
@@ -1360,34 +1352,31 @@ class ImportSubSector(APIView):
                     name__iexact=name,
                     sector=sector,
                     code__iexact=code,
-                    defaults={"name": name, "code": code, "sector": sector},
+                    defaults={"name": name, "code": code, "sector": sector}
                 )
                 if is_created:
-                    created += 1
-
+                    created +=1
+            
             except Sector.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Sector with code '{sector_code}' not found"
-                )
+                errors.append(f"Row {row_num}: Sector with code '{sector_code}' not found")
 
         return Response({"created": created, "errors": errors})
-
 
 class ImportDepartment(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file uploaded."}, status=400)
-
+        
         try:
             df = pd.read_excel(file)
         except Exception as e:
             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
-
+        
         created, errors = 0, []
         for idx, row in df.iterrows():
             row_num = idx + 2
@@ -1396,9 +1385,7 @@ class ImportDepartment(APIView):
             code = clean(row.get("Code"))
 
             if not name or not code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Department' or 'Code' or 'SubSector Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Department' or 'Code' or 'SubSector Code'")
                 continue
 
             try:
@@ -1407,24 +1394,21 @@ class ImportDepartment(APIView):
                     name__iexact=name,
                     code__iexact=code,
                     subsector=subsector,
-                    defaults={"name": name, "code": code, "subsector": subsector},
+                    defaults={"name": name, "code": code, "subsector":subsector}
                 )
                 if is_created:
                     created += 1
             except SubSector.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: SubSector with code '{subsector_code}' not found"
-                )
+                errors.append(f"Row {row_num}: SubSector with code '{subsector_code}' not found")
 
         return Response({"created": created, "errors": errors})
-
-
+    
 class ImportSubDepartment(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
 
         if not file:
             return Response({"error": "No file Uploaded."}, status=400)
@@ -1438,14 +1422,12 @@ class ImportSubDepartment(APIView):
 
         for idx, row in df.iterrows():
             row_num = idx + 2
-            department_code = clean(row.get("Department Code"))
-            name = clean(row.get("Sub Department"))
-            code = clean(row.get("Code"))
+            department_code = clean(row.get('Department Code')) 
+            name = clean(row.get('Sub Department'))
+            code = clean(row.get('Code'))
 
             if not department_code or not name or not code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Department Code', 'Sub Department' or 'Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'Department Code', 'Sub Department' or 'Code'")
                 continue
 
             try:
@@ -1454,18 +1436,15 @@ class ImportSubDepartment(APIView):
                     name__iexact=name,
                     department=department,
                     code__iexact=code,
-                    defaults={"name": name, "code": code, "department": department},
+                    defaults={"name": name, "code": code, "department": department}
                 )
                 if is_created:
-                    created += 1
-
+                    created +=1
+            
             except Department.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Department with code '{department_code}' not found"
-                )
+                errors.append(f"Row {row_num}: Department with code '{department_code}' not found")
 
         return Response({"created": created, "errors": errors})
-
 
 class ImportType(APIView):
     parser_classes = [MultiPartParser]
@@ -1486,37 +1465,27 @@ class ImportType(APIView):
 
         for idx, row in df.iterrows():
             row_num = idx + 2
-            subdepartment_code = clean(row.get("SubDepartment Code"))
-            name = clean(row.get("Type"))
-            code = clean(row.get("Code"))
+            subdepartment_code = clean(row.get('SubDepartment Code')) 
+            name = clean(row.get('Type'))
+            code = clean(row.get('Code'))
 
             if not subdepartment_code or not name or not code:
-                errors.append(
-                    f"Row {row_num}: Missing 'SubDepartment Code', 'Type' or 'Code'"
-                )
+                errors.append(f"Row {row_num}: Missing 'SubDepartment Code', 'Type' or 'Code'")
                 continue
 
             try:
-                subdepartment = SubDepartment.objects.get(
-                    code__iexact=subdepartment_code
-                )
+                subdepartment = SubDepartment.objects.get(code__iexact=subdepartment_code)
                 obj, is_created = Type.objects.get_or_create(
                     name__iexact=name,
                     subdepartment=subdepartment,
                     code__iexact=code,
-                    defaults={
-                        "name": name,
-                        "code": code,
-                        "subdepartment": subdepartment,
-                    },
+                    defaults={"name": name, "code": code, "subdepartment": subdepartment}
                 )
                 if is_created:
-                    created += 1
-
+                    created +=1
+            
             except SubDepartment.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: SubDepartment with code '{subdepartment_code}' not found"
-                )
+                errors.append(f"Row {row_num}: SubDepartment with code '{subdepartment_code}' not found")
 
         return Response({"created": created, "errors": errors})
 
@@ -1612,17 +1581,16 @@ class ImportPostModel(APIView):
 
         return Response({"created": created, "errors": errors})
 
-
 class ImportRoomFlash(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [AllowAny]
 
     def post(self, request):
-        file = request.FILES.get("file")
+        file = request.FILES.get('file')
         if not file:
             return Response({"error": "No file uploaded."}, status=400)
         try:
-            df = pd.read_excel(file, dtype={"Code": str})
+            df = pd.read_excel(file, dtype={'Code': str})
         except Exception as e:
             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
 
@@ -1640,7 +1608,7 @@ class ImportRoomFlash(APIView):
             obj, is_created = RoomFlash.objects.get_or_create(
                 name__iexact=name,
                 code__iexact=code,
-                defaults={"name": name, "code": code},
+                defaults={"name":name, "code":code}
             )
             if is_created:
                 created += 1

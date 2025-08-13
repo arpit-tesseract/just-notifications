@@ -403,8 +403,7 @@ class ProfSubCategory(models.Model):
 
     def __str__(self):
         return self.name
-
-
+    
 class Sector(models.Model):
     subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
     name = models.CharField("Sector", max_length=200)
@@ -420,7 +419,6 @@ class Sector(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class SubSector(models.Model):
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
@@ -438,7 +436,6 @@ class SubSector(models.Model):
     def __str__(self):
         return self.name
 
-
 class Department(models.Model):
     subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
     name = models.CharField("Department", max_length=200)
@@ -454,7 +451,6 @@ class Department(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class SubDepartment(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
@@ -489,7 +485,6 @@ class Type(models.Model):
     def __str__(self):
         return self.name
 
-
 class Brand(models.Model):
     type = models.ForeignKey(Type, on_delete=models.CASCADE)
     name = models.CharField("Brand", max_length=200)
@@ -506,7 +501,6 @@ class Brand(models.Model):
     def __str__(self):
         return self.name
 
-
 class PostModel(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CharField)
     name = models.CharField("Post Model", max_length=200)
@@ -522,7 +516,6 @@ class PostModel(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class RoomFlash(models.Model):
     name = models.CharField("Room Name", max_length=20)
