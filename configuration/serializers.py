@@ -92,14 +92,18 @@ class VillageSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
     
 class WardSerializer(serializers.ModelSerializer):
-    village = serializers.CharField(required=True)
+    city = serializers.CharField(required=False, allow_null=True)
+    village = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
         model = Ward
         fields = '__all__'
 
     def validate_village(self, value):
-        return get_object_by_name_or_error(Village, value, "code")
+        return get_object_by_name_or_error(Village, value)
+    
+    def validate_city(self,value):
+        return get_object_by_name_or_error(City, value)
 
     def create(self, validated_data):
         return super().create(validated_data)
@@ -115,7 +119,7 @@ class SocietySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate_ward(self, value):
-        return get_object_by_name_or_error(Ward, value)
+        return get_object_by_name_or_error(Ward, value, "code")
 
     def create(self, validated_data):
         return super().create(validated_data)

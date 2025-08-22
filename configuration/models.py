@@ -88,8 +88,8 @@ class City(models.Model):
 
 
 class Village(models.Model):
-    district = models.ForeignKey(District, on_delete=models.CASCADE)
-    city = models.ForeignKey(City, on_delete=models.SET_NULL, null=True, blank=True)
+    district = models.ForeignKey(District, on_delete=models.CASCADE, null=True)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, null=True)
     name = models.CharField("Village", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -106,7 +106,8 @@ class Village(models.Model):
 
 
 class Ward(models.Model):
-    village = models.ForeignKey(Village, on_delete=models.CASCADE)
+    village = models.ForeignKey(Village, on_delete=models.CASCADE, null=True)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, null=True)
     # name = models.CharField("Ward", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -120,8 +121,7 @@ class Ward(models.Model):
 
     def __str__(self):
         return f"{self.village} - {self.code}"
-
-
+    
 class Society(models.Model):
     ward = models.ForeignKey(Ward, on_delete=models.CASCADE)
     name = models.CharField("Society", max_length=200)

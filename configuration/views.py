@@ -8,6 +8,8 @@ from rest_framework import viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import *
 from .serializers import *
+from shashan.utils.validators import get_related_queryset
+from rest_framework.decorators import api_view, permission_classes
 
 # ==================
 # CRUD Views
@@ -519,30 +521,44 @@ class ImportWards(APIView):
         for idx, row in df.iterrows():
             row_num = idx + 2
             village_code = clean(row.get("Village Code"))
-            name = clean(row.get("Ward"))
-            code = clean(row.get("Code"))
+            code = clean(row.get("Ward"))
+            city_code = clean(row.get("City Code"))
 
-            if not name or not code or not village_code:
+            if not code or (not village_code and not city_code):
                 errors.append(
-                    f"Row {row_num}: Missing 'Ward', 'Code', or 'Village Code'"
+                    f"Row {row_num}: Missing 'Ward', or invalid 'Village Code'/'City Code'. "
+                    "Provide either Village Code or City Code."
                 )
                 continue
 
-            try:
-                village = Village.objects.get(code__iexact=village_code)
+            city = None
+            village = None
 
-                obj, is_created = Ward.objects.get_or_create(
-                    name__iexact=name,
-                    code__iexact=code,
-                    village=village,
-                    defaults={"name": name, "code": code, "village": village},
-                )
-                if is_created:
-                    created += 1
-            except Village.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Village with code '{village_code}' not found"
-                )
+            # Resolve City
+            if city_code:
+                try:
+                    city = City.objects.get(code__iexact=city_code)
+                except City.DoesNotExist:
+                    errors.append(f"Row {row_num}: City with code '{city_code}' not found")
+                    continue
+
+            # Resolve Village
+            if village_code:
+                try:
+                    village = Village.objects.get(code__iexact=village_code)
+                except Village.DoesNotExist:
+                    errors.append(f"Row {row_num}: Village with code '{village_code}' not found")
+                    continue
+
+            ward = Ward.objects.filter(
+                code__iexact=code,
+                village=village,
+                city=city
+            ).first()
+
+            if not ward:
+                Ward.objects.create(code=code, village=village, city=city)
+                created += 1
 
         return Response({"created": created, "errors": errors})
 
@@ -1596,3 +1612,151 @@ class ImportRoomFlash(APIView):
                 created += 1
 
         return Response({"created": created, "errors": errors})
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_countries_by_continent(request, continent_id):
+    return get_related_queryset(request, Country, CountrySerializer, "continent", continent_id)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_states_by_country(request, country_id):
+    return get_related_queryset(request, State, StateSerializer, "country", country_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_districts_by_state(request, state_id):
+    return get_related_queryset(request, District, DistrictSerializer, "state", state_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_cities_by_district(request, district_id):
+    return get_related_queryset(request, City, CitySerializer, "district", district_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_villages_by_district_city(request, district_id=None, city_id=None):
+    if district_id and not city_id:
+        data = get_related_queryset(request, Village, VillageSerializer, "district", district_id)
+    elif city_id:
+        data = get_related_queryset(request, Village, VillageSerializer, "city", city_id)
+    else:
+        return Response({"error": "district or city is required."}, status=400)
+    return data
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_wards_by_village_city(request, village_id=None, city_id=None):
+    if city_id and not village_id:
+        data = get_related_queryset(request, Ward, WardSerializer, "city", city_id)
+    elif village_id:
+        data = get_related_queryset(request, Ward, WardSerializer, "village", village_id)
+    else:
+        return Response({"error": "village or city is required."}, status=400)
+    return data
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_society_by_ward(request, ward_id):
+    return get_related_queryset(request, Society, SocietySerializer, "ward", ward_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_blocks_by_society(request, society_id):
+    return get_related_queryset(request, Block, BlockSerializer, "society", society_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_houses_by_block(request, block_id):
+    return get_related_queryset(request, Houses, HousesSerializer, "block", block_id)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_classes_by_section(request, section_id):
+    return get_related_queryset(request, Class, ClassSerializer, "section", section_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_category_by_class(request, class_id):
+    return get_related_queryset(request, ProfCategory, ProfCategorySerializer, "class", class_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_subcategory_by_category(request, category_id):
+    return get_related_queryset(request, ProfSubCategory, ProfSubCategorySerializer, "category", category_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_sectors_by_subcategory(request, subcategory_id):
+    return get_related_queryset(request, Sector, SectorSerializer, "subcategory", subcategory_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_subsectors_by_sector(request, sector_id):
+    return get_related_queryset(request, SubSector, SubSectorSerializer, "sector", sector_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_depts_by_subsector(request, subsector_id):
+    return get_related_queryset(request, Department, DepartmentSerializer, "subsector", subsector_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_subdepts_by_dept(request, dept_id):
+    return get_related_queryset(request, SubDepartment, SubDepartmentSerializer, "department", dept_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_types_by_subdept(request, subdept_id):
+    return get_related_queryset(request, Type, TypeSerializer, "subdepartment", subdept_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_brands_by_type(request, type_id):
+    return get_related_queryset(request, Brand, BrandSerializer, "type", type_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_postmodels_by_brand(request, brand_id):
+    return get_related_queryset(request, PostModel, PostModelSerializer, "brand", brand_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_sampradays_by_religion(request, religion_id):
+    return get_related_queryset(request, Sampraday, SampradaySerializer, "religion", religion_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_panths_by_sampraday(request, sampraday_id):
+    return get_related_queryset(request, Panth, PanthSerializer, "sampraday", sampraday_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_varnas_by_panth(request, panth_id):
+    return get_related_queryset(request, Varna, VarnaSerializer, "panth", panth_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_castes_by_varna(request, varna_id):
+    return get_related_queryset(request, Caste, CasteSerializer, "varna", varna_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_subcastes_by_caste(request, caste_id):
+    return get_related_queryset(request, SubCaste, SubCasteSerializer, "caste", caste_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_gotras_by_subcaste(request, subcaste_id):
+    return get_related_queryset(request, Gotra, GotraSerializer, "subcaste", subcaste_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_subgotras_by_gotra(request, gotra_id):
+    return get_related_queryset(request, SubGotra, SubGotraSerializer, "gotra", gotra_id)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_pidhis_by_subgotra(request, subgotra_id):
+    return get_related_queryset(request, Pidhi, PidhiSerializer, "subgotra", subgotra_id)
