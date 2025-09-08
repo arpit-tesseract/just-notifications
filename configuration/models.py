@@ -470,7 +470,7 @@ class SubDepartment(models.Model):
 
 
 class Type(models.Model):
-    subcategory = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
+    subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
     name = models.CharField("Type", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -502,7 +502,7 @@ class Brand(models.Model):
         return self.name
 
 class PostModel(models.Model):
-    brand = models.ForeignKey(Brand, on_delete=models.CharField)
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
     name = models.CharField("Post Model", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)

@@ -65,7 +65,7 @@ class PersonalTableSerializer(serializers.ModelSerializer):
 class ReportCardSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReportCard
-        fields = ['id', 'input_diet', 'input_quantity', 'input_rate', 'gender', 'color', 'height', 'length', 'width', 'volume', 'used_item', 'used_rate', 'used_quantity', 'capacity']
+        fields = ['id', 'input_diet', 'input_quantity', 'input_rate', 'gender', 'colour', 'height', 'length', 'width', 'volume', 'used_item', 'used_rate', 'used_qunatity', 'capacity']
         extra_kwargs = {'id': {'read_only': True}}
 
 class ProfessionalDetailSerializer(serializers.ModelSerializer):
@@ -151,6 +151,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         professional_data = validated_data.pop('professional_details', None)
         residential_data = validated_data.pop('residential_details', None)
         validated_data.pop('confirm_password')
+
+        # Extract allocation/access data
         access_data = validated_data.pop('access', [])
         continent_allocation_data = validated_data.pop('continent_allocation', [])
         country_allocation_data = validated_data.pop('country_allocation', [])
@@ -161,18 +163,42 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ward_allocation_data = validated_data.pop('ward_allocation', [])
         block_allocation_data = validated_data.pop('block_allocation', [])
         society_allocation_data = validated_data.pop('society_allocation', [])
+        
         password = validated_data.pop('password')
         user = CustomUser.objects.create(**validated_data)
-        user.access.set(access_data)
-        user.access.set(continent_allocation_data)
-        user.access.set(country_allocation_data)
-        user.access.set(state_allocation_data)
-        user.access.set(district_allocation_data)
-        user.access.set(city_allocation_data)
-        user.access.set(village_allocation_data)
-        user.access.set(ward_allocation_data)
-        user.access.set(block_allocation_data)
-        user.access.set(society_allocation_data)
+        
+        # Set related allocations (For ManyToMany fields)
+        # user.access.set(access_data)
+        # user.access.set(continent_allocation_data)
+        # user.access.set(country_allocation_data)
+        # user.access.set(state_allocation_data)
+        # user.access.set(district_allocation_data)
+        # user.access.set(city_allocation_data)
+        # user.access.set(village_allocation_data)
+        # user.access.set(ward_allocation_data)
+        # user.access.set(block_allocation_data)
+        # user.access.set(society_allocation_data)
+        
+        # Map serializer/input variables to user model fields
+        m2m_mapping = {
+            "access": access_data,
+            "continent_allocation": continent_allocation_data,
+            "country_allocation": country_allocation_data,
+            "state_allocation": state_allocation_data,
+            "district_allocation": district_allocation_data,
+            "city_allocation": city_allocation_data,
+            "village_allocation": village_allocation_data,
+            "ward_allocation": ward_allocation_data,
+            "block_allocation": block_allocation_data,
+            "society_allocation": society_allocation_data,
+        }
+
+        # Iterate and update
+        for field, data in m2m_mapping.items():
+            if data is not None:
+                getattr(user, field).set(data)
+
+
         user.set_password(password)
         user.save()
         
@@ -251,10 +277,44 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         professional_data = validated_data.pop('professional_details', None)
         residential_data = validated_data.pop('residential_details', None)
         
+        # Extract M2M fields 
+        # to avoid this error at setattr(): TypeError at /api/user/users/4/
+        # Direct assignment to the forward side of a many-to-many set is prohibited. Use access.set() instead.
+        access_data = validated_data.pop('access', None)
+        continent_data = validated_data.pop('continent_allocation', None)
+        country_data = validated_data.pop('country_allocation', None)
+        state_data = validated_data.pop('state_allocation', None)
+        district_data = validated_data.pop('district_allocation', None)
+        city_data = validated_data.pop('city_allocation', None)
+        village_data = validated_data.pop('village_allocation', None)
+        ward_data = validated_data.pop('ward_allocation', None)
+        block_data = validated_data.pop('block_allocation', None)
+        society_data = validated_data.pop('society_allocation', None)
+        
         # Update user fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        
+        # Update ManyToMany fields properly
+        # Map your data variables to model fields
+        m2m_mapping = {
+            "access": access_data,
+            "continent_allocation": continent_data,
+            "country_allocation": country_data,
+            "state_allocation": state_data,
+            "district_allocation": district_data,
+            "city_allocation": city_data,
+            "village_allocation": village_data,
+            "ward_allocation": ward_data,
+            "block_allocation": block_data,
+            "society_allocation": society_data,
+        }
+
+        # Iterate and update dynamically
+        for field, data in m2m_mapping.items():
+            if data is not None:
+                getattr(instance, field).set(data)
         
         # Handle nested updates for non-system users
         if not instance.is_system_user:
@@ -268,7 +328,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
                     # Create room details
                     for room_data in room_details_data:
                         room_members_data = room_data.pop('room_members', [])
-                        room = RoomDetail.objects.create(**room_data)
+                        room = RoomDetail.objects.create(**room_data, address=address)
                         
                         # Create room members
                         for member_data in room_members_data:

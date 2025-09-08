@@ -1679,7 +1679,7 @@ def get_classes_by_section(request, section_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_category_by_class(request, class_id):
-    return get_related_queryset(request, ProfCategory, ProfCategorySerializer, "class", class_id)
+    return get_related_queryset(request, ProfCategory, ProfCategorySerializer, "profclass", class_id)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

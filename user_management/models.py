@@ -178,14 +178,14 @@ class ReportCard(models.Model):
         ('other','Other'),
     ]
     gender = models.CharField(choices=GENDER_CHOICES, max_length=6)
-    colour = models.CharField("Colour", max_length=20)
+    color = models.CharField("Colour", max_length=20)
     height = models.FloatField("Height")
     length = models.FloatField("Length")
     width = models.FloatField("Width")
     volume = models.FloatField("Volume")
     used_item = models.CharField("Used Item", max_length=20)
     used_rate = models.FloatField("Used Rate")
-    used_qunatity = models.IntegerField("Used Quantity")
+    used_quantity = models.IntegerField("Used Quantity")
     capacity = models.FloatField("Capacity/ Strength")
 
 class ResidentialDetail(models.Model):
