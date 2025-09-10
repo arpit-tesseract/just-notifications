@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from .models import *
 from configuration import models as configm
+from configuration.models import Accesses, PermissionAction, PermissionModule
 
 class RoomMembersDetailSerializer(serializers.ModelSerializer):
     class Meta:
@@ -107,6 +108,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {
             'password': {'write_only': True},
+            'access': {'required': False}
         }
 
     def validate(self, attrs):
@@ -118,10 +120,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
         
         if is_system_user:
             # For system users, allocation fields are required
-            required_allocations = ['access']  # At minimum, access is required
-            for field in required_allocations:
-                if not attrs.get(field):
-                    raise serializers.ValidationError(f"{field} is required for system users.")
+            # required_allocations = ['access']  # At minimum, access is required
+            # for field in required_allocations:
+            #     if not attrs.get(field):
+            #         raise serializers.ValidationError(f"{field} is required for system users.")
+            pass
         else:
             # For non-system users, personal/professional details are required
             if not attrs.get('addresses'):
@@ -201,6 +204,29 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
         user.set_password(password)
         user.save()
+
+        # Provider bydefault read access to system users
+        # if user.is_system_user:
+        #     default_modules = ["residential_details", "personal_details", "professional_details"]
+        #     default_module_names = ['Residential Details', 'Personal Details', 'Professional Details']
+        #     code = ['RD', 'PD', 'PRD']
+        #     read_action, created = PermissionAction.objects.get_or_create(
+        #         name="read",
+        #         code='read'
+        #         )
+            
+        #     for i in range(len(default_modules)):
+        #         module, created = PermissionModule.objects.get_or_create(
+        #             name=default_modules[i],
+        #             display_name=default_module_names[i],
+        #             code=code[i]
+        #             )
+        #         access, created = Accesses.objects.get_or_create(
+        #             module=module,
+        #             permission=read_action,
+        #             defaults={"is_hidden": False, "on_hold": False, "hold_date": None},
+        #         )
+        #         user.access.add(access)
         
         # Create related objects for non-system users
         if not user.is_system_user:

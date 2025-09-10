@@ -6,6 +6,15 @@ class ContinentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Continent
         fields = '__all__'
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser and user.user_role == "super_admin":
+            print("Super Admin access: returning all continents")
+            # Super Admin can see all
+            return Continent.objects.all()
+        # For other users, return only their allocated continents
+        return user.continent_allocation.all()
 
 class CountrySerializer(serializers.ModelSerializer):
     continent = serializers.CharField(required=True)
@@ -158,8 +167,21 @@ class HousesSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
+    
+class PermisionModuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PermissionModule
+        fields = '__all__'
+
+class PermissionActionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PermissionAction
+        fields = '__all__'
 
 class AccessesSerializer(serializers.ModelSerializer):
+    module = PermisionModuleSerializer(read_only=True)
+    permission = PermissionActionSerializer(read_only=True)
+
     class Meta:
         model = Accesses
         fields = '__all__'

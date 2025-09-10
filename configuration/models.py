@@ -1,5 +1,6 @@
 from django.db import models
-from datetime import timezone
+# from datetime import timezone
+from django.utils import timezone
 
 
 # Create your models here.
@@ -171,8 +172,26 @@ class Houses(models.Model):
         return f"{self.block} - {self.code}"
 
 
-class Accesses(models.Model):
-    name = models.CharField("Access Activity", max_length=255)
+class PermissionModule(models.Model):
+    name = models.CharField(max_length=100, unique=True)  # e.g. "residential_details", "personal_details", "professional_details"
+    code = models.CharField(max_length=50, unique=True)  # e.g. "RD001"
+    display_name = models.CharField(max_length=150)       # e.g. "Residential Details"
+
+    def __str__(self):
+        return self.display_name
+
+
+class PermissionAction(models.Model):
+    name = models.CharField(max_length=50, unique=True)  # e.g. "create", "read", "update", "delete"
+    code = models.CharField(max_length=20, unique=True)   # e.g. "C001", "R001", etc.
+
+    def __str__(self):
+        return self.name
+
+
+class Accesses(models.Model): # custom permissions system,
+    module = models.ForeignKey(PermissionModule, on_delete=models.CASCADE)
+    permission = models.ForeignKey(PermissionAction, on_delete=models.CASCADE)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
@@ -183,7 +202,22 @@ class Accesses(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.name
+        return f"{self.module.display_name} - {self.permission.name}"
+
+
+# class Accesses(models.Model):
+#     name = models.CharField("Access Activity", max_length=255)
+#     is_hidden = models.BooleanField("Hidden", default=False)
+#     on_hold = models.BooleanField("On Hold", default=False)
+#     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+#     def save(self, *args, **kwargs):
+#         if self.hold_date and self.hold_date < timezone.now().date():
+#             self.on_hold = False
+#         super().save(*args, **kwargs)
+
+#     def __str__(self):
+#         return self.name
 
 
 class Religion(models.Model):
