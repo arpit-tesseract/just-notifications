@@ -37,14 +37,14 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         return queryset
     
     @action(detail=False, methods=['get'])
-    def system_users(self):
+    def system_users(self, request):
         """Get all system users"""
         system_users = self.get_queryset().filter(is_system_user=True)
         serializer = self.get_serializer(system_users, many=True)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
-    def regular_users(self):
+    def regular_users(self, request):
         """Get all regular users"""
         regular_users = self.get_queryset().filter(is_system_user=False)
         serializer = self.get_serializer(regular_users, many=True)
@@ -65,9 +65,15 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         user.is_verified = False
         user.save()
         return Response({'message': 'User unverified successfully'})
+    
+    @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
+    def get_details(self, request):
+        user = CustomUser.objects.get(id=request.user.id)
+        serializers = UserDetailSerializer(user)
+        return Response(serializers.data, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_user_access_option(request):
     user = request.user
     if user.user_role == 'superadmin':

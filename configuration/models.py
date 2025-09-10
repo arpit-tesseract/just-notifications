@@ -12,8 +12,10 @@ class Continent(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -29,8 +31,10 @@ class Country(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -46,8 +50,10 @@ class State(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -63,8 +69,10 @@ class District(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -80,8 +88,10 @@ class City(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -98,8 +108,10 @@ class Village(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -116,8 +128,10 @@ class Ward(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -132,8 +146,10 @@ class Society(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -148,8 +164,10 @@ class Block(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -164,8 +182,10 @@ class Houses(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -197,8 +217,10 @@ class Accesses(models.Model): # custom permissions system,
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -228,8 +250,10 @@ class Religion(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -245,8 +269,10 @@ class Sampraday(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -262,8 +288,10 @@ class Panth(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -279,8 +307,10 @@ class Varna(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -296,8 +326,10 @@ class Caste(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -313,8 +345,10 @@ class SubCaste(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -330,8 +364,10 @@ class Gotra(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -347,8 +383,10 @@ class SubGotra(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -364,8 +402,10 @@ class Pidhi(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -380,8 +420,10 @@ class Section(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -397,8 +439,10 @@ class Class(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -414,8 +458,10 @@ class ProfCategory(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -431,8 +477,10 @@ class ProfSubCategory(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -447,8 +495,10 @@ class Sector(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -463,8 +513,10 @@ class SubSector(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -479,8 +531,10 @@ class Department(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -495,8 +549,10 @@ class SubDepartment(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -512,8 +568,10 @@ class Type(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -528,8 +586,10 @@ class Brand(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -544,8 +604,10 @@ class PostModel(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -559,8 +621,10 @@ class RoomFlash(models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.hold_date and self.hold_date < timezone.now().date():
-            self.on_hold = False
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
         super().save(*args, **kwargs)
 
     def __str__(self):

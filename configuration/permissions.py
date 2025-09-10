@@ -57,8 +57,8 @@ class HasCustomAccessPermission(BasePermission):
         if not (user and user.is_authenticated):
             raise PermissionDenied("Authentication required")
 
-        if not getattr(user, "is_system_user", False):
-            raise PermissionDenied("Only system users can access this API")
+        # if not getattr(user, "is_system_user", False):
+        #     raise PermissionDenied("Only system users can access this API")
 
         # Map HTTP methods to CRUD actions
         method_action_map = {

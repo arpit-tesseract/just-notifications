@@ -6,15 +6,6 @@ class ContinentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Continent
         fields = '__all__'
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser and user.user_role == "super_admin":
-            print("Super Admin access: returning all continents")
-            # Super Admin can see all
-            return Continent.objects.all()
-        # For other users, return only their allocated continents
-        return user.continent_allocation.all()
 
 class CountrySerializer(serializers.ModelSerializer):
     continent = serializers.CharField(required=True)

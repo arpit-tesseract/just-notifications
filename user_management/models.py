@@ -30,6 +30,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     user_role = models.CharField(choices=USER_ROLE_CHOICES, max_length=100)
     is_system_user = models.BooleanField(default=False)
     continent_allocation = models.ManyToManyField(configm.Continent, blank=True)
+    
     country_allocation = models.ManyToManyField(configm.Country, blank=True)
     state_allocation = models.ManyToManyField(configm.State, blank=True)
     district_allocation = models.ManyToManyField(configm.District, blank=True)
@@ -38,7 +39,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     ward_allocation = models.ManyToManyField(configm.Ward, blank=True)
     block_allocation = models.ManyToManyField(configm.Block, blank=True)
     society_allocation = models.ManyToManyField(configm.Society, blank=True)
-    access = models.ManyToManyField(configm.Accesses)
+    access = models.ManyToManyField(configm.Accesses, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
