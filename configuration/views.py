@@ -5,13 +5,15 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
+from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import *
 from .serializers import *
 from shashan.utils.validators import get_related_queryset
 from rest_framework.decorators import api_view, permission_classes
+
 from .permissions import HasModelAccessPermission
-from .decorators import assign_module
+from .mixins import FilteredQuerysetMixin, RecordRuleMixin
 from django.utils import timezone
 from django.db.models import Q
 
@@ -21,616 +23,223 @@ from rest_framework.decorators import action
 # ==================
 
 
-class ContinentViewSet(viewsets.ModelViewSet):
+class ContinentViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Continent.objects.none() # Default to none, will override in get_queryset
     serializer_class = ContinentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    module_name = "residential_details"
 
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Continent.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Continent.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
+    # # Override get_queryset to filter based on user allocations
+    # def get_queryset(self):
+    #     user = self.request.user
+    #     today = timezone.now().date()
+    #     base_qs = Continent.objects.filter(
+    #             is_hidden=False,
+    #             on_hold=False
+    #         ).filter(
+    #             Q(hold_date__gte=today) | Q(hold_date__isnull=True)
+    #         )
+    #     if user.is_system_user:
+    #         # Super Admin can see all
+    #         qs = Continent.objects.all()
+    #         is_hidden = self.request.query_params.get('is_hidden')
+    #         on_hold = self.request.query_params.get('on_hold')
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
+    #         # Apply filters if provided
+    #         if is_hidden is not None:
+    #             if is_hidden.lower() == 'true':
+    #                 qs = qs.filter(is_hidden=True)
+    #             elif is_hidden.lower() == 'false':
+    #                 qs = qs.filter(is_hidden=False)
             
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-        # For other users, return 
-        return base_qs
+    #         if on_hold is not None:
+    #             if on_hold.lower() == 'true':
+    #                 qs = qs.filter(on_hold=True)
+    #             elif on_hold.lower() == 'false':
+    #                 qs = qs.filter(on_hold=False)
+    #         return self.apply_record_rules(base_qs) if not (is_hidden or on_hold) else self.apply_record_rules(qs)
+    #     # For other users, return 
+    #     return base_qs
 
 
-class CountryViewSet(viewsets.ModelViewSet):
+class CountryViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Country.objects.none() # Default to none, will override in get_queryset
     serializer_class = CountrySerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Country.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Country.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return
-        return base_qs
-    
-    # @action(detail=False, methods=["get"], url_path=r'by-continent/(?P<continent_id>\d+)')
-    # def by_continent(self, request, continent_id=None):
-    #     """
-    #     Custom API to get countries by continent ID
-    #     """
-    #     # Convert continent_id to integer just to be safe
-    #     continent_id = int(continent_id)
-    #     countries = Country.objects.filter(continent=continent_id)
-    #     serializer = self.get_serializer(countries, many=True)
-    #     return Response(serializer.data)
-
-
-
-class StateViewSet(viewsets.ModelViewSet):
+class StateViewSet(FilteredQuerysetMixin,viewsets.ModelViewSet):
     queryset = State.objects.none() # Default to none, will override in get_queryset
     serializer_class = StateSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = State.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = State.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
-
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated states
-        # user.state_allocation.values_list('id', flat=True) → [10, 12]
-        # base_qs.filter(id__in=[10, 12]) → [Maharashtra, Texas]
-        # return base_qs.filter(id__in=user.state_allocation.values_list('id', flat=True))
-        allocated_ids = user.state_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class DistrictViewSet(viewsets.ModelViewSet):
+   
+class DistrictViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = District.objects.none() # Default to none, will override in get_queryset
     serializer_class = DistrictSerializer
-    permission_classes = [AllowAny]
-    
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = District.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = District.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
 
-        # For other users, return only their allocated districts
-        # user.district_allocation.values_list('id', flat=True) → [20, 22]
-        # base_qs.filter(id__in=[20, 22]) → [Pune, Dallas]
-        # return base_qs.filter(id__in=user.district_allocation.values_list('id', flat=True))
-        allocated_ids = user.district_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class CityViewSet(viewsets.ModelViewSet):
+class CityViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = City.objects.none() # Default to none, will override in get_queryset
     serializer_class = CitySerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = City.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = City.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated cities
-        # user.city_allocation.values_list('id', flat=True) → [30, 32]
-        # base_qs.filter(id__in=[30, 32]) → [Pune City, Dallas City]
-        # return base_qs.filter(id__in=user.city_allocation.values_list('id', flat=True))
-        allocated_ids = user.city_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class VillageViewSet(viewsets.ModelViewSet):
+class VillageViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Village.objects.none() # Default to none, will override in get_queryset
     serializer_class = VillageSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Village.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Village.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated villages
-        # user.village_allocation.values_list('id', flat=True) → [40, 42]
-        # base_qs.filter(id__in=[40, 42]) → [Village A, Village B]
-        # return base_qs.filter(id__in=user.village_allocation.values_list('id', flat=True))
-        allocated_ids = user.village_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class WardViewSet(viewsets.ModelViewSet):
+class WardViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Ward.objects.none() # Default to none, will override in get_queryset
     serializer_class = WardSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Ward.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Ward.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated wards
-        # user.ward_allocation.values_list('id', flat=True) → [50, 52]
-        # base_qs.filter(id__in=[50, 52]) → [Ward 1, Ward 2]
-        # return base_qs.filter(id__in=user.ward_allocation.values_list('id', flat=True))
-        allocated_ids = user.ward_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class SocietyViewSet(viewsets.ModelViewSet):
+class SocietyViewSet(FilteredQuerysetMixin,viewsets.ModelViewSet):
     queryset = Society.objects.none() # Default to none, will override in get_queryset
     serializer_class = SocietySerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Society.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Society.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
 
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated societies
-        # user.society_allocation.values_list('id', flat=True) → [60, 62]
-        # base_qs.filter(id__in=[60, 62]) → [Society A, Society B]
-        # return base_qs.filter(id__in=user.society_allocation.values_list('id', flat=True))
-        allocated_ids = user.society_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class BlockViewSet(viewsets.ModelViewSet):
+class BlockViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Block.objects.none() # Default to none, will override in get_queryset
     serializer_class = BlockSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    # Override get_queryset to filter based on user allocations
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Block.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Block.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
-
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated blocks
-        # user.block_allocation.values_list('id', flat=True) → [70, 72]
-        # base_qs.filter(id__in=[70, 72]) → [Block A, Block B]
-        # return base_qs.filter(id__in=user.block_allocation.values_list('id', flat=True))
-        allocated_ids = user.block_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
-
-class HousesViewSet(viewsets.ModelViewSet):
+    
+class HousesViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Houses.objects.none() # Default to none, will override in get_queryset
     serializer_class = HousesSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "residential_details"
-    
-    # Override get_queryset to filter
-    def get_queryset(self):
-        user = self.request.user
-        today = timezone.now().date()
-        base_qs = Houses.objects.filter(
-                is_hidden=False,
-                on_hold=False
-            ).filter(
-                Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-            )
-        if user.is_system_user and user.user_role == "super_admin":
-            # Super Admin can see all
-            qs = Houses.objects.all()
-            is_hidden = self.request.query_params.get('is_hidden')
-            on_hold = self.request.query_params.get('on_hold')
-
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
-            return base_qs if not (is_hidden or on_hold) else qs
-
-        # For other users, return only their allocated houses
-        # user.house_allocation.values_list('id', flat=True) → [80, 82]
-        # base_qs.filter(id__in=[80, 82]) → [House A, House B]
-        return base_qs
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-# class AccessesViewSet(viewsets.ModelViewSet):
-#     queryset = Accesses.objects.all()
-#     serializer_class = AccessesSerializer
-#     permission_classes = [AllowAny]
-
-
-class ReligionViewSet(viewsets.ModelViewSet):
-    queryset = Religion.objects.all()
+class ReligionViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Religion.objects.none()
     serializer_class = ReligionSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
-
-
-class SampradayViewSet(viewsets.ModelViewSet):
-    queryset = Sampraday.objects.all()
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    
+class SampradayViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Sampraday.objects.none()
     serializer_class = SampradaySerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]        
 
 
-class PanthViewSet(viewsets.ModelViewSet):
-    queryset = Panth.objects.all()
+class PanthViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Panth.objects.none()
     serializer_class = PanthSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class VarnaViewSet(viewsets.ModelViewSet):
-    queryset = Varna.objects.all()
+class VarnaViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Varna.objects.none()
     serializer_class = VarnaSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class CasteViewSet(viewsets.ModelViewSet):
-    queryset = Caste.objects.all()
+class CasteViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Caste.objects.none()
     serializer_class = CasteSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
-
-
-class SubCasteViewSet(viewsets.ModelViewSet):
-    queryset = SubCaste.objects.all()
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    
+class SubCasteViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = SubCaste.objects.none()
     serializer_class = SubCasteSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
 
 
-class GotraViewSet(viewsets.ModelViewSet):
-    queryset = Gotra.objects.all()
+class GotraViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Gotra.objects.none()
     serializer_class = GotraSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class SubGotraViewSet(viewsets.ModelViewSet):
-    queryset = SubGotra.objects.all()
+class SubGotraViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = SubGotra.objects.none()
     serializer_class = SubGotraSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
 
 
-class PidhiViewSet(viewsets.ModelViewSet):
-    queryset = Pidhi.objects.all()
+class PidhiViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Pidhi.objects.none()
     serializer_class = PidhiSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class SectionViewSet(viewsets.ModelViewSet):
-    queryset = Section.objects.all()
+class SectionViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Section.objects.none()
     serializer_class = SectionSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
 
 
-class ClassViewSet(viewsets.ModelViewSet):
-    queryset = Class.objects.all()
+class ClassViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Class.objects.none()
     serializer_class = ClassSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-class ProfCategoryViewSet(viewsets.ModelViewSet):
-    queryset = ProfCategory.objects.all()
+class ProfCategoryViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = ProfCategory.objects.none()
     serializer_class = ProfCategorySerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class ProfSubCategoryViewSet(viewsets.ModelViewSet):
-    queryset = ProfSubCategory.objects.all()
+class ProfSubCategoryViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = ProfSubCategory.objects.none()
     serializer_class = ProfSubCategorySerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "personal_details"
-
-
-class TypeViewSet(viewsets.ModelViewSet):
-    queryset = Type.objects.all()
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    
+class TypeViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Type.objects.none()
     serializer_class = TypeSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class BrandViewSet(viewsets.ModelViewSet):
-    queryset = Brand.objects.all()
+class BrandViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Brand.objects.none()
     serializer_class = BrandSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-class PostModelViewSet(viewsets.ModelViewSet):
-    queryset = PostModel.objects.all()
+class PostModelViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = PostModel.objects.none()
     serializer_class = PostModelSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-class SectorViewSet(viewsets.ModelViewSet):
-    queryset = Sector.objects.all()
+class SectorViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Sector.objects.none()
     serializer_class = SectorSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class SubSectorViewSet(viewsets.ModelViewSet):
-    queryset = SubSector.objects.all()
+class SubSectorViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = SubSector.objects.none()
     serializer_class = SubSectorSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-class DepartmentViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all()
+class DepartmentViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = Department.objects.none()
     serializer_class = DepartmentSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-
-class SubDepartmentViewSet(viewsets.ModelViewSet):
-    queryset = SubDepartment.objects.all()
+class SubDepartmentViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    queryset = SubDepartment.objects.none()
     serializer_class = SubDepartmentSerializer
-    permission_classes = [IsAuthenticated]
-    module_name = "professional_details"
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
-class RoomFlashViewSet(viewsets.ModelViewSet):
+class RoomFlashViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = RoomFlash.objects.all()
     serializer_class = RoomFlashSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 
 # ==================
 # Import Features
@@ -2039,31 +1648,38 @@ class ImportRoomFlash(APIView):
 
         return Response({"created": created, "errors": errors})
     
-@assign_module("residential_details")
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_countries_by_continent(request, continent_id):
-    return get_related_queryset(request, Country, CountrySerializer, "continent", continent_id)
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated, HasModelAccessPermission])
+# def get_countries_by_continent(request, continent_id):
+#     return get_related_queryset(request, Country, CountrySerializer, "continent", continent_id)
 
-@assign_module("residential_details")
+class CountriesByContinentView(FilteredQuerysetMixin, APIView):
+    queryset = Country.objects.all()
+    serializer_class = CountrySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, *args, **kwargs):
+        continent_id = kwargs.get("continent_id")
+        qs = self.get_queryset().filter(continent_id=continent_id)
+        
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_states_by_country(request, country_id):
     return get_related_queryset(request, State, StateSerializer, "country", country_id)
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_districts_by_state(request, state_id):
     return get_related_queryset(request, District, DistrictSerializer, "state", state_id)
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_cities_by_district(request, district_id):
     return get_related_queryset(request, City, CitySerializer, "district", district_id)
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_villages_by_district_city(request, district_id=None, city_id=None):
@@ -2075,7 +1691,6 @@ def get_villages_by_district_city(request, district_id=None, city_id=None):
         return Response({"error": "district or city is required."}, status=400)
     return data
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_wards_by_village_city(request, village_id=None, city_id=None):
@@ -2087,19 +1702,16 @@ def get_wards_by_village_city(request, village_id=None, city_id=None):
         return Response({"error": "village or city is required."}, status=400)
     return data
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_society_by_ward(request, ward_id):
     return get_related_queryset(request, Society, SocietySerializer, "ward", ward_id)
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_blocks_by_society(request, society_id):
     return get_related_queryset(request, Block, BlockSerializer, "society", society_id)
 
-@assign_module("residential_details")
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_houses_by_block(request, block_id):
@@ -2107,91 +1719,91 @@ def get_houses_by_block(request, block_id):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_classes_by_section(request, section_id):
     return get_related_queryset(request, Class, ClassSerializer, "section", section_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_category_by_class(request, class_id):
     return get_related_queryset(request, ProfCategory, ProfCategorySerializer, "profclass", class_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_subcategory_by_category(request, category_id):
     return get_related_queryset(request, ProfSubCategory, ProfSubCategorySerializer, "category", category_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_sectors_by_subcategory(request, subcategory_id):
     return get_related_queryset(request, Sector, SectorSerializer, "subcategory", subcategory_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_subsectors_by_sector(request, sector_id):
     return get_related_queryset(request, SubSector, SubSectorSerializer, "sector", sector_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_depts_by_subsector(request, subsector_id):
     return get_related_queryset(request, Department, DepartmentSerializer, "subsector", subsector_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_subdepts_by_dept(request, dept_id):
     return get_related_queryset(request, SubDepartment, SubDepartmentSerializer, "department", dept_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_types_by_subdept(request, subdept_id):
     return get_related_queryset(request, Type, TypeSerializer, "subdepartment", subdept_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_brands_by_type(request, type_id):
     return get_related_queryset(request, Brand, BrandSerializer, "type", type_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_postmodels_by_brand(request, brand_id):
     return get_related_queryset(request, PostModel, PostModelSerializer, "brand", brand_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_sampradays_by_religion(request, religion_id):
     return get_related_queryset(request, Sampraday, SampradaySerializer, "religion", religion_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_panths_by_sampraday(request, sampraday_id):
     return get_related_queryset(request, Panth, PanthSerializer, "sampraday", sampraday_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_varnas_by_panth(request, panth_id):
     return get_related_queryset(request, Varna, VarnaSerializer, "panth", panth_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_castes_by_varna(request, varna_id):
     return get_related_queryset(request, Caste, CasteSerializer, "varna", varna_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_subcastes_by_caste(request, caste_id):
     return get_related_queryset(request, SubCaste, SubCasteSerializer, "caste", caste_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_gotras_by_subcaste(request, subcaste_id):
     return get_related_queryset(request, Gotra, GotraSerializer, "subcaste", subcaste_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_subgotras_by_gotra(request, gotra_id):
     return get_related_queryset(request, SubGotra, SubGotraSerializer, "gotra", gotra_id)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_pidhis_by_subgotra(request, subgotra_id):
     return get_related_queryset(request, Pidhi, PidhiSerializer, "subgotra", subgotra_id)

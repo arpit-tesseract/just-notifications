@@ -71,7 +71,9 @@ urlpatterns = [
     path('import/roomflash/', ImportRoomFlash.as_view()),
 
     # To get the related queryset
-    path("get_countries/<int:continent_id>/", get_countries_by_continent),
+    # path("get_countries/<int:continent_id>/", get_countries_by_continent),
+    path("get_countries/<int:continent_id>/", CountriesByContinentView.as_view(), name="get_countries_by_continent"),
+
     path("get_states/<int:country_id>/", get_states_by_country),
     path("get_districts/<int:state_id>/", get_districts_by_state),
     path("get_cities/<int:district_id>/", get_cities_by_district),
