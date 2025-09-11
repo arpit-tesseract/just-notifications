@@ -10,7 +10,7 @@ from .models import *
 from .serializers import *
 from shashan.utils.validators import get_related_queryset
 from rest_framework.decorators import api_view, permission_classes
-from .permissions import HasCustomAccessPermission
+from .permissions import HasModelAccessPermission
 from .decorators import assign_module
 from django.utils import timezone
 from django.db.models import Q
@@ -24,7 +24,7 @@ from rest_framework.decorators import action
 class ContinentViewSet(viewsets.ModelViewSet):
     queryset = Continent.objects.none() # Default to none, will override in get_queryset
     serializer_class = ContinentSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     module_name = "residential_details"
 
     # Override get_queryset to filter based on user allocations
@@ -56,23 +56,14 @@ class ContinentViewSet(viewsets.ModelViewSet):
                 elif on_hold.lower() == 'false':
                     qs = qs.filter(on_hold=False)
             return base_qs if not (is_hidden or on_hold) else qs
-        # For other users, return only their allocated continents
-        # user.continent_allocation.values_list('id', flat=True) → [2, 3]
-        # base_qs.filter(id__in=[2, 3]) → [Asia, Europe]
-        # return base_qs.filter(id__in=user.continent_allocation.values_list('id', flat=True))
-        
-        allocated_ids = user.continent_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
+        # For other users, return 
+        return base_qs
 
 
 class CountryViewSet(viewsets.ModelViewSet):
     queryset = Country.objects.none() # Default to none, will override in get_queryset
     serializer_class = CountrySerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -105,16 +96,8 @@ class CountryViewSet(viewsets.ModelViewSet):
                     qs = qs.filter(on_hold=False)
             return base_qs if not (is_hidden or on_hold) else qs
 
-        # For other users, return only their allocated countries
-        # user.country_allocation.values_list('id', flat=True) → [5, 7]
-        # base_qs.filter(id__in=[5, 7]) → [India, USA]
-        # return base_qs.filter(id__in=user.country_allocation.values_list('id', flat=True))
-        allocated_ids = user.country_allocation.values_list('id', flat=True)
-
-        if not allocated_ids.exists():
-            # No allocations → full access within base_qs
-            return base_qs
-        return base_qs.filter(id__in=allocated_ids)
+        # For other users, return
+        return base_qs
     
     # @action(detail=False, methods=["get"], url_path=r'by-continent/(?P<continent_id>\d+)')
     # def by_continent(self, request, continent_id=None):
@@ -132,7 +115,7 @@ class CountryViewSet(viewsets.ModelViewSet):
 class StateViewSet(viewsets.ModelViewSet):
     queryset = State.objects.none() # Default to none, will override in get_queryset
     serializer_class = StateSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -225,7 +208,7 @@ class DistrictViewSet(viewsets.ModelViewSet):
 class CityViewSet(viewsets.ModelViewSet):
     queryset = City.objects.none() # Default to none, will override in get_queryset
     serializer_class = CitySerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -272,7 +255,7 @@ class CityViewSet(viewsets.ModelViewSet):
 class VillageViewSet(viewsets.ModelViewSet):
     queryset = Village.objects.none() # Default to none, will override in get_queryset
     serializer_class = VillageSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -319,7 +302,7 @@ class VillageViewSet(viewsets.ModelViewSet):
 class WardViewSet(viewsets.ModelViewSet):
     queryset = Ward.objects.none() # Default to none, will override in get_queryset
     serializer_class = WardSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -366,7 +349,7 @@ class WardViewSet(viewsets.ModelViewSet):
 class SocietyViewSet(viewsets.ModelViewSet):
     queryset = Society.objects.none() # Default to none, will override in get_queryset
     serializer_class = SocietySerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -413,7 +396,7 @@ class SocietyViewSet(viewsets.ModelViewSet):
 class BlockViewSet(viewsets.ModelViewSet):
     queryset = Block.objects.none() # Default to none, will override in get_queryset
     serializer_class = BlockSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter based on user allocations
@@ -460,7 +443,7 @@ class BlockViewSet(viewsets.ModelViewSet):
 class HousesViewSet(viewsets.ModelViewSet):
     queryset = Houses.objects.none() # Default to none, will override in get_queryset
     serializer_class = HousesSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "residential_details"
     
     # Override get_queryset to filter
@@ -499,149 +482,149 @@ class HousesViewSet(viewsets.ModelViewSet):
         return base_qs
 
 
-class AccessesViewSet(viewsets.ModelViewSet):
-    queryset = Accesses.objects.all()
-    serializer_class = AccessesSerializer
-    permission_classes = [AllowAny]
+# class AccessesViewSet(viewsets.ModelViewSet):
+#     queryset = Accesses.objects.all()
+#     serializer_class = AccessesSerializer
+#     permission_classes = [AllowAny]
 
 
 class ReligionViewSet(viewsets.ModelViewSet):
     queryset = Religion.objects.all()
     serializer_class = ReligionSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class SampradayViewSet(viewsets.ModelViewSet):
     queryset = Sampraday.objects.all()
     serializer_class = SampradaySerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class PanthViewSet(viewsets.ModelViewSet):
     queryset = Panth.objects.all()
     serializer_class = PanthSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class VarnaViewSet(viewsets.ModelViewSet):
     queryset = Varna.objects.all()
     serializer_class = VarnaSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class CasteViewSet(viewsets.ModelViewSet):
     queryset = Caste.objects.all()
     serializer_class = CasteSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class SubCasteViewSet(viewsets.ModelViewSet):
     queryset = SubCaste.objects.all()
     serializer_class = SubCasteSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class GotraViewSet(viewsets.ModelViewSet):
     queryset = Gotra.objects.all()
     serializer_class = GotraSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class SubGotraViewSet(viewsets.ModelViewSet):
     queryset = SubGotra.objects.all()
     serializer_class = SubGotraSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class PidhiViewSet(viewsets.ModelViewSet):
     queryset = Pidhi.objects.all()
     serializer_class = PidhiSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class SectionViewSet(viewsets.ModelViewSet):
     queryset = Section.objects.all()
     serializer_class = SectionSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class ClassViewSet(viewsets.ModelViewSet):
     queryset = Class.objects.all()
     serializer_class = ClassSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class ProfCategoryViewSet(viewsets.ModelViewSet):
     queryset = ProfCategory.objects.all()
     serializer_class = ProfCategorySerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class ProfSubCategoryViewSet(viewsets.ModelViewSet):
     queryset = ProfSubCategory.objects.all()
     serializer_class = ProfSubCategorySerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "personal_details"
 
 
 class TypeViewSet(viewsets.ModelViewSet):
     queryset = Type.objects.all()
     serializer_class = TypeSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class PostModelViewSet(viewsets.ModelViewSet):
     queryset = PostModel.objects.all()
     serializer_class = PostModelSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class SectorViewSet(viewsets.ModelViewSet):
     queryset = Sector.objects.all()
     serializer_class = SectorSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class SubSectorViewSet(viewsets.ModelViewSet):
     queryset = SubSector.objects.all()
     serializer_class = SubSectorSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 
 class SubDepartmentViewSet(viewsets.ModelViewSet):
     queryset = SubDepartment.objects.all()
     serializer_class = SubDepartmentSerializer
-    permission_classes = [IsAuthenticated, HasCustomAccessPermission]
+    permission_classes = [IsAuthenticated]
     module_name = "professional_details"
 
 class RoomFlashViewSet(viewsets.ModelViewSet):
@@ -2058,31 +2041,31 @@ class ImportRoomFlash(APIView):
     
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_countries_by_continent(request, continent_id):
     return get_related_queryset(request, Country, CountrySerializer, "continent", continent_id)
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_states_by_country(request, country_id):
     return get_related_queryset(request, State, StateSerializer, "country", country_id)
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_districts_by_state(request, state_id):
     return get_related_queryset(request, District, DistrictSerializer, "state", state_id)
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_cities_by_district(request, district_id):
     return get_related_queryset(request, City, CitySerializer, "district", district_id)
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_villages_by_district_city(request, district_id=None, city_id=None):
     if district_id and not city_id:
         data = get_related_queryset(request, Village, VillageSerializer, "district", district_id)
@@ -2094,7 +2077,7 @@ def get_villages_by_district_city(request, district_id=None, city_id=None):
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_wards_by_village_city(request, village_id=None, city_id=None):
     if city_id and not village_id:
         data = get_related_queryset(request, Ward, WardSerializer, "city", city_id)
@@ -2106,19 +2089,19 @@ def get_wards_by_village_city(request, village_id=None, city_id=None):
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_society_by_ward(request, ward_id):
     return get_related_queryset(request, Society, SocietySerializer, "ward", ward_id)
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_blocks_by_society(request, society_id):
     return get_related_queryset(request, Block, BlockSerializer, "society", society_id)
 
 @assign_module("residential_details")
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, HasCustomAccessPermission])
+@permission_classes([IsAuthenticated])
 def get_houses_by_block(request, block_id):
     return get_related_queryset(request, Houses, HousesSerializer, "block", block_id)
 

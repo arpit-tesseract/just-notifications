@@ -159,23 +159,23 @@ class HousesSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)
     
-class PermisionModuleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PermissionModule
-        fields = '__all__'
+# class PermisionModuleSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = PermissionModule
+#         fields = '__all__'
 
-class PermissionActionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PermissionAction
-        fields = '__all__'
+# class PermissionActionSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = PermissionAction
+#         fields = '__all__'
 
-class AccessesSerializer(serializers.ModelSerializer):
-    module = PermisionModuleSerializer(read_only=True)
-    permission = PermissionActionSerializer(read_only=True)
+# class AccessesSerializer(serializers.ModelSerializer):
+#     module = PermisionModuleSerializer(read_only=True)
+#     permission = PermissionActionSerializer(read_only=True)
 
-    class Meta:
-        model = Accesses
-        fields = '__all__'
+#     class Meta:
+#         model = Accesses
+#         fields = '__all__'
 
 class ReligionSerializer(serializers.ModelSerializer):
     class Meta:

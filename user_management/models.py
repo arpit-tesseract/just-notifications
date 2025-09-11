@@ -8,38 +8,54 @@ class CustomUserManager(BaseUserManager):
             raise ValueError("Email must be provided")
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
+        print("flag True")
         user.set_password(password)
         user.save()
         return user
 
     def create_superuser(self, email, password, **extra_fields):
+        role, _ = UserRole.objects.get_or_create(name="tesseract_admin", code="Tess")
+        extra_fields.setdefault("user_role", role)
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(email, password, **extra_fields)
 
+class UserRole(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=5, unique=True)
+    
+    def __str__(self):
+        return self.name
+    
+class Designation(models.Model):
+    # Example: Manager -> Team Lead -> Developer
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=50, unique=True, help_text="Short identifier, e.g. SUPER_ADMIN")
+    reporting_designation = models.ForeignKey(
+        "user_management.Designation",
+        null=True,
+        blank=True,
+        related_name="children",
+        on_delete=models.SET_NULL,
+        help_text="Parent designation for hierarchy"
+    )
+    level = models.PositiveIntegerField(default=0, help_text="Hierarchy level, 0=top")
+    
+    def __str__(self):
+        return f"{self.name} (Level {self.level})"
+    
+    def save(self, *args, **kwargs):
+        # Auto-set hierarchy level based on parent
+        self.level = self.reporting_designation.level + 1 if self.reporting_designation else 0
+        super().save(*args, **kwargs)
+
+
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    USER_ROLE_CHOICES = [
-        ('super_admin','Super Admin'),
-        ('main_admin','Main Admin'),
-        ('admin','Admin'),
-        ('sub_admin','Sub Admin'),
-        ('group_admin','Group Admin'),
-        ('under_group_admin','Under Group Admin'),
-    ]
-    user_role = models.CharField(choices=USER_ROLE_CHOICES, max_length=100)
+    user_role = models.ForeignKey(UserRole, on_delete=models.CASCADE)
+    designation = models.ForeignKey(Designation,null=True,blank=True,on_delete=models.SET_NULL,related_name="users"
+    )
     is_system_user = models.BooleanField(default=False)
-    continent_allocation = models.ManyToManyField(configm.Continent, blank=True)
-    
-    country_allocation = models.ManyToManyField(configm.Country, blank=True)
-    state_allocation = models.ManyToManyField(configm.State, blank=True)
-    district_allocation = models.ManyToManyField(configm.District, blank=True)
-    city_allocation = models.ManyToManyField(configm.City, blank=True)
-    village_allocation = models.ManyToManyField(configm.Village, blank=True)
-    ward_allocation = models.ManyToManyField(configm.Ward, blank=True)
-    block_allocation = models.ManyToManyField(configm.Block, blank=True)
-    society_allocation = models.ManyToManyField(configm.Society, blank=True)
-    access = models.ManyToManyField(configm.Accesses, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
     is_verified = models.BooleanField(default=False)

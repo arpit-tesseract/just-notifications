@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from .models import *
 from configuration import models as configm
-from configuration.models import Accesses, PermissionAction, PermissionModule
+# from configuration.models import Accesses, PermissionAction, PermissionModule
 
 class RoomMembersDetailSerializer(serializers.ModelSerializer):
     class Meta:

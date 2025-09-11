@@ -1,7 +1,8 @@
 from django.db import models
 # from datetime import timezone
 from django.utils import timezone
-
+# from user_management.models import CustomUser
+# from django.contrib.postgres.fields import JSONField
 
 # Create your models here.
 class Continent(models.Model):
@@ -192,40 +193,79 @@ class Houses(models.Model):
         return f"{self.block} - {self.code}"
 
 
-class PermissionModule(models.Model):
-    name = models.CharField(max_length=100, unique=True)  # e.g. "residential_details", "personal_details", "professional_details"
-    code = models.CharField(max_length=50, unique=True)  # e.g. "RD001"
-    display_name = models.CharField(max_length=150)       # e.g. "Residential Details"
+# class PermissionModule(models.Model):
+#     name = models.CharField(max_length=100, unique=True)  # e.g. "residential_details", "personal_details", "professional_details"
+#     code = models.CharField(max_length=50, unique=True)  # e.g. "RD001"
+#     display_name = models.CharField(max_length=150)       # e.g. "Residential Details"
+
+#     def __str__(self):
+#         return self.display_name
+
+
+# class PermissionAction(models.Model):
+#     name = models.CharField(max_length=50, unique=True)  # e.g. "create", "read", "update", "delete"
+#     code = models.CharField(max_length=20, unique=True)   # e.g. "C001", "R001", etc.
+
+#     def __str__(self):
+#         return self.name
+
+
+# class Accesses(models.Model): # custom permissions system,
+#     module = models.ForeignKey(PermissionModule, on_delete=models.CASCADE)
+#     permission = models.ForeignKey(PermissionAction, on_delete=models.CASCADE)
+#     is_hidden = models.BooleanField("Hidden", default=False)
+#     on_hold = models.BooleanField("On Hold", default=False)
+#     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
+#     def save(self, *args, **kwargs):
+#         if self.hold_date:
+#             self.on_hold = True
+#             if self.hold_date < timezone.now().date():
+#                 self.on_hold = False
+#         super().save(*args, **kwargs)
+
+#     def __str__(self):
+#         return f"{self.module.display_name} - {self.permission.name}"
+
+
+class ModelName(models.Model):
+    app_label = models.CharField(max_length=100)  # e.g. "yourapp"
+    model = models.CharField(max_length=100)      # e.g. "City"
+    technical_name = models.CharField(max_length=200, unique=True)  # "yourapp.City"
+    description = models.CharField(max_length=200, blank=True, null=True)
 
     def __str__(self):
-        return self.display_name
+        return self.technical_name
+    
+class ModelAccess(models.Model):
+    user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name='model_access_rule')
+    model = models.ForeignKey(ModelName, on_delete=models.CASCADE, related_name='model_access_rule')
 
+    can_read = models.BooleanField(default=False)
+    can_create = models.BooleanField(default=False)
+    can_update = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
 
-class PermissionAction(models.Model):
-    name = models.CharField(max_length=50, unique=True)  # e.g. "create", "read", "update", "delete"
-    code = models.CharField(max_length=20, unique=True)   # e.g. "C001", "R001", etc.
-
-    def __str__(self):
-        return self.name
-
-
-class Accesses(models.Model): # custom permissions system,
-    module = models.ForeignKey(PermissionModule, on_delete=models.CASCADE)
-    permission = models.ForeignKey(PermissionAction, on_delete=models.CASCADE)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-        if self.hold_date:
-            self.on_hold = True
-            if self.hold_date < timezone.now().date():
-                self.on_hold = False
-        super().save(*args, **kwargs)
+    class Meta:
+        unique_together = ("user", "model")
 
     def __str__(self):
-        return f"{self.module.display_name} - {self.permission.name}"
+        return f"{self.user} → {self.model}"
+    
+class RecordRule(models.Model):
+    user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name="record_rules")
+    model = models.ForeignKey(ModelName, on_delete=models.CASCADE, related_name="record_rules")
 
+    name = models.CharField(max_length=100)
+    domain_filter = models.JSONField(default=dict)  # e.g. {"state__name": "Gujarat"}
+
+    perm_read = models.BooleanField(default=False)
+    perm_create = models.BooleanField(default=False)
+    perm_write = models.BooleanField(default=False)
+    perm_delete = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.name} ({self.model})"
 
 # class Accesses(models.Model):
 #     name = models.CharField("Access Activity", max_length=255)
