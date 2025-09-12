@@ -250,9 +250,10 @@ def clean(value):
     return str(value).strip() if pd.notnull(value) else None
 
 
-class ImportContinents(APIView):
+class ImportContinents(RecordRule, APIView):
+    model = Continent
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -287,9 +288,10 @@ class ImportContinents(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCountries(APIView):
+class ImportCountries(RecordRule, APIView):
+    model = Country
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -334,9 +336,10 @@ class ImportCountries(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportStates(APIView):
+class ImportStates(RecordRule, APIView):
+    model = State
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -381,9 +384,10 @@ class ImportStates(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportDistricts(APIView):
+class ImportDistricts(RecordRule, APIView):
+    model = District
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -428,9 +432,10 @@ class ImportDistricts(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCities(APIView):
+class ImportCities(RecordRule, APIView):
+    model = City
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -475,9 +480,10 @@ class ImportCities(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportVillages(APIView):
+class ImportVillages(RecordRule, APIView):
+    model = Village
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -536,9 +542,10 @@ class ImportVillages(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportWards(APIView):
+class ImportWards(RecordRule,APIView):
+    model = Ward
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -598,9 +605,10 @@ class ImportWards(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSocities(APIView):
+class ImportSocities(RecordRule, APIView):
+    model = Society
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -644,9 +652,10 @@ class ImportSocities(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportBlocks(APIView):
+class ImportBlocks(RecordRule, APIView):
+    model = Block
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -688,9 +697,10 @@ class ImportBlocks(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportHouses(APIView):
+class ImportHouses(RecordRule, APIView):
+    model = Houses
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -731,9 +741,10 @@ class ImportHouses(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportReligions(APIView):
+class ImportReligions(RecordRule, APIView):
+    model = Religion
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -769,9 +780,10 @@ class ImportReligions(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSampradays(APIView):
+class ImportSampradays(RecordRule, APIView):
+    model = Sampraday
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -816,9 +828,10 @@ class ImportSampradays(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportPanths(APIView):
+class ImportPanths(RecordRule, APIView):
+    model = Panth
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -863,9 +876,10 @@ class ImportPanths(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportVarnas(APIView):
+class ImportVarnas(RecordRule, APIView):
+    model = Varna
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -907,9 +921,10 @@ class ImportVarnas(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCastes(APIView):
+class ImportCastes(RecordRule, APIView):
+    model = Caste
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -954,9 +969,10 @@ class ImportCastes(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSubCastes(APIView):
+class ImportSubCastes(RecordRule, APIView):
+    model = SubCaste
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1001,9 +1017,10 @@ class ImportSubCastes(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportGotras(APIView):
+class ImportGotras(RecordRule, APIView):
+    model = Gotra
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1044,9 +1061,10 @@ class ImportGotras(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSubGotras(APIView):
+class ImportSubGotras(RecordRule, APIView):
+    model = SubGotra
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1091,9 +1109,10 @@ class ImportSubGotras(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportPidhis(APIView):
+class ImportPidhis(RecordRule, APIView):
+    model = Pidhi
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1138,9 +1157,10 @@ class ImportPidhis(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSection(APIView):
+class ImportSection(RecordRule, APIView):
+    model = Section
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1174,9 +1194,10 @@ class ImportSection(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportClass(APIView):
+class ImportClass(RecordRule, APIView):
+    model = Class
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1222,9 +1243,10 @@ class ImportClass(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportProfCategory(APIView):
+class ImportProfCategory(RecordRule, APIView):
+    model = ProfCategory
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1270,9 +1292,10 @@ class ImportProfCategory(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportProfSubCategory(APIView):
+class ImportProfSubCategory(RecordRule, APIView):
+    model = ProfSubCategory
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get("file")
@@ -1315,9 +1338,10 @@ class ImportProfSubCategory(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportSector(APIView):
+class ImportSector(RecordRule, APIView):
+    model = Sector
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1358,9 +1382,10 @@ class ImportSector(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportSubSector(APIView):
+class ImportSubSector(RecordRule, APIView):
+    model = SubSector
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1401,9 +1426,10 @@ class ImportSubSector(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportDepartment(APIView):
+class ImportDepartment(RecordRule, APIView):
+    model = Department
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1442,9 +1468,10 @@ class ImportDepartment(APIView):
 
         return Response({"created": created, "errors": errors})
     
-class ImportSubDepartment(APIView):
+class ImportSubDepartment(RecordRule, APIView):
+    model = SubDepartment
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1485,9 +1512,10 @@ class ImportSubDepartment(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportType(APIView):
+class ImportType(RecordRule, APIView):
+    model = Type
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1528,9 +1556,10 @@ class ImportType(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportBrand(APIView):
+class ImportBrand(RecordRule,APIView):
+    model = Brand
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1571,9 +1600,10 @@ class ImportBrand(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportPostModel(APIView):
+class ImportPostModel(RecordRule, APIView):
+    model = PostModel
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1614,9 +1644,10 @@ class ImportPostModel(APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportRoomFlash(APIView):
+class ImportRoomFlash(RecordRule, APIView):
+    model = RoomFlash
     parser_classes = [MultiPartParser]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -1654,156 +1685,318 @@ class ImportRoomFlash(APIView):
 #     return get_related_queryset(request, Country, CountrySerializer, "continent", continent_id)
 
 class CountriesByContinentView(FilteredQuerysetMixin, APIView):
-    queryset = Country.objects.all()
+    queryset = Country.objects.none()
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request, *args, **kwargs):
-        continent_id = kwargs.get("continent_id")
-        qs = self.get_queryset().filter(continent_id=continent_id)
-        
+    def get(self, request, continent_id):
+        qs = self.get_queryset().filter(continent=continent_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_states_by_country(request, country_id):
-    return get_related_queryset(request, State, StateSerializer, "country", country_id)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_districts_by_state(request, state_id):
-    return get_related_queryset(request, District, DistrictSerializer, "state", state_id)
+class StatesByCountryView(FilteredQuerysetMixin, APIView):
+    queryset = State.objects.none()
+    serializer_class = StateSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_cities_by_district(request, district_id):
-    return get_related_queryset(request, City, CitySerializer, "district", district_id)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_villages_by_district_city(request, district_id=None, city_id=None):
-    if district_id and not city_id:
-        data = get_related_queryset(request, Village, VillageSerializer, "district", district_id)
-    elif city_id:
-        data = get_related_queryset(request, Village, VillageSerializer, "city", city_id)
-    else:
-        return Response({"error": "district or city is required."}, status=400)
-    return data
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_wards_by_village_city(request, village_id=None, city_id=None):
-    if city_id and not village_id:
-        data = get_related_queryset(request, Ward, WardSerializer, "city", city_id)
-    elif village_id:
-        data = get_related_queryset(request, Ward, WardSerializer, "village", village_id)
-    else:
-        return Response({"error": "village or city is required."}, status=400)
-    return data
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_society_by_ward(request, ward_id):
-    return get_related_queryset(request, Society, SocietySerializer, "ward", ward_id)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_blocks_by_society(request, society_id):
-    return get_related_queryset(request, Block, BlockSerializer, "society", society_id)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_houses_by_block(request, block_id):
-    return get_related_queryset(request, Houses, HousesSerializer, "block", block_id)
+    def get(self, request, country_id):
+        qs = self.get_queryset().filter(country=country_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_classes_by_section(request, section_id):
-    return get_related_queryset(request, Class, ClassSerializer, "section", section_id)
+class DistrictsByStateView(FilteredQuerysetMixin, APIView):
+    queryset = District.objects.none()
+    serializer_class = DistrictSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_category_by_class(request, class_id):
-    return get_related_queryset(request, ProfCategory, ProfCategorySerializer, "profclass", class_id)
+    def get(self, request, state_id):
+        qs = self.get_queryset().filter(state=state_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_subcategory_by_category(request, category_id):
-    return get_related_queryset(request, ProfSubCategory, ProfSubCategorySerializer, "category", category_id)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_sectors_by_subcategory(request, subcategory_id):
-    return get_related_queryset(request, Sector, SectorSerializer, "subcategory", subcategory_id)
+class CityByDistrictView(FilteredQuerysetMixin, APIView):
+    queryset = City.objects.none()
+    serializer_class = CitySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_subsectors_by_sector(request, sector_id):
-    return get_related_queryset(request, SubSector, SubSectorSerializer, "sector", sector_id)
+    def get(self, request, district_id):
+        qs = self.get_queryset().filter(district=district_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_depts_by_subsector(request, subsector_id):
-    return get_related_queryset(request, Department, DepartmentSerializer, "subsector", subsector_id)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_subdepts_by_dept(request, dept_id):
-    return get_related_queryset(request, SubDepartment, SubDepartmentSerializer, "department", dept_id)
+class VillageByCityView(FilteredQuerysetMixin, APIView):
+    queryset = Village.objects.none()
+    serializer_class = VillageSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_types_by_subdept(request, subdept_id):
-    return get_related_queryset(request, Type, TypeSerializer, "subdepartment", subdept_id)
+    def get(self, request,city_id):
+        qs = self.get_queryset().filter(city=city_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+    
+class VillageByDistrictView(FilteredQuerysetMixin, APIView):
+    queryset = Village.objects.none()
+    serializer_class = VillageSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_brands_by_type(request, type_id):
-    return get_related_queryset(request, Brand, BrandSerializer, "type", type_id)
+    def get(self, request,district_id):
+        qs = self.get_queryset().filter(district=district_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_postmodels_by_brand(request, brand_id):
-    return get_related_queryset(request, PostModel, PostModelSerializer, "brand", brand_id)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_sampradays_by_religion(request, religion_id):
-    return get_related_queryset(request, Sampraday, SampradaySerializer, "religion", religion_id)
+class WardsByVillageView(FilteredQuerysetMixin, APIView):
+    queryset = Ward.objects.none()
+    serializer_class = WardSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_panths_by_sampraday(request, sampraday_id):
-    return get_related_queryset(request, Panth, PanthSerializer, "sampraday", sampraday_id)
+    def get(self, request, village_id):
+        qs = self.get_queryset().filter(village=village_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_varnas_by_panth(request, panth_id):
-    return get_related_queryset(request, Varna, VarnaSerializer, "panth", panth_id)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_castes_by_varna(request, varna_id):
-    return get_related_queryset(request, Caste, CasteSerializer, "varna", varna_id)
+class WardsByCityView(FilteredQuerysetMixin, APIView):
+    queryset = Ward.objects.none()
+    serializer_class = WardSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_subcastes_by_caste(request, caste_id):
-    return get_related_queryset(request, SubCaste, SubCasteSerializer, "caste", caste_id)
+    def get(self, request, city_id):
+        qs = self.get_queryset().filter(city=city_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_gotras_by_subcaste(request, subcaste_id):
-    return get_related_queryset(request, Gotra, GotraSerializer, "subcaste", subcaste_id)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_subgotras_by_gotra(request, gotra_id):
-    return get_related_queryset(request, SubGotra, SubGotraSerializer, "gotra", gotra_id)
+class SocietiesByWardView(FilteredQuerysetMixin, APIView):
+    queryset = Society.objects.none()
+    serializer_class = SocietySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_pidhis_by_subgotra(request, subgotra_id):
-    return get_related_queryset(request, Pidhi, PidhiSerializer, "subgotra", subgotra_id)
+    def get(self, request, ward_id):
+        qs = self.get_queryset().filter(ward=ward_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class BlockBySocietyView(FilteredQuerysetMixin, APIView):
+    queryset = Block.objects.none()
+    serializer_class = BlockSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, society_id):
+        qs = self.get_queryset().filter(society=society_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class HousesByBlockView(FilteredQuerysetMixin, APIView):
+    queryset = Houses.objects.none()
+    serializer_class = HousesSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, block_id):
+        qs = self.get_queryset().filter(block=block_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class ClassesBySectionView(FilteredQuerysetMixin, APIView):
+    queryset = Class.objects.none()
+    serializer_class = ClassSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, section_id):
+        qs = self.get_queryset().filter(section=section_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class ProfCategoryByClassView(FilteredQuerysetMixin, APIView):
+    queryset = ProfCategory.objects.none()
+    serializer_class = ProfCategorySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, class_id):
+        qs = self.get_queryset().filter(profclass=class_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class ProfSubCategoryByCategoryView(FilteredQuerysetMixin, APIView):
+    queryset = ProfSubCategory.objects.none()
+    serializer_class = ProfSubCategorySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, category_id):
+        qs = self.get_queryset().filter(category=category_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class SectorBySubCategoryView(FilteredQuerysetMixin, APIView):
+    queryset = Sector.objects.none()
+    serializer_class = SectorSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, subcategory_id):
+        qs = self.get_queryset().filter(subcategory=subcategory_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class SubSectorBySectorView(FilteredQuerysetMixin, APIView):
+    queryset = SubSector.objects.none()
+    serializer_class = SubSectorSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, sector_id):
+        qs = self.get_queryset().filter(sector=sector_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class DepartmentsBySubSectorView(FilteredQuerysetMixin, APIView):
+    queryset = Department.objects.none()
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, subsector_id):
+        qs = self.get_queryset().filter(subsector=subsector_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class SubDepartmentsByDepartmentView(FilteredQuerysetMixin, APIView):
+    queryset = SubDepartment.objects.none()
+    serializer_class = SubDepartmentSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, department_id):
+        qs = self.get_queryset().filter(department=department_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class TypeBySubDepartmentView(FilteredQuerysetMixin, APIView):
+    queryset = Type.objects.none()
+    serializer_class = TypeSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, subdepartment_id):
+        qs = self.get_queryset().filter(subdepartment=subdepartment_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class BrandByTypeView(FilteredQuerysetMixin, APIView):
+    queryset = Brand.objects.none()
+    serializer_class = BrandSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, type_id):
+        qs = self.get_queryset().filter(type=type_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class PostModelByBrandView(FilteredQuerysetMixin, APIView):
+    queryset = PostModel.objects.none()
+    serializer_class = PostModelSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, brand_id):
+        qs = self.get_queryset().filter(brand=brand_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class SampradayByReligionView(FilteredQuerysetMixin, APIView):
+    queryset = Sampraday.objects.none()
+    serializer_class = SampradaySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, religion_id):
+        qs = self.get_queryset().filter(religion=religion_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class PanthBySampradayView(FilteredQuerysetMixin, APIView):
+    queryset = Panth.objects.none()
+    serializer_class = PanthSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, sampraday_id):
+        qs = self.get_queryset().filter(sampraday=sampraday_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class VarnaByPanthView(FilteredQuerysetMixin, APIView):
+    queryset = Varna.objects.none()
+    serializer_class = VarnaSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, panth_id):
+        qs = self.get_queryset().filter(panth=panth_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class CasteByVarnaView(FilteredQuerysetMixin, APIView):
+    queryset = Caste.objects.none()
+    serializer_class = CasteSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, varna_id):
+        qs = self.get_queryset().filter(varna=varna_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class SubCasteByCasteView(FilteredQuerysetMixin, APIView):
+    queryset = SubCaste.objects.none()
+    serializer_class = SubCasteSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, caste_id):
+        qs = self.get_queryset().filter(caste=caste_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class GotraBySubCasteView(FilteredQuerysetMixin, APIView):
+    queryset = Gotra.objects.none()
+    serializer_class = GotraSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, subcaste_id):
+        qs = self.get_queryset().filter(subcaste=subcaste_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class SubGotraByGotraView(FilteredQuerysetMixin, APIView):
+    queryset = SubGotra.objects.none()
+    serializer_class = SubGotraSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, gotra_id):
+        qs = self.get_queryset().filter(gotra=gotra_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class PidhiBySubGotraView(FilteredQuerysetMixin, APIView):
+    queryset = Pidhi.objects.none()
+    serializer_class = PidhiSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, subgotra_id):
+        qs = self.get_queryset().filter(subgotra=subgotra_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)

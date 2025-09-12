@@ -1,42 +1,8 @@
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, ForeignKey
+from django.core.exceptions import FieldError
+from rest_framework.exceptions import ValidationError
 
-# Only work for Model View Set
-# class RecordRuleMixin:
-#     action_map = {
-#         'list': 'read',
-#         'retrieve': 'read',
-#         'create': 'create',
-#         'update': 'write',
-#         'partial_update': 'write',
-#         'destroy': 'delete',
-#     }
-#     def apply_record_rules(self, qs):
-#         user = self.request.user
-#         model_name = qs.model._meta.label
-
-#         # Fetch all record rules for this user and model
-#         rules = user.record_rules.filter(
-#             model__technical_name=model_name,
-#             **{f"perm_{self.action_map.get(self.action, 'read')}": True}
-#         )
-        
-#         # Combine all domain filters
-#         if not rules.exists():
-#             return qs
-        
-#         combined_q = Q()
-#         for rule in rules:
-#             domain_filter = {}
-#             for k, v in rule.domain_filter.items():
-#                 if isinstance(v, list):  
-#                     # Convert to __in lookup
-#                     domain_filter[f"{k}__in"] = v
-#                 else:
-#                     domain_filter[k] = v
-#             combined_q |= Q(**domain_filter)
-
-#         return qs.filter(combined_q)
 
 # Working for APIView & Model ViewSet
 class RecordRuleMixin:
@@ -53,10 +19,59 @@ class RecordRuleMixin:
         'put': 'write',
         'patch': 'write',
         'delete': 'delete',
+        
     }
+    # Return only foreign key fields of this model
+    def suggest_foreign_keys(self, model):
+        return [f.name for f in model._meta.get_fields() if isinstance(f, ForeignKey)]
+
+    # Return direct fields of this model (including fks)
+    def suggest_model_fields(self, model):
+        return [f.name for f in model._meta.fields]
+    
+    # Validate domain key like 'continent__namee'.
+    def validate_domain_key(self, model, key):
+        parts = key.split("__")
+        current_model = model
+
+        # idx = name, part = contient when {"contient__name": "Europe"}
+        for idx, part in enumerate(parts):
+            fields = {f.name: f for f in current_model._meta.get_fields()}
+
+            if part not in fields:
+                if idx == 0:
+                    # Wrong foreign key in current model
+                    return (
+                        False,
+                        self.suggest_foreign_keys(current_model),
+                        part
+                    )
+                else:
+                    # Wrong field in related model
+                    return (
+                        False,
+                        self.suggest_model_fields(current_model),
+                        part
+                    )
+
+            field = fields[part]
+            if field.is_relation and field.related_model:
+                current_model = field.related_model
+            else:
+                if idx < len(parts) - 1:
+                    # Not a relation but more parts given
+                    return (
+                        False,
+                        self.suggest_model_fields(current_model),
+                        part
+                    )
+
+        return (True, None, None)
+
 
     def apply_record_rules(self, qs):
         user = self.request.user
+        model = qs.model
         model_name = qs.model._meta.label
 
         # Determine action
@@ -80,13 +95,25 @@ class RecordRuleMixin:
         for rule in rules:
             domain_filter = {}
             for k, v in rule.domain_filter.items():
+                is_valid, suggestions, bad_field = self.validate_domain_key(model, k)
+                if not is_valid:
+                    raise ValidationError({
+                        "error": f"Invalid field '{bad_field}' in filter key '{k}'",
+                        "suggestions": suggestions,
+                    })
                 if isinstance(v, list):
                     domain_filter[f"{k}__in"] = v
                 else:
                     domain_filter[k] = v
             combined_q |= Q(**domain_filter)
 
-        return qs.filter(combined_q)
+        try:
+            return qs.filter(combined_q)
+        except FieldError as e:
+            raise ValidationError({
+                "error": str(e),
+                "suggestions": self.suggest_fields(model)
+            })
 
 
 
@@ -145,6 +172,43 @@ class FilteredQuerysetMixin(RecordRuleMixin):
 
 
 # from django.db.models import Q
+# Only work for Model View Set
+# class RecordRuleMixin:
+#     action_map = {
+#         'list': 'read',
+#         'retrieve': 'read',
+#         'create': 'create',
+#         'update': 'write',
+#         'partial_update': 'write',
+#         'destroy': 'delete',
+#     }
+#     def apply_record_rules(self, qs):
+#         user = self.request.user
+#         model_name = qs.model._meta.label
+
+#         # Fetch all record rules for this user and model
+#         rules = user.record_rules.filter(
+#             model__technical_name=model_name,
+#             **{f"perm_{self.action_map.get(self.action, 'read')}": True}
+#         )
+        
+#         # Combine all domain filters
+#         if not rules.exists():
+#             return qs
+        
+#         combined_q = Q()
+#         for rule in rules:
+#             domain_filter = {}
+#             for k, v in rule.domain_filter.items():
+#                 if isinstance(v, list):  
+#                     # Convert to __in lookup
+#                     domain_filter[f"{k}__in"] = v
+#                 else:
+#                     domain_filter[k] = v
+#             combined_q |= Q(**domain_filter)
+
+#         return qs.filter(combined_q)
+
 
 # class RecordRuleFilteredMixin:
 #     action_map = {
