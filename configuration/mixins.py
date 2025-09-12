@@ -34,7 +34,9 @@ class RecordRuleMixin:
         parts = key.split("__")
         current_model = model
 
-        # idx = name, part = contient when {"contient__name": "Europe"}
+        # idx = id, part = contient,name when {"contient__name": "Europe"}
+        # idx = 0, part = contient
+        # idx = 1, part = name
         for idx, part in enumerate(parts):
             fields = {f.name: f for f in current_model._meta.get_fields()}
 
@@ -80,16 +82,16 @@ class RecordRuleMixin:
             action = self.request.method.lower()  # fallback for APIView
 
         perm_field = f"perm_{self.action_map.get(action, 'read')}"
+        
+        #  Bypass if system user AND designation level = 0
+        if user.is_system_user and getattr(user.designation, "level", None) == 0:
+            return qs
 
         # Fetch all record rules for this user and model
         rules = user.record_rules.filter(
             model__technical_name=model_name,
             **{perm_field: True}
         )
-
-        # Combine all domain filters
-        if not rules.exists():
-            return qs
 
         combined_q = Q()
         for rule in rules:
@@ -148,7 +150,7 @@ class FilteredQuerysetMixin(RecordRuleMixin):
         user = self.request.user
         base_qs = self.get_base_queryset()
 
-        if user.is_system_user:
+        if user.is_system_user and user.is_verified:
             qs = self._model.objects.all()
             is_hidden = self.request.query_params.get("is_hidden")
             on_hold = self.request.query_params.get("on_hold")

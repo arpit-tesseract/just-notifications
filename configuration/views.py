@@ -250,7 +250,7 @@ def clean(value):
     return str(value).strip() if pd.notnull(value) else None
 
 
-class ImportContinents(RecordRule, APIView):
+class ImportContinents(APIView):
     model = Continent
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -288,7 +288,7 @@ class ImportContinents(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCountries(RecordRule, APIView):
+class ImportCountries(APIView):
     model = Country
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -336,7 +336,7 @@ class ImportCountries(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportStates(RecordRule, APIView):
+class ImportStates(APIView):
     model = State
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -384,7 +384,7 @@ class ImportStates(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportDistricts(RecordRule, APIView):
+class ImportDistricts(APIView):
     model = District
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -432,7 +432,7 @@ class ImportDistricts(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCities(RecordRule, APIView):
+class ImportCities(APIView):
     model = City
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -480,7 +480,7 @@ class ImportCities(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportVillages(RecordRule, APIView):
+class ImportVillages(APIView):
     model = Village
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -542,7 +542,7 @@ class ImportVillages(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportWards(RecordRule,APIView):
+class ImportWards(APIView):
     model = Ward
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -605,7 +605,7 @@ class ImportWards(RecordRule,APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSocities(RecordRule, APIView):
+class ImportSocities(APIView):
     model = Society
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -652,7 +652,7 @@ class ImportSocities(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportBlocks(RecordRule, APIView):
+class ImportBlocks(APIView):
     model = Block
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -697,7 +697,7 @@ class ImportBlocks(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportHouses(RecordRule, APIView):
+class ImportHouses(APIView):
     model = Houses
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -741,7 +741,7 @@ class ImportHouses(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportReligions(RecordRule, APIView):
+class ImportReligions(APIView):
     model = Religion
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -780,7 +780,7 @@ class ImportReligions(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSampradays(RecordRule, APIView):
+class ImportSampradays(APIView):
     model = Sampraday
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -828,7 +828,7 @@ class ImportSampradays(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportPanths(RecordRule, APIView):
+class ImportPanths(APIView):
     model = Panth
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -876,7 +876,7 @@ class ImportPanths(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportVarnas(RecordRule, APIView):
+class ImportVarnas(APIView):
     model = Varna
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -921,7 +921,7 @@ class ImportVarnas(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCastes(RecordRule, APIView):
+class ImportCastes(APIView):
     model = Caste
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -969,7 +969,7 @@ class ImportCastes(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSubCastes(RecordRule, APIView):
+class ImportSubCastes(APIView):
     model = SubCaste
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1017,7 +1017,7 @@ class ImportSubCastes(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportGotras(RecordRule, APIView):
+class ImportGotras(APIView):
     model = Gotra
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1061,7 +1061,7 @@ class ImportGotras(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSubGotras(RecordRule, APIView):
+class ImportSubGotras(APIView):
     model = SubGotra
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1109,7 +1109,7 @@ class ImportSubGotras(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportPidhis(RecordRule, APIView):
+class ImportPidhis(APIView):
     model = Pidhi
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1157,7 +1157,7 @@ class ImportPidhis(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportSection(RecordRule, APIView):
+class ImportSection(APIView):
     model = Section
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1194,7 +1194,7 @@ class ImportSection(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportClass(RecordRule, APIView):
+class ImportClass(APIView):
     model = Class
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1243,7 +1243,7 @@ class ImportClass(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportProfCategory(RecordRule, APIView):
+class ImportProfCategory(APIView):
     model = ProfCategory
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1292,7 +1292,7 @@ class ImportProfCategory(RecordRule, APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportProfSubCategory(RecordRule, APIView):
+class ImportProfSubCategory(APIView):
     model = ProfSubCategory
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1338,7 +1338,7 @@ class ImportProfSubCategory(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportSector(RecordRule, APIView):
+class ImportSector(APIView):
     model = Sector
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1382,7 +1382,7 @@ class ImportSector(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportSubSector(RecordRule, APIView):
+class ImportSubSector(APIView):
     model = SubSector
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1426,7 +1426,7 @@ class ImportSubSector(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportDepartment(RecordRule, APIView):
+class ImportDepartment(APIView):
     model = Department
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1468,7 +1468,7 @@ class ImportDepartment(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
     
-class ImportSubDepartment(RecordRule, APIView):
+class ImportSubDepartment(APIView):
     model = SubDepartment
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1512,7 +1512,7 @@ class ImportSubDepartment(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportType(RecordRule, APIView):
+class ImportType(APIView):
     model = Type
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1556,7 +1556,7 @@ class ImportType(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportBrand(RecordRule,APIView):
+class ImportBrand(APIView):
     model = Brand
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1600,7 +1600,7 @@ class ImportBrand(RecordRule,APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportPostModel(RecordRule, APIView):
+class ImportPostModel(APIView):
     model = PostModel
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1644,7 +1644,7 @@ class ImportPostModel(RecordRule, APIView):
 
         return Response({"created": created, "errors": errors})
 
-class ImportRoomFlash(RecordRule, APIView):
+class ImportRoomFlash(APIView):
     model = RoomFlash
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -2000,3 +2000,42 @@ class PidhiBySubGotraView(FilteredQuerysetMixin, APIView):
         qs = self.get_queryset().filter(subgotra=subgotra_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
+
+
+class ModelNameView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ModelNameSerializer
+    
+    def get(self, request):
+        user = request.user
+        if user.is_system_user==False or user.is_verified==False:
+            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        model_names = ModelName.objects.all()
+        serializer = self.serializer_class(model_names, many=True)
+        return Response(serializer.data)
+    
+
+class BulkUserModelAccessRuleView(APIView):
+    permission_classes = [IsAuthenticated]
+    # serializer_class = BulkModelAccessSerializer
+    
+    def get(self, request):
+        user = request.user
+        if user.is_verified==False:
+            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        model_access_rules = ModelAccess.objects.filter(user=user)
+        serializer = ModelAccesSerializer(model_access_rules, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request):
+        user = request.user
+        if user.is_verified==False:
+            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        serializer = BulkModelAccessSerializer(data=request.data, context={"request": request} )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

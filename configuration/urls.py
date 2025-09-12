@@ -103,4 +103,7 @@ urlpatterns = [
     path("get_gotras/<int:subcaste_id>/", GotraBySubCasteView.as_view(), name="get_gotras_by_subcaste"),
     path("get_subgotras/<int:gotra_id>/", SubGotraByGotraView.as_view(), name="get_subgotras_by_gotra"),
     path("get_pidhis/<int:subgotra_id>/", PidhiBySubGotraView.as_view(), name="get_pidhis_by_subgotra"),
+    
+    path("models/", ModelNameView.as_view(), name="get_models"),
+    path("model_access_rules/", BulkUserModelAccessRuleView.as_view(), name="model_access_rules"),
 ]

@@ -13,6 +13,13 @@ class HasModelAccessPermission(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
+        
+        if not user.is_authenticated:
+            return False
+        
+        # Super Admin of system user
+        if user.is_system_user and getattr(user.designation, "level", None) == 0:
+            return True
 
         # Resolve model from queryset or model attr
         if hasattr(view, "queryset") and view.queryset is not None:
@@ -48,9 +55,6 @@ class HasModelAccessPermission(BasePermission):
 
         perm_field = action_map.get(action)
         if not perm_field:
-            return False
-
-        if not user.is_authenticated:
             return False
 
         # Fetch model access

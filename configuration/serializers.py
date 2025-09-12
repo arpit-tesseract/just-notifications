@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import *
 from shashan.utils.validators import get_object_by_name_or_error
+from user_management.models import CustomUser
+from .utils import check_id_exists, validate_assignable_permissions
 
 class ContinentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -481,3 +483,71 @@ class RoomFlashSerializer(serializers.ModelSerializer):
         model = RoomFlash
         fields = '__all__'
 
+
+class ModelNameSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ModelName
+        fields = ['id', 'model', 'technical_name']
+        read_only_fields = ['id','model', 'technical_name']
+        
+class ModelAccessItemSerializer(serializers.Serializer):
+    model_id = serializers.IntegerField()
+    can_read = serializers.BooleanField(default=False)
+    can_create = serializers.BooleanField(default=False)
+    can_update = serializers.BooleanField(default=False)
+    can_delete = serializers.BooleanField(default=False)
+
+
+class BulkModelAccessSerializer(serializers.Serializer):
+    user = serializers.IntegerField()  # <-- You need this
+    model_access_rule = ModelAccessItemSerializer(many=True)
+
+    def create(self, validated_data):
+        request_user = self.context["request"].user
+        user_id = validated_data.get("user")
+        
+        # Ensure user exists
+        if check_id_exists(CustomUser, user_id) == False:
+            raise serializers.ValidationError("User does not exist")
+        
+        if request_user.designation.level < request_user.designation.reporting_designation.level:
+            raise serializers.ValidationError("You do not have permission to assign access")
+        
+        model_access_rules = validated_data.get("model_access_rule")
+        objs = []
+
+        for rule in model_access_rules:
+            model_id = rule.get("model_id")
+            
+            # Ensure model exists
+            if check_id_exists(ModelName, model_id) == False:
+                raise serializers.ValidationError("Model does not exist")
+            
+            # Super Admin of system user
+            if request_user.is_system_user and getattr(request_user.designation, "level", None) == 0:
+                pass
+            else:
+                validate_assignable_permissions(request_user, model_id, rule)
+            
+            access, _ = ModelAccess.objects.update_or_create(
+                user_id=user_id,     # lookup by user + model
+                model_id=model_id,
+                defaults={
+                    "can_create": rule.get("can_create", False),
+                    "can_read": rule.get("can_read", False),
+                    "can_update": rule.get("can_update", False),
+                    "can_delete": rule.get("can_delete", False),
+                },
+            )
+            objs.append(access)
+
+        return {
+        "user": user_id,
+        "model_access_rule": objs
+    }
+        
+class ModelAccesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModelAccess
+        fields = ['id', 'model', 'can_read', 'can_create', 'can_update', 'can_delete']

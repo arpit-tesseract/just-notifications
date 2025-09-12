@@ -407,13 +407,4 @@ class UserDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = [
-            'id', 'email', 'user_role', 'is_system_user',
-            'date_of_birth', 'category_of_user', 'is_verified', 'is_staff',
-            # System user allocation fields
-            'continent_allocation', 'country_allocation', 'state_allocation',
-            'district_allocation', 'city_allocation', 'village_allocation',
-            'ward_allocation', 'block_allocation', 'society_allocation', 'access',
-            # Nested data
-            'addresses', 'personal_details', 'professional_details', 'residential_details'
-        ]
+        fields= "__all__"

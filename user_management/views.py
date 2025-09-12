@@ -71,15 +71,3 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         user = CustomUser.objects.get(id=request.user.id)
         serializers = UserDetailSerializer(user)
         return Response(serializers.data, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_user_access_option(request):
-    user = request.user
-    if user.user_role == 'superadmin':
-        accesses = Accesses.objects.all()
-    else:
-        accesses = user.access.all()
-
-    serializer = AccessesSerializer(accesses, many=True)
-    return Response(serializer.data)
