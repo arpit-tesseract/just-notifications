@@ -4,8 +4,17 @@ from django.core.exceptions import FieldError
 from rest_framework.exceptions import ValidationError
 
 
+class SafeQueryMixin:
+    """
+    Base mixin to ensure super().get_queryset() can always be called safely.
+    All other mixins should inherit this first.
+    """
+    def get_queryset(self):
+        return super().get_queryset()
+
+
 # Working for APIView & Model ViewSet
-class RecordRuleMixin:
+class RecordRuleMixin(SafeQueryMixin):
     action_map = {
         'list': 'read',
         'retrieve': 'read',
@@ -21,6 +30,13 @@ class RecordRuleMixin:
         'delete': 'delete',
         
     }
+    
+    def get_queryset(self):
+        # Always start with parent queryset
+        qs = super().get_queryset()
+        # Then Apply record rules
+        return self.apply_record_rules(qs)
+    
     # Return only foreign key fields of this model
     def suggest_foreign_keys(self, model):
         return [f.name for f in model._meta.get_fields() if isinstance(f, ForeignKey)]
@@ -92,6 +108,9 @@ class RecordRuleMixin:
             model__technical_name=model_name,
             **{perm_field: True}
         )
+        
+        if not rules.exists():
+            return qs
 
         combined_q = Q()
         for rule in rules:
@@ -120,7 +139,7 @@ class RecordRuleMixin:
 
 
     
-class FilteredQuerysetMixin(RecordRuleMixin):
+class FilteredQuerysetMixin(SafeQueryMixin):
     """
     Provides a reusable get_queryset with common filters.
     Automatically infers `model` from queryset if not defined.
@@ -139,7 +158,9 @@ class FilteredQuerysetMixin(RecordRuleMixin):
 
     def get_base_queryset(self):
         today = timezone.now().date()
-        return self._model.objects.filter(
+        base_qs = super().get_queryset()
+
+        return base_qs.filter(
             is_hidden=False,
             on_hold=False
         ).filter(
@@ -168,9 +189,14 @@ class FilteredQuerysetMixin(RecordRuleMixin):
                 elif on_hold.lower() == 'false':
                     qs = qs.filter(on_hold=False)
 
-            return self.apply_record_rules(base_qs) if not (is_hidden or on_hold) else self.apply_record_rules(qs)
-
-        return self.apply_record_rules(base_qs)  
+            final_qs = base_qs if not (is_hidden or on_hold) else qs
+        else:
+            final_qs = base_qs
+        
+        # Apply record rules if RecordRuleMixin is used
+        if hasattr(self, "apply_record_rules"):
+            return self.apply_record_rules(final_qs)
+        return final_qs  
 
 
 # from django.db.models import Q
