@@ -2,7 +2,9 @@ from rest_framework import serializers
 from .models import *
 from shashan.utils.validators import get_object_by_name_or_error
 from user_management.models import CustomUser
-from .utils import check_id_exists, validate_assignable_permissions
+from .utils import *
+from django.apps import apps
+from django.db import transaction
 
 class ContinentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -491,63 +493,155 @@ class ModelNameSerializer(serializers.ModelSerializer):
         fields = ['id', 'model', 'technical_name']
         read_only_fields = ['id','model', 'technical_name']
         
-class ModelAccessItemSerializer(serializers.Serializer):
+class RecordRuleAccessInputSerializer(serializers.Serializer):
+    domain_filter = serializers.JSONField()
+    can_read = serializers.BooleanField(default=False)
+    can_create = serializers.BooleanField(default=False)
+    can_write = serializers.BooleanField(default=False)
+    can_delete = serializers.BooleanField(default=False)
+    
+        
+class ModelRuleAccessInputSerializer(serializers.Serializer):
     model_id = serializers.IntegerField()
     can_read = serializers.BooleanField(default=False)
     can_create = serializers.BooleanField(default=False)
     can_update = serializers.BooleanField(default=False)
     can_delete = serializers.BooleanField(default=False)
+    record_access_rules = RecordRuleAccessInputSerializer(many=True, required=False)
+    
 
 
-class BulkModelAccessSerializer(serializers.Serializer):
+class ModelAndRecordRuleAccessInputSerializer(serializers.Serializer):
     user = serializers.IntegerField()  # <-- You need this
-    model_access_rule = ModelAccessItemSerializer(many=True)
+    model_access_rule = ModelRuleAccessInputSerializer(many=True)
+    
 
     def create(self, validated_data):
         request_user = self.context["request"].user
         user_id = validated_data.get("user")
         
         # Ensure user exists
-        if check_id_exists(CustomUser, user_id) == False:
+        # if check_id_exists(CustomUser, user_id) == False:
+        #     raise serializers.ValidationError("User does not exist")
+        target_user = check_obj_exists(CustomUser, user_id)
+        if not isinstance(target_user, CustomUser):
             raise serializers.ValidationError("User does not exist")
         
-        if request_user.designation.level < request_user.designation.reporting_designation.level:
-            raise serializers.ValidationError("You do not have permission to assign access")
+        # (request_user) main admin designation level = 1, admin disignation level = 0, (1>0) True
+        if request_user.is_system_user and target_user.is_system_user:
+            if (
+                getattr(request_user.designation, "reporting_designation", None)
+                and request_user.designation.level > target_user.designation.level
+            ):
+                raise serializers.ValidationError("You do not have permission to assign access")
+
         
         model_access_rules = validated_data.get("model_access_rule")
-        objs = []
+        result = []
 
-        for rule in model_access_rules:
-            model_id = rule.get("model_id")
+        with transaction.atomic():
+            for model_rule in model_access_rules:
+                model_id = model_rule.get("model_id")
+                
+                # Ensure model exists
+                # if check_id_exists(ModelName, model_id) == False:
+                #     raise serializers.ValidationError("Model does not exist")
+                model_obj = check_obj_exists(ModelName, model_id)
+                if not isinstance(model_obj, ModelName):
+                    raise serializers.ValidationError("Model does not exist")
+                
+                # Super Admin of system user
+                if request_user.is_system_user and getattr(request_user.designation, "level", None) == 0:
+                    pass
+                else:
+                    validate_assignable_permissions(request_user, model_id, model_rule)
+                
+                model_access, _ = ModelAccess.objects.update_or_create(
+                    user_id=user_id,     # lookup by user + model
+                    model_id=model_id,
+                    defaults={
+                        "can_create": model_rule.get("can_create", False),
+                        "can_read": model_rule.get("can_read", False),
+                        "can_update": model_rule.get("can_update", False),
+                        "can_delete": model_rule.get("can_delete", False),
+                    },
+                )
+                
+                record_access_rules = model_rule.get("record_access_rules", None)
+                record_access_rules_data = []
+                if record_access_rules is not None:
+                    for record_rule in record_access_rules:
+                        if request_user.is_system_user and getattr(request_user.designation, "level", None) == 0:
+                            pass
+                        else:
+                            validate_assignable_permissions(request_user, model_id, record_rule)
+                            
+                            domain_filter_data = record_rule.get("domain_filter")
+                            django_model = apps.get_model(model_obj.app_label, model_obj.model)
+                            validate_domain_filter(django_model, domain_filter_data)
+                            
+                        record_access, _ = RecordRule.objects.update_or_create(
+                            model_id=model_id,
+                            domain_filter = domain_filter_data,
+                            defaults={
+                                "user": target_user,
+                                "can_read": record_rule.get("can_read", False),
+                                "can_create": record_rule.get("can_create", False),
+                                "can_write": record_rule.get("can_write", False),
+                                "can_delete": record_rule.get("can_delete", False),
+                            },
+                        )
+                        
+                        record_access_rules_data.append({
+                        "domain_filter": record_access.domain_filter,
+                        "can_read": record_access.can_read,
+                        "can_create": record_access.can_create,
+                        "can_write": record_access.can_write,
+                        "can_delete": record_access.can_delete,
+                    })
             
-            # Ensure model exists
-            if check_id_exists(ModelName, model_id) == False:
-                raise serializers.ValidationError("Model does not exist")
+                    # access['record_access_rules'] = record_access
+                
+                result.append({
+                "model_id": model_access.model_id,
+                "can_create": model_access.can_create,
+                "can_read": model_access.can_read,
+                "can_update": model_access.can_update,
+                "can_delete": model_access.can_delete,
+                "record_access_rules": record_access_rules_data
+                })
             
-            # Super Admin of system user
-            if request_user.is_system_user and getattr(request_user.designation, "level", None) == 0:
-                pass
-            else:
-                validate_assignable_permissions(request_user, model_id, rule)
-            
-            access, _ = ModelAccess.objects.update_or_create(
-                user_id=user_id,     # lookup by user + model
-                model_id=model_id,
-                defaults={
-                    "can_create": rule.get("can_create", False),
-                    "can_read": rule.get("can_read", False),
-                    "can_update": rule.get("can_update", False),
-                    "can_delete": rule.get("can_delete", False),
-                },
-            )
-            objs.append(access)
-
         return {
         "user": user_id,
-        "model_access_rule": objs
+        "model_access_rule": result
     }
         
-class ModelAccesSerializer(serializers.ModelSerializer):
+
+
+class RecordRuleAccessOutputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecordRule
+        fields = ['id', 'name', 'domain_filter', 'can_read', 'can_create', 'can_write', 'can_delete']
+        read_only_fields = ['id', 'name', 'domain_filter', 'can_read', 'can_create', 'can_write', 'can_delete']
+
+
+class ModelRuleAccessOutputSerializer(serializers.ModelSerializer):
+    record_access_rules = serializers.SerializerMethodField()
+    model_id = serializers.IntegerField(source='model.id')
+    model_name = serializers.CharField(source='model.model')
+    
+    def get_record_access_rules(self, obj):
+        rules = RecordRule.objects.filter(user=obj.user, model=obj.model)
+        return RecordRuleAccessOutputSerializer(rules, many=True).data
+    
     class Meta:
         model = ModelAccess
-        fields = ['id', 'model', 'can_read', 'can_create', 'can_update', 'can_delete']
+        fields = ['model_id','model_name', 'can_read', 'can_create', 'can_update', 'can_delete', 'record_access_rules']
+        read_only_fields = ['id', 'model', 'can_read', 'can_create', 'can_update', 'can_delete']
+
+
+class ModelAndRecordRuleOutputSerializer(serializers.Serializer):
+    user = serializers.IntegerField(source='id')
+    model_access_rule = ModelRuleAccessOutputSerializer(
+        many=True,
+    )

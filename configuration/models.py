@@ -256,13 +256,13 @@ class RecordRule(models.Model):
     user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name="record_rules")
     model = models.ForeignKey(ModelName, on_delete=models.CASCADE, related_name="record_rules")
 
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, null=True, blank=True)
     domain_filter = models.JSONField(default=dict)  # e.g. {"state__name": "Gujarat"}
 
-    perm_read = models.BooleanField(default=False)
-    perm_create = models.BooleanField(default=False)
-    perm_write = models.BooleanField(default=False)
-    perm_delete = models.BooleanField(default=False)
+    can_read = models.BooleanField(default=False)
+    can_create = models.BooleanField(default=False)
+    can_write = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name} ({self.model})"

@@ -1,10 +1,18 @@
 from rest_framework.exceptions import ValidationError
 from configuration.models import ModelAccess, ModelName
+from django.db.models import Q, ForeignKey
 
 def check_id_exists(model, id):
     try:
         model.objects.get(id=id)
         return True
+    except model.DoesNotExist:
+        return False
+
+def check_obj_exists(model, id):
+    try:
+        obj = model.objects.get(id=id)
+        return obj
     except model.DoesNotExist:
         return False
 
@@ -32,9 +40,55 @@ def validate_assignable_permissions(request_user, model_id, requested_perms: dic
 
     for perm in ["can_read", "can_create", "can_update", "can_delete"]:
         # can_read = True & current_user_access.can_read = False, then raise error
-        if requested_perms.get(perm) != getattr(current_user_access, perm): # getattr(current_user_access, "can_update") → True/False.
+        if requested_perms.get(perm) and not getattr(current_user_access, perm): # getattr(current_user_access, "can_update") → True/False.
             print(getattr(current_user_access, perm))
             raise ValidationError(
                 f"You cannot assign {perm.split("_")[1]} for {model_name.model} "
                 f"because you don’t have it yourself."
             )
+            
+            
+# Return only foreign key fields of this model
+def suggest_foreign_keys(model):
+        return [f.name for f in model._meta.get_fields() if isinstance(f, ForeignKey)]
+
+# Return direct fields of this model (including fks)
+def suggest_model_fields(model):
+    return [f.name for f in model._meta.fields]
+
+
+def validate_domain_filter(model, domain_filter):
+    for key, val in domain_filter.items():
+        print(key)
+        parts = key.split("__")
+        if len(parts) > 2:
+            raise ValidationError({"error": "Only one level of nested fields is allowed."})
+        
+        current_model = model
+
+        # idx = id, part = contient,name when {"contient__name": "Europe"}
+        # idx = 0, part = contient
+        # idx = 1, part = name
+        for idx, part in enumerate(parts):
+            fields = {f.name: f for f in current_model._meta.get_fields()}
+            
+            if part not in fields:
+                # Wrong foreign key in current model
+                raise ValidationError({
+                    "error":f"{part} is not a valid field for {current_model.__name__}.",
+                    "suggetions": suggest_foreign_keys(current_model) if idx == 0 else suggest_model_fields(current_model),
+                    }
+                )
+        
+        # ---- Value Existence Check ----
+        # {key: val}        # → {"continent__name": "Asia"}
+        # Q(**{key: val})   # → Q(continent__name="Asia")
+        if isinstance(val, list):
+            q = Q(**{f"{key}__in": val})
+        else:
+            q = Q(**{key: val})
+
+        if not current_model.objects.filter(q).exists():
+            raise ValidationError({
+                "error": f"Value {val} not found for filter {key} in {current_model.__name__}."
+            })

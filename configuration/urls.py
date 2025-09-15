@@ -105,5 +105,7 @@ urlpatterns = [
     path("get_pidhis/<int:subgotra_id>/", PidhiBySubGotraView.as_view(), name="get_pidhis_by_subgotra"),
     
     path("models/", ModelNameView.as_view(), name="get_models"),
-    path("model_access_rules/", BulkUserModelAccessRuleView.as_view(), name="model_access_rules"),
+    path("model_access_rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
+    
+    path("get_access_rules/", GetModelAndAccessRulesOfLoggedUserView.as_view(), name="get_access_rules"),
 ]

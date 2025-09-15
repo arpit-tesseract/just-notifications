@@ -2016,26 +2016,30 @@ class ModelNameView(APIView):
         return Response(serializer.data)
     
 
-class BulkUserModelAccessRuleView(APIView):
+class ModelAndAccessRulesView(APIView):
     permission_classes = [IsAuthenticated]
     # serializer_class = BulkModelAccessSerializer
     
-    def get(self, request):
-        user = request.user
-        if user.is_verified==False:
-            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        model_access_rules = ModelAccess.objects.filter(user=user)
-        serializer = ModelAccesSerializer(model_access_rules, many=True)
-        return Response(serializer.data)
     
     def post(self, request):
         user = request.user
         if user.is_verified==False:
             return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
         
-        serializer = BulkModelAccessSerializer(data=request.data, context={"request": request} )
+        serializer = ModelAndRecordRuleAccessInputSerializer(data=request.data, context={"request": request} )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GetModelAndAccessRulesOfLoggedUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        if user.is_verified==False:
+            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        serializer = ModelAndRecordRuleOutputSerializer(user)
+        return Response(serializer.data)
