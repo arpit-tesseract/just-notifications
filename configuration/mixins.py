@@ -45,6 +45,10 @@ class RecordRuleMixin(SafeQueryMixin):
     def suggest_model_fields(self, model):
         return [f.name for f in model._meta.fields]
     
+    # Generic field suggester (used in error handling)
+    def suggest_fields(self, model):
+        return self.suggest_model_fields(model) + self.suggest_foreign_keys(model)
+    
     # Validate domain key like 'continent__namee'.
     def validate_domain_key(self, model, key):
         parts = key.split("__")
@@ -90,14 +94,14 @@ class RecordRuleMixin(SafeQueryMixin):
     def apply_record_rules(self, qs):
         user = self.request.user
         model = qs.model
-        model_name = qs.model._meta.label
+        model_name = qs.model._meta.label # e.g. "app_label.ModelName"
 
         # Determine action
         action = getattr(self, "action", None)
         if not action:
             action = self.request.method.lower()  # fallback for APIView
 
-        perm_field = f"perm_{self.action_map.get(action, 'read')}"
+        perm_field = f"can_{self.action_map.get(action, 'read')}"
         
         #  Bypass if system user AND designation level = 0
         if user.is_system_user and getattr(user.designation, "level", None) == 0:
@@ -106,7 +110,7 @@ class RecordRuleMixin(SafeQueryMixin):
         # Fetch all record rules for this user and model
         rules = user.record_rules.filter(
             model__technical_name=model_name,
-            **{perm_field: True}
+            **{perm_field: True}        # e.g can_create = True
         )
         
         if not rules.exists():
@@ -194,8 +198,8 @@ class FilteredQuerysetMixin(SafeQueryMixin):
             final_qs = base_qs
         
         # Apply record rules if RecordRuleMixin is used
-        if hasattr(self, "apply_record_rules"):
-            return self.apply_record_rules(final_qs)
+        # if hasattr(self, "apply_record_rules"):
+        #     return self.apply_record_rules(final_qs)
         return final_qs  
 
 

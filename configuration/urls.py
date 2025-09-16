@@ -106,6 +106,6 @@ urlpatterns = [
     
     path("models/", ModelNameView.as_view(), name="get_models"),
     path("model_access_rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
+    path("model_access_rules/<int:user_id>/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
     
-    path("get_access_rules/", GetModelAndAccessRulesOfLoggedUserView.as_view(), name="get_access_rules"),
 ]

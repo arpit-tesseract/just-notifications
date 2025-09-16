@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 import pandas as pd
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
@@ -2020,6 +2020,12 @@ class ModelAndAccessRulesView(APIView):
     permission_classes = [IsAuthenticated]
     # serializer_class = BulkModelAccessSerializer
     
+    def get(self, request, user_id=None):
+        if user_id==None:
+            user_id = request.user.id
+        user = get_object_or_404(CustomUser, id=user_id)
+        serializer = ModelAndRecordRuleAccessOutputSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
     def post(self, request):
         user = request.user
@@ -2033,13 +2039,3 @@ class ModelAndAccessRulesView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class GetModelAndAccessRulesOfLoggedUserView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        user = request.user
-        if user.is_verified==False:
-            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        serializer = ModelAndRecordRuleOutputSerializer(user)
-        return Response(serializer.data)

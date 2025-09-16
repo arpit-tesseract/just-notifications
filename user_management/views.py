@@ -7,11 +7,15 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, permission_classes, api_view
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from django.db import transaction
 from .serializers import *
 from configuration.models import *
 from configuration.serializers import *
+
 
 class CustomUserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -71,3 +75,47 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         user = CustomUser.objects.get(id=request.user.id)
         serializers = UserDetailSerializer(user)
         return Response(serializers.data, status=status.HTTP_200_OK)
+    
+
+class LoginWithEmailPasswordView(APIView):
+    def post(self, request):
+        print("Api is called")
+        serializer = LoginEmailPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            print("flag False")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        validated_data = serializer.validated_data
+        email = validated_data.get('email').strip().lower()
+        password = validated_data.get('password').strip()
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"error": "Email does not exist"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if user.is_verified == False:
+            return Response(
+                {
+                    "error": "Your account is not verified"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not user.check_password(password):
+            return Response(
+                {"error": "Incorrect password"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            },
+            status=status.HTTP_200_OK)
+        

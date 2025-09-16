@@ -7,7 +7,7 @@ router = DefaultRouter()
 router.register(r'users', views.CustomUserViewSet, basename='users')
 
 urlpatterns = [
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('login/', views.LoginWithEmailPasswordView.as_view(), name='login'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('user/', include(router.urls)),
     # path('user/get_access/', views.get_user_access_option)

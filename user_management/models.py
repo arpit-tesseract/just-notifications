@@ -231,3 +231,14 @@ class ResidentialDetail(models.Model):
                             f"{self.houses.code if self.houses else '00'}"
         super().save(*args, **kwargs)
 
+class OTP(models.Model):
+    user_id = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    email = models.EmailField()
+    contact_no = models.CharField(max_length=15, null=True, blank=True)
+    otp = models.CharField(max_length=6)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+    expired_at = models.DateTimeField()
+    
+    def __str__(self):
+        return f"{self.email}, OTP: {self.otp}"

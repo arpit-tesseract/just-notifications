@@ -59,7 +59,7 @@ def suggest_model_fields(model):
 
 def validate_domain_filter(model, domain_filter):
     for key, val in domain_filter.items():
-        print(key)
+
         parts = key.split("__")
         if len(parts) > 2:
             raise ValidationError({"error": "Only one level of nested fields is allowed."})
@@ -92,3 +92,11 @@ def validate_domain_filter(model, domain_filter):
             raise ValidationError({
                 "error": f"Value {val} not found for filter {key} in {current_model.__name__}."
             })
+       
+            
+# Find first ForeignKey/OneToOneField in model_cls that points to target_model.
+def get_related_field_name(model_cls, target_model):
+    for field in model_cls._meta.get_fields():
+        if field.is_relation and field.related_model == target_model:
+            return field.name
+    return None

@@ -493,23 +493,24 @@ class ModelNameSerializer(serializers.ModelSerializer):
         fields = ['id', 'model', 'technical_name']
         read_only_fields = ['id','model', 'technical_name']
         
-class RecordRuleAccessInputSerializer(serializers.Serializer):
-    domain_filter = serializers.JSONField()
-    can_read = serializers.BooleanField(default=False)
-    can_create = serializers.BooleanField(default=False)
-    can_write = serializers.BooleanField(default=False)
-    can_delete = serializers.BooleanField(default=False)
+# class RecordRuleAccessInputSerializer(serializers.Serializer):
+#     domain_filter = serializers.JSONField()
+#     can_read = serializers.BooleanField(default=False)
+#     can_create = serializers.BooleanField(default=False)
+#     can_write = serializers.BooleanField(default=False)
+#     can_delete = serializers.BooleanField(default=False)
     
         
 class ModelRuleAccessInputSerializer(serializers.Serializer):
     model_id = serializers.IntegerField()
+    model_name = serializers.CharField(read_only=True)
     can_read = serializers.BooleanField(default=False)
     can_create = serializers.BooleanField(default=False)
     can_update = serializers.BooleanField(default=False)
     can_delete = serializers.BooleanField(default=False)
-    record_access_rules = RecordRuleAccessInputSerializer(many=True, required=False)
-    
+    domain_filter = serializers.JSONField(required=False)
 
+    
 
 class ModelAndRecordRuleAccessInputSerializer(serializers.Serializer):
     user = serializers.IntegerField()  # <-- You need this
@@ -521,8 +522,6 @@ class ModelAndRecordRuleAccessInputSerializer(serializers.Serializer):
         user_id = validated_data.get("user")
         
         # Ensure user exists
-        # if check_id_exists(CustomUser, user_id) == False:
-        #     raise serializers.ValidationError("User does not exist")
         target_user = check_obj_exists(CustomUser, user_id)
         if not isinstance(target_user, CustomUser):
             raise serializers.ValidationError("User does not exist")
@@ -544,8 +543,6 @@ class ModelAndRecordRuleAccessInputSerializer(serializers.Serializer):
                 model_id = model_rule.get("model_id")
                 
                 # Ensure model exists
-                # if check_id_exists(ModelName, model_id) == False:
-                #     raise serializers.ValidationError("Model does not exist")
                 model_obj = check_obj_exists(ModelName, model_id)
                 if not isinstance(model_obj, ModelName):
                     raise serializers.ValidationError("Model does not exist")
@@ -567,48 +564,33 @@ class ModelAndRecordRuleAccessInputSerializer(serializers.Serializer):
                     },
                 )
                 
-                record_access_rules = model_rule.get("record_access_rules", None)
-                record_access_rules_data = []
-                if record_access_rules is not None:
-                    for record_rule in record_access_rules:
-                        if request_user.is_system_user and getattr(request_user.designation, "level", None) == 0:
-                            pass
-                        else:
-                            validate_assignable_permissions(request_user, model_id, record_rule)
-                            
-                            domain_filter_data = record_rule.get("domain_filter")
-                            django_model = apps.get_model(model_obj.app_label, model_obj.model)
-                            validate_domain_filter(django_model, domain_filter_data)
-                            
-                        record_access, _ = RecordRule.objects.update_or_create(
-                            model_id=model_id,
-                            domain_filter = domain_filter_data,
-                            defaults={
-                                "user": target_user,
-                                "can_read": record_rule.get("can_read", False),
-                                "can_create": record_rule.get("can_create", False),
-                                "can_write": record_rule.get("can_write", False),
-                                "can_delete": record_rule.get("can_delete", False),
-                            },
-                        )
-                        
-                        record_access_rules_data.append({
-                        "domain_filter": record_access.domain_filter,
-                        "can_read": record_access.can_read,
-                        "can_create": record_access.can_create,
-                        "can_write": record_access.can_write,
-                        "can_delete": record_access.can_delete,
-                    })
-            
-                    # access['record_access_rules'] = record_access
+                domain_filter = model_rule.get("domain_filter", None)
+                
+                if domain_filter is not None:
+                    django_model = apps.get_model(model_obj.app_label, model_obj.model)
+                    validate_domain_filter(django_model, domain_filter)
+                    
+                    
+                    record_access, _ = RecordRule.objects.update_or_create(
+                        model_id=model_id,
+                        domain_filter = domain_filter,
+                        defaults={
+                            "user": target_user,
+                            "can_read": model_rule.get("can_read", False), # default use model rule for record acess rule
+                            "can_create": model_rule.get("can_create", False),
+                            "can_write": model_rule.get("can_write", False),
+                            "can_delete": model_rule.get("can_delete", False),
+                        },
+                    )
                 
                 result.append({
                 "model_id": model_access.model_id,
+                "model_name": model_access.model.technical_name,
                 "can_create": model_access.can_create,
                 "can_read": model_access.can_read,
                 "can_update": model_access.can_update,
                 "can_delete": model_access.can_delete,
-                "record_access_rules": record_access_rules_data
+                "domain_filter": domain_filter
                 })
             
         return {
@@ -618,30 +600,41 @@ class ModelAndRecordRuleAccessInputSerializer(serializers.Serializer):
         
 
 
-class RecordRuleAccessOutputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RecordRule
-        fields = ['id', 'name', 'domain_filter', 'can_read', 'can_create', 'can_write', 'can_delete']
-        read_only_fields = ['id', 'name', 'domain_filter', 'can_read', 'can_create', 'can_write', 'can_delete']
+# ---------------- OUTPUT SERIALIZER (GET) ----------------
+class ModelRuleAccessOutputSerializer(serializers.Serializer):
+    model_id = serializers.IntegerField()
+    model_name = serializers.CharField()
+    can_read = serializers.BooleanField()
+    can_create = serializers.BooleanField()
+    can_update = serializers.BooleanField()
+    can_delete = serializers.BooleanField()
+    domain_filter = serializers.JSONField(required=False)
 
 
-class ModelRuleAccessOutputSerializer(serializers.ModelSerializer):
-    record_access_rules = serializers.SerializerMethodField()
-    model_id = serializers.IntegerField(source='model.id')
-    model_name = serializers.CharField(source='model.model')
-    
-    def get_record_access_rules(self, obj):
-        rules = RecordRule.objects.filter(user=obj.user, model=obj.model)
-        return RecordRuleAccessOutputSerializer(rules, many=True).data
-    
-    class Meta:
-        model = ModelAccess
-        fields = ['model_id','model_name', 'can_read', 'can_create', 'can_update', 'can_delete', 'record_access_rules']
-        read_only_fields = ['id', 'model', 'can_read', 'can_create', 'can_update', 'can_delete']
+class ModelAndRecordRuleAccessOutputSerializer(serializers.Serializer):
+    user = serializers.IntegerField(source="id")
+    model_access_rule = serializers.SerializerMethodField()
 
+    def get_model_access_rule(self, user_obj):
+        model_accesses = ModelAccess.objects.filter(user=user_obj)
+        result = []
 
-class ModelAndRecordRuleOutputSerializer(serializers.Serializer):
-    user = serializers.IntegerField(source='id')
-    model_access_rule = ModelRuleAccessOutputSerializer(
-        many=True,
-    )
+        for model_access in model_accesses:
+            print(user_obj, model_access)
+            try:
+                record_rule = RecordRule.objects.get(
+                    user=user_obj, model=model_access.model
+                )
+            except RecordRule.DoesNotExist:
+                record_rule = None
+
+            result.append({
+                "model_id": model_access.model_id,
+                "model_name": model_access.model.technical_name,
+                "can_read": model_access.can_read,
+                "can_create": model_access.can_create,
+                "can_update": model_access.can_update,
+                "can_delete": model_access.can_delete,
+                "domain_filter": record_rule.domain_filter if record_rule else None,
+            })
+        return result
