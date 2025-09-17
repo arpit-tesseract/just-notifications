@@ -17,64 +17,64 @@ from configuration.models import *
 from configuration.serializers import *
 
 
-class CustomUserViewSet(viewsets.ModelViewSet):
-    queryset = CustomUser.objects.all()
-    permission_classes = [AllowAny]
+# class CustomUserViewSet(viewsets.ModelViewSet):
+#     queryset = CustomUser.objects.all()
+#     permission_classes = [AllowAny]
     
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return UserCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return UserUpdateSerializer
-        else:
-            return UserDetailSerializer
+#     def get_serializer_class(self):
+#         if self.action == 'create':
+#             return UserCreateSerializer
+#         elif self.action in ['update', 'partial_update']:
+#             return UserUpdateSerializer
+#         else:
+#             return UserDetailSerializer
     
-    def get_queryset(self):
-        # You can add filtering based on user permissions here
-        queryset = CustomUser.objects.all()
+#     def get_queryset(self):
+#         # You can add filtering based on user permissions here
+#         queryset = CustomUser.objects.all()
         
-        # Example: Filter based on user role or permissions
-        # if not self.request.user.is_superuser:
-        #     # Add your filtering logic here
-        #     pass
+#         # Example: Filter based on user role or permissions
+#         # if not self.request.user.is_superuser:
+#         #     # Add your filtering logic here
+#         #     pass
             
-        return queryset
+#         return queryset
     
-    @action(detail=False, methods=['get'])
-    def system_users(self, request):
-        """Get all system users"""
-        system_users = self.get_queryset().filter(is_system_user=True)
-        serializer = self.get_serializer(system_users, many=True)
-        return Response(serializer.data)
+#     @action(detail=False, methods=['get'])
+#     def system_users(self, request):
+#         """Get all system users"""
+#         system_users = self.get_queryset().filter(is_system_user=True)
+#         serializer = self.get_serializer(system_users, many=True)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def regular_users(self, request):
-        """Get all regular users"""
-        regular_users = self.get_queryset().filter(is_system_user=False)
-        serializer = self.get_serializer(regular_users, many=True)
-        return Response(serializer.data)
+#     @action(detail=False, methods=['get'])
+#     def regular_users(self, request):
+#         """Get all regular users"""
+#         regular_users = self.get_queryset().filter(is_system_user=False)
+#         serializer = self.get_serializer(regular_users, many=True)
+#         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'])
-    def verify_user(self, request, pk=None):
-        """Verify a user"""
-        user = self.get_object()
-        user.is_verified = True
-        user.save()
-        return Response({'message': 'User verified successfully'})
+#     @action(detail=True, methods=['post'])
+#     def verify_user(self, request, pk=None):
+#         """Verify a user"""
+#         user = self.get_object()
+#         user.is_verified = True
+#         user.save()
+#         return Response({'message': 'User verified successfully'})
     
-    @action(detail=True, methods=['post'])
-    def unverify_user(self, request, pk=None):
-        """Unverify a user"""
-        user = self.get_object()
-        user.is_verified = False
-        user.save()
-        return Response({'message': 'User unverified successfully'})
+#     @action(detail=True, methods=['post'])
+#     def unverify_user(self, request, pk=None):
+#         """Unverify a user"""
+#         user = self.get_object()
+#         user.is_verified = False
+#         user.save()
+#         return Response({'message': 'User unverified successfully'})
     
-    @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
-    def get_details(self, request):
-        user = CustomUser.objects.get(id=request.user.id)
-        serializers = UserDetailSerializer(user)
-        return Response(serializers.data, status=status.HTTP_200_OK)
+#     @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
+#     def get_details(self, request):
+#         user = CustomUser.objects.get(id=request.user.id)
+#         serializers = UserDetailSerializer(user)
+#         return Response(serializers.data, status=status.HTTP_200_OK)
     
 
 class LoginWithEmailPasswordView(APIView):

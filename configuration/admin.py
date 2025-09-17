@@ -2,17 +2,19 @@ from django.contrib import admin
 from .models import *
 # Register your models here.
 
+admin.site.register(Glob)
 admin.site.register(Continent)
 admin.site.register(Country)
 admin.site.register(State)
-admin.site.register(City)
 admin.site.register(District)
-admin.site.register(Village)
+admin.site.register(CityVillage)
 admin.site.register(Ward)
 admin.site.register(Society)
 admin.site.register(Block)
+admin.site.register(Floor)
 admin.site.register(Houses)
-# admin.site.register(Accesses)
+
+
 admin.site.register(Religion)
 admin.site.register(Sampraday)
 admin.site.register(Panth)
@@ -21,7 +23,11 @@ admin.site.register(Caste)
 admin.site.register(SubCaste)
 admin.site.register(Gotra)
 admin.site.register(SubGotra)
+admin.site.register(Kul)
+admin.site.register(Family)
 admin.site.register(Pidhi)
+
+
 admin.site.register(Section)
 admin.site.register(Class)
 admin.site.register(ProfCategory)

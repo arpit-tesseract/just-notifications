@@ -15,7 +15,7 @@ class CustomUserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'user_role', 'designation', 'password1', 'password2', 'is_staff', 'is_superuser')}
+            'fields': ('email', 'user_role', 'designation', 'password1', 'password2', 'is_system_user', 'is_verified', 'is_staff', 'is_superuser')}
         ),
     )
     search_fields = ('email',)
@@ -26,12 +26,13 @@ admin.site.register(CustomUser, CustomUserAdmin)
 
 admin.site.register(UserRole)
 admin.site.register(Designation)
-admin.site.register(Address)
+admin.site.register(RelationTypes)
+admin.site.register(ResidentialDetail)
 admin.site.register(RoomDetail)
 admin.site.register(RoomMembersDetail)
+admin.site.register(Post)
+admin.site.register(Document)
 admin.site.register(PersonalTable)
-admin.site.register(Relation)
 admin.site.register(ProfessionalDetail)
 admin.site.register(ReportCard)
-admin.site.register(ResidentialDetail)
 

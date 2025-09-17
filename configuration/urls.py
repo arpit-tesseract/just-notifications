@@ -3,12 +3,13 @@ from django.urls import path, include
 from .views import *
 
 router = DefaultRouter()
+router.register(r'globs', GlobViewSet)
 router.register(r'countries', CountryViewSet)
 router.register(r'continents', ContinentViewSet)
 router.register(r'states', StateViewSet)
 router.register(r'districts', DistrictViewSet)
-router.register(r'cities', CityViewSet)
-router.register(r'villages', VillageViewSet)
+router.register(r'talukas', TalukaViewSet)
+router.register(r'cityvillages', CityVillageViewSet)
 router.register(r'wards', WardViewSet)
 router.register(r'societies', SocietyViewSet)
 router.register(r'blocks', BlockViewSet)
@@ -42,9 +43,9 @@ urlpatterns = [
     path("import/country/", ImportCountries.as_view()),
     path("import/state/", ImportStates.as_view()),
     path("import/district/", ImportDistricts.as_view()),
-    path("import/city/", ImportCities.as_view()),
-    path("import/village/", ImportVillages.as_view()),
-    path("import/ward/", ImportWards.as_view()),
+    # path("import/city/", ImportCities.as_view()),
+    # path("import/village/", ImportVillages.as_view()),
+    # path("import/ward/", ImportWards.as_view()),
     path("import/society/", ImportSocities.as_view()),
     path("import/block/", ImportBlocks.as_view()),
     path("import/housenum/", ImportHouses.as_view()),
@@ -72,12 +73,13 @@ urlpatterns = [
 
     # To get the related queryset
     # path("get_countries/<int:continent_id>/", get_countries_by_continent),
+    path("get_continents/<int:glob_id>/", ContinentsByGlobView.as_view(), name="get_continents_by_glob"),
     path("get_countries/<int:continent_id>/", CountriesByContinentView.as_view(), name="get_countries_by_continent"),
     path("get_states/<int:country_id>/", StatesByCountryView.as_view(), name="get_states_by_country"),
     path("get_districts/<int:state_id>/", DistrictsByStateView.as_view(), name="get_districts_by_state"),
-    path("get_cities/<int:district_id>/", CityByDistrictView.as_view(), name="get_cities_by_district"),
-    path("get_villages/by-district/<int:district_id>/", VillageByDistrictView.as_view(), name="get_villages_by_district"),
-    path("get_villages/by-city/<int:city_id>/", VillageByCityView.as_view(), name="get_villages_by_city"),
+    # path("get_cities/<int:district_id>/", CityByDistrictView.as_view(), name="get_cities_by_district"),
+    # path("get_villages/by-district/<int:district_id>/", VillageByDistrictView.as_view(), name="get_villages_by_district"),
+    # path("get_villages/by-city/<int:city_id>/", VillageByCityView.as_view(), name="get_villages_by_city"),
     path("get_wards/by-city/<int:city_id>/", WardsByCityView.as_view(), name="get_wards_by_city"),
     path("get_wards/by-village/<int:village_id>/", WardsByVillageView.as_view(), name="get_wards_by_village"),
     path("get_societies/<int:ward_id>/", SocietiesByWardView.as_view(), name="get_societies_by_ward"),
@@ -102,7 +104,10 @@ urlpatterns = [
     path("get_subcastes/<int:caste_id>/", SubCasteByCasteView.as_view(), name="get_subcastes_by_caste"),
     path("get_gotras/<int:subcaste_id>/", GotraBySubCasteView.as_view(), name="get_gotras_by_subcaste"),
     path("get_subgotras/<int:gotra_id>/", SubGotraByGotraView.as_view(), name="get_subgotras_by_gotra"),
-    path("get_pidhis/<int:subgotra_id>/", PidhiBySubGotraView.as_view(), name="get_pidhis_by_subgotra"),
+    path("get_kul/<int:subgotra_id>/", KulBySubGotraView.as_view(), name="get_kuls_by_subgotra"),
+    path("get_vansh/<int:kul_id>/", VanshByKulView.as_view(), name="get_vansh_by_kul"),
+    path("get_family/<int:vansh_id>/", FamilyByVanshView.as_view(), name="get_family_by_vansh"),
+    path("get_pidhis/<int:family_id>/", PidhiByFamilyView.as_view(), name="get_pidhis_by_family"),
     
     path("models/", ModelNameView.as_view(), name="get_models"),
     path("model_access_rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),

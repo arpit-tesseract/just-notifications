@@ -4,14 +4,34 @@ from django.utils import timezone
 # from user_management.models import CustomUser
 # from django.contrib.postgres.fields import JSONField
 
-# Create your models here.
-class Continent(models.Model):
-    name = models.CharField("Continent", max_length=100, unique=True)
+
+# Residential ->
+class Glob(models.Model):
+    name = models.CharField("Glob Name", max_length=100, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+    def save(self, *args, **kwargs):
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
+        super().save(*args, **kwargs)
+        
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
+class Continent(models.Model):
+    glob = models.ForeignKey(Glob, on_delete=models.CASCADE)
+    name = models.CharField("Continent", max_length=100, unique=True)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -31,6 +51,13 @@ class Country(models.Model):
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["continent", "name"], name="unique_country_per_continent"
+            )
+        ]
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -49,6 +76,13 @@ class State(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["country", "name"], name="unique_state_per_country"
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if self.hold_date:
@@ -68,6 +102,13 @@ class District(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["state", "name"], name="unique_district_per_state"
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if self.hold_date:
@@ -78,15 +119,22 @@ class District(models.Model):
 
     def __str__(self):
         return f"{self.state.code} - {self.name} - {self.code}"
+    
 
-
-class City(models.Model):
+class Taluka(models.Model):
     district = models.ForeignKey(District, on_delete=models.CASCADE)
-    name = models.CharField("City", max_length=200)
+    name = models.CharField("Taluka", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["district", "name"], name="unique_taluka_per_district"
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if self.hold_date:
@@ -99,14 +147,20 @@ class City(models.Model):
         return f"{self.district.code} - {self.name} - {self.code}"
 
 
-class Village(models.Model):
-    district = models.ForeignKey(District, on_delete=models.CASCADE, null=True)
-    city = models.ForeignKey(City, on_delete=models.CASCADE, null=True)
-    name = models.CharField("Village", max_length=200)
+class CityVillage(models.Model):
+    district = models.ForeignKey(District, on_delete=models.CASCADE)
+    name = models.CharField("City", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["district", "name"], name="unique_city_per_district"
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if self.hold_date:
@@ -116,18 +170,24 @@ class Village(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.city or 'No City'} - {self.name} - {self.code}"
+        return f"{self.district.code} - {self.name} - {self.code}"
 
 
 class Ward(models.Model):
-    village = models.ForeignKey(Village, on_delete=models.CASCADE, null=True)
-    city = models.ForeignKey(City, on_delete=models.CASCADE, null=True)
+    city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, null=True)
     # name = models.CharField("Ward", max_length=200)
-    code = models.CharField("Code", max_length=5, unique=True)
+    code = models.CharField("Code", max_length=5)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["city_village", "code"], name="unique_ward_per_city_village"
+            )
+        ]
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -136,7 +196,8 @@ class Ward(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.village} - {self.code}"
+        return f"{self.city_village} - {self.code}"
+    
     
 class Society(models.Model):
     ward = models.ForeignKey(Ward, on_delete=models.CASCADE)
@@ -146,6 +207,13 @@ class Society(models.Model):
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ward", "name"], name="unique_society_per_ward"
+            )
+        ]
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -163,6 +231,13 @@ class Block(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["society", "name"], name="unique_block_per_society"
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if self.hold_date:
@@ -173,15 +248,47 @@ class Block(models.Model):
 
     def __str__(self):
         return f"{self.society} - {self.name}"
+    
+    
+class Floor(models.Model):
+    block = models.ForeignKey(Block, on_delete=models.CASCADE)
+    code = models.CharField("Floor Code", max_length=5)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["block", "code"], name="unique_floor_per_block"
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.block} - {self.name}"
 
 
 class Houses(models.Model):
-    block = models.ForeignKey(Block, on_delete=models.CASCADE)
+    floor = models.ForeignKey(Floor, on_delete=models.CASCADE)
     code = models.CharField("House Code")
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["floor", "code"], name="unique_house_per_floor"
+            )
+        ]
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -192,40 +299,6 @@ class Houses(models.Model):
     def __str__(self):
         return f"{self.block} - {self.code}"
 
-
-# class PermissionModule(models.Model):
-#     name = models.CharField(max_length=100, unique=True)  # e.g. "residential_details", "personal_details", "professional_details"
-#     code = models.CharField(max_length=50, unique=True)  # e.g. "RD001"
-#     display_name = models.CharField(max_length=150)       # e.g. "Residential Details"
-
-#     def __str__(self):
-#         return self.display_name
-
-
-# class PermissionAction(models.Model):
-#     name = models.CharField(max_length=50, unique=True)  # e.g. "create", "read", "update", "delete"
-#     code = models.CharField(max_length=20, unique=True)   # e.g. "C001", "R001", etc.
-
-#     def __str__(self):
-#         return self.name
-
-
-# class Accesses(models.Model): # custom permissions system,
-#     module = models.ForeignKey(PermissionModule, on_delete=models.CASCADE)
-#     permission = models.ForeignKey(PermissionAction, on_delete=models.CASCADE)
-#     is_hidden = models.BooleanField("Hidden", default=False)
-#     on_hold = models.BooleanField("On Hold", default=False)
-#     hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-#     def save(self, *args, **kwargs):
-#         if self.hold_date:
-#             self.on_hold = True
-#             if self.hold_date < timezone.now().date():
-#                 self.on_hold = False
-#         super().save(*args, **kwargs)
-
-#     def __str__(self):
-#         return f"{self.module.display_name} - {self.permission.name}"
 
 
 class ModelName(models.Model):
@@ -267,21 +340,8 @@ class RecordRule(models.Model):
     def __str__(self):
         return f"{self.name} ({self.model})"
 
-# class Accesses(models.Model):
-#     name = models.CharField("Access Activity", max_length=255)
-#     is_hidden = models.BooleanField("Hidden", default=False)
-#     on_hold = models.BooleanField("On Hold", default=False)
-#     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
-#     def save(self, *args, **kwargs):
-#         if self.hold_date and self.hold_date < timezone.now().date():
-#             self.on_hold = False
-#         super().save(*args, **kwargs)
-
-#     def __str__(self):
-#         return self.name
-
-
+# Personal ->
 class Religion(models.Model):
     name = models.CharField("Religion", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
@@ -308,6 +368,7 @@ class Sampraday(models.Model):
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -326,7 +387,7 @@ class Panth(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -364,7 +425,7 @@ class Caste(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -383,7 +444,7 @@ class SubCaste(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -421,7 +482,7 @@ class SubGotra(models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
+    
     def save(self, *args, **kwargs):
         if self.hold_date:
             self.on_hold = True
@@ -433,8 +494,64 @@ class SubGotra(models.Model):
         return self.name
 
 
-class Pidhi(models.Model):
+class Kul(models.Model):
     subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE)
+    name = models.CharField("Kul", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    def save(self, *args, **kwargs):
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+    
+
+class Vansh(models.Model):
+    kul = models.ForeignKey(Kul, on_delete=models.CASCADE)
+    name = models.CharField("Vansh", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    def save(self, *args, **kwargs):
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+    
+
+class Family(models.Model):
+    vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE)
+    name = models.CharField("Family", max_length=200)
+    code = models.CharField("Code", max_length=5, unique=True)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    
+    def save(self, *args, **kwargs):
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+class Pidhi(models.Model):
+    family = models.ForeignKey(Family, on_delete=models.CASCADE)
     name = models.CharField("Pidhi", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
@@ -452,6 +569,7 @@ class Pidhi(models.Model):
         return self.name
 
 
+# Professional ->
 class Section(models.Model):
     name = models.CharField("Section", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)

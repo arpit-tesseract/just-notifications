@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register(r'users', views.CustomUserViewSet, basename='users')
+# router.register(r'users', views.CustomUserViewSet, basename='users')
 
 urlpatterns = [
     path('login/', views.LoginWithEmailPasswordView.as_view(), name='login'),

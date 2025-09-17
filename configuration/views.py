@@ -22,6 +22,10 @@ from rest_framework.decorators import action
 # CRUD Views
 # ==================
 
+class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = Glob.objects.all() 
+    serializer_class = GlobSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Continent.objects.all() 
@@ -79,15 +83,14 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-class CityViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = City.objects.all()
-    serializer_class = CitySerializer
+class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = Taluka.objects.all()
+    serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
 
-class VillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Village.objects.all()
-    serializer_class = VillageSerializer
+class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = CityVillage.objects.all()
+    serializer_class = CityVillageSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
 
@@ -109,12 +112,18 @@ class BlockViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     
+class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = Floor.objects.all()
+    serializer_class = FloorSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
 class HousesViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Houses.objects.all()
     serializer_class = HousesSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
+# Personal ->
 class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Religion.objects.all()
     serializer_class = ReligionSerializer
@@ -163,12 +172,27 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     permission_classes = [IsAuthenticated, HasModelAccessPermission]    
 
 
+class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = Kul.objects.all()
+    serializer_class = KulSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+
+class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = Family.objects.all()
+    serializer_class = FamilySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+
 class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Pidhi.objects.all()
     serializer_class = PidhiSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-
+    
+# ---------------------------------------------------------------------------------------
+# Professional ->
+# ---------------------------------------------------------------------------------------
 class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Section.objects.all()
     serializer_class = SectionSerializer
@@ -432,177 +456,177 @@ class ImportDistricts(APIView):
         return Response({"created": created, "errors": errors})
 
 
-class ImportCities(APIView):
-    model = City
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class ImportCities(APIView):
+#     model = City
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file uploaded."}, status=400)
+#     def post(self, request):
+#         file = request.FILES.get("file")
+#         if not file:
+#             return Response({"error": "No file uploaded."}, status=400)
 
-        try:
-            df = pd.read_excel(file, dtype={"Code": str})
-        except Exception as e:
-            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+#         try:
+#             df = pd.read_excel(file, dtype={"Code": str})
+#         except Exception as e:
+#             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
 
-        created = 0
-        errors = []
+#         created = 0
+#         errors = []
 
-        for idx, row in df.iterrows():
-            row_num = idx + 2
-            district_code = clean(row.get("District Code"))
-            name = clean(row.get("City"))
-            code = clean(row.get("Code"))
+#         for idx, row in df.iterrows():
+#             row_num = idx + 2
+#             district_code = clean(row.get("District Code"))
+#             name = clean(row.get("City"))
+#             code = clean(row.get("Code"))
 
-            if not name or not code or not district_code:
-                errors.append(
-                    f"Row {row_num}: Missing 'City', 'Code', or 'District Code'"
-                )
-                continue
+#             if not name or not code or not district_code:
+#                 errors.append(
+#                     f"Row {row_num}: Missing 'City', 'Code', or 'District Code'"
+#                 )
+#                 continue
 
-            try:
-                district = District.objects.get(code__iexact=district_code)
-                obj, is_created = City.objects.get_or_create(
-                    name__iexact=name,
-                    code__iexact=code,
-                    district=district,
-                    defaults={"name": name, "code": code, "district": district},
-                )
-                if is_created:
-                    created += 1
-            except District.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: District with code '{district_code}' not found"
-                )
+#             try:
+#                 district = District.objects.get(code__iexact=district_code)
+#                 obj, is_created = City.objects.get_or_create(
+#                     name__iexact=name,
+#                     code__iexact=code,
+#                     district=district,
+#                     defaults={"name": name, "code": code, "district": district},
+#                 )
+#                 if is_created:
+#                     created += 1
+#             except District.DoesNotExist:
+#                 errors.append(
+#                     f"Row {row_num}: District with code '{district_code}' not found"
+#                 )
 
-        return Response({"created": created, "errors": errors})
-
-
-class ImportVillages(APIView):
-    model = Village
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file uploaded."}, status=400)
-
-        try:
-            df = pd.read_excel(file, dtype={"Code": str})
-        except Exception as e:
-            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
-
-        created = 0
-        errors = []
-
-        for idx, row in df.iterrows():
-            row_num = idx + 2
-            district_code = clean(row.get("District Code"))
-            name = clean(row.get("Village"))
-            code = clean(row.get("Code"))
-            city_code = clean(row.get("City Code"))
-
-            if not name or not code or not district_code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Village', 'Code', or 'District Code'"
-                )
-                continue
-
-            try:
-                district = District.objects.get(code__iexact=district_code)
-                city = None
-                if city_code:
-                    try:
-                        city = City.objects.get(code__iexact=city_code)
-                    except City.DoesNotExist:
-                        errors.append(
-                            f"Row {row_num}: City with code '{city_code}' not found"
-                        )
-
-                village_defaults = {"name": name, "code": code, "district": district}
-                if city:
-                    village_defaults["city"] = city
-
-                obj, is_created = Village.objects.get_or_create(
-                    name__iexact=name,
-                    code__iexact=code,
-                    district=district,
-                    defaults=village_defaults,
-                )
-                if is_created:
-                    created += 1
-            except District.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: District with code '{district_code}' not found"
-                )
-
-        return Response({"created": created, "errors": errors})
+#         return Response({"created": created, "errors": errors})
 
 
-class ImportWards(APIView):
-    model = Ward
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class ImportVillages(APIView):
+#     model = Village
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file uploaded."}, status=400)
+#     def post(self, request):
+#         file = request.FILES.get("file")
+#         if not file:
+#             return Response({"error": "No file uploaded."}, status=400)
 
-        try:
-            df = pd.read_excel(file, dtype={"Code": str})
-        except Exception as e:
-            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+#         try:
+#             df = pd.read_excel(file, dtype={"Code": str})
+#         except Exception as e:
+#             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
 
-        created = 0
-        errors = []
+#         created = 0
+#         errors = []
 
-        for idx, row in df.iterrows():
-            row_num = idx + 2
-            village_code = clean(row.get("Village Code"))
-            code = clean(row.get("Ward"))
-            city_code = clean(row.get("City Code"))
+#         for idx, row in df.iterrows():
+#             row_num = idx + 2
+#             district_code = clean(row.get("District Code"))
+#             name = clean(row.get("Village"))
+#             code = clean(row.get("Code"))
+#             city_code = clean(row.get("City Code"))
 
-            if not code or (not village_code and not city_code):
-                errors.append(
-                    f"Row {row_num}: Missing 'Ward', or invalid 'Village Code'/'City Code'. "
-                    "Provide either Village Code or City Code."
-                )
-                continue
+#             if not name or not code or not district_code:
+#                 errors.append(
+#                     f"Row {row_num}: Missing 'Village', 'Code', or 'District Code'"
+#                 )
+#                 continue
 
-            city = None
-            village = None
+#             try:
+#                 district = District.objects.get(code__iexact=district_code)
+#                 city = None
+#                 if city_code:
+#                     try:
+#                         city = City.objects.get(code__iexact=city_code)
+#                     except City.DoesNotExist:
+#                         errors.append(
+#                             f"Row {row_num}: City with code '{city_code}' not found"
+#                         )
 
-            # Resolve City
-            if city_code:
-                try:
-                    city = City.objects.get(code__iexact=city_code)
-                except City.DoesNotExist:
-                    errors.append(f"Row {row_num}: City with code '{city_code}' not found")
-                    continue
+#                 village_defaults = {"name": name, "code": code, "district": district}
+#                 if city:
+#                     village_defaults["city"] = city
 
-            # Resolve Village
-            if village_code:
-                try:
-                    village = Village.objects.get(code__iexact=village_code)
-                except Village.DoesNotExist:
-                    errors.append(f"Row {row_num}: Village with code '{village_code}' not found")
-                    continue
+#                 obj, is_created = Village.objects.get_or_create(
+#                     name__iexact=name,
+#                     code__iexact=code,
+#                     district=district,
+#                     defaults=village_defaults,
+#                 )
+#                 if is_created:
+#                     created += 1
+#             except District.DoesNotExist:
+#                 errors.append(
+#                     f"Row {row_num}: District with code '{district_code}' not found"
+#                 )
 
-            ward = Ward.objects.filter(
-                code__iexact=code,
-                village=village,
-                city=city
-            ).first()
+#         return Response({"created": created, "errors": errors})
 
-            if not ward:
-                Ward.objects.create(code=code, village=village, city=city)
-                created += 1
 
-        return Response({"created": created, "errors": errors})
+# class ImportWards(APIView):
+#     model = Ward
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+#     def post(self, request):
+#         file = request.FILES.get("file")
+#         if not file:
+#             return Response({"error": "No file uploaded."}, status=400)
+
+#         try:
+#             df = pd.read_excel(file, dtype={"Code": str})
+#         except Exception as e:
+#             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+#         created = 0
+#         errors = []
+
+#         for idx, row in df.iterrows():
+#             row_num = idx + 2
+#             village_code = clean(row.get("Village Code"))
+#             code = clean(row.get("Ward"))
+#             city_code = clean(row.get("City Code"))
+
+#             if not code or (not village_code and not city_code):
+#                 errors.append(
+#                     f"Row {row_num}: Missing 'Ward', or invalid 'Village Code'/'City Code'. "
+#                     "Provide either Village Code or City Code."
+#                 )
+#                 continue
+
+#             city = None
+#             village = None
+
+#             # Resolve City
+#             if city_code:
+#                 try:
+#                     city = City.objects.get(code__iexact=city_code)
+#                 except City.DoesNotExist:
+#                     errors.append(f"Row {row_num}: City with code '{city_code}' not found")
+#                     continue
+
+#             # Resolve Village
+#             if village_code:
+#                 try:
+#                     village = Village.objects.get(code__iexact=village_code)
+#                 except Village.DoesNotExist:
+#                     errors.append(f"Row {row_num}: Village with code '{village_code}' not found")
+#                     continue
+
+#             ward = Ward.objects.filter(
+#                 code__iexact=code,
+#                 village=village,
+#                 city=city
+#             ).first()
+
+#             if not ward:
+#                 Ward.objects.create(code=code, village=village, city=city)
+#                 created += 1
+
+#         return Response({"created": created, "errors": errors})
 
 
 class ImportSocities(APIView):
@@ -1684,13 +1708,23 @@ class ImportRoomFlash(APIView):
 # def get_countries_by_continent(request, continent_id):
 #     return get_related_queryset(request, Country, CountrySerializer, "continent", continent_id)
 
+class ContinentsByGlobView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Continent.objects.all()
+    serializer_class = ContinentSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get(self, request, glob_id):
+        qs = self.queryset.filter(glob=glob_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
 class CountriesByContinentView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, continent_id):
-        qs = self.get_queryset().filter(continent=continent_id)
+        qs = self.queryset.filter(continent=continent_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1701,7 +1735,7 @@ class StatesByCountryView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, country_id):
-        qs = self.get_queryset().filter(country=country_id)
+        qs = self.queryset.filter(country=country_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1712,41 +1746,42 @@ class DistrictsByStateView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, state_id):
-        qs = self.get_queryset().filter(state=state_id)
+        qs = self.queryset.filter(state=state_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
 
-class CityByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = City.objects.all()
-    serializer_class = CitySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class CityByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+#     queryset = City.objects.all()
+#     serializer_class = CitySerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request, district_id):
-        qs = self.get_queryset().filter(district=district_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
+#     def get(self, request, district_id):
+#         qs = self.get_queryset().filter(district=district_id)
+#         serializer = self.serializer_class(qs, many=True)
+#         return Response(serializer.data)
 
 
-class VillageByCityView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Village.objects.all()
-    serializer_class = VillageSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class VillageByCityView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+#     queryset = Village.objects.all()
+#     serializer_class = VillageSerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request,city_id):
-        qs = self.get_queryset().filter(city=city_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
+#     def get(self, request,city_id):
+#         qs = self.get_queryset().filter(city=city_id)
+#         serializer = self.serializer_class(qs, many=True)
+#         return Response(serializer.data)
+ 
     
-class VillageByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Village.objects.all()
-    serializer_class = VillageSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class VillageByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+#     queryset = Village.objects.all()
+#     serializer_class = VillageSerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request,district_id):
-        qs = self.get_queryset().filter(district=district_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
+#     def get(self, request,district_id):
+#         qs = self.get_queryset().filter(district=district_id)
+#         serializer = self.serializer_class(qs, many=True)
+#         return Response(serializer.data)
 
 
 class WardsByVillageView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
@@ -1755,7 +1790,7 @@ class WardsByVillageView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, village_id):
-        qs = self.get_queryset().filter(village=village_id)
+        qs = self.queryset.filter(village=village_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1766,7 +1801,7 @@ class WardsByCityView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, city_id):
-        qs = self.get_queryset().filter(city=city_id)
+        qs = self.queryset.filter(city=city_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1777,7 +1812,7 @@ class SocietiesByWardView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, ward_id):
-        qs = self.get_queryset().filter(ward=ward_id)
+        qs = self.queryset.filter(ward=ward_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1788,7 +1823,7 @@ class BlockBySocietyView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, society_id):
-        qs = self.get_queryset().filter(society=society_id)
+        qs = self.queryset.filter(society=society_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1799,7 +1834,7 @@ class HousesByBlockView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, block_id):
-        qs = self.get_queryset().filter(block=block_id)
+        qs = self.queryset.filter(block=block_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1810,7 +1845,7 @@ class ClassesBySectionView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, section_id):
-        qs = self.get_queryset().filter(section=section_id)
+        qs = self.queryset.filter(section=section_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1821,7 +1856,7 @@ class ProfCategoryByClassView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, class_id):
-        qs = self.get_queryset().filter(profclass=class_id)
+        qs = self.queryset.filter(profclass=class_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1832,7 +1867,7 @@ class ProfSubCategoryByCategoryView(FilteredQuerysetMixin, RecordRuleMixin, APIV
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, category_id):
-        qs = self.get_queryset().filter(category=category_id)
+        qs = self.queryset.filter(category=category_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1843,7 +1878,7 @@ class SectorBySubCategoryView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, subcategory_id):
-        qs = self.get_queryset().filter(subcategory=subcategory_id)
+        qs = self.queryset.filter(subcategory=subcategory_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1854,7 +1889,7 @@ class SubSectorBySectorView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, sector_id):
-        qs = self.get_queryset().filter(sector=sector_id)
+        qs = self.queryset.filter(sector=sector_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1865,7 +1900,7 @@ class DepartmentsBySubSectorView(FilteredQuerysetMixin, RecordRuleMixin, APIView
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, subsector_id):
-        qs = self.get_queryset().filter(subsector=subsector_id)
+        qs = self.queryset.filter(subsector=subsector_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1876,7 +1911,7 @@ class SubDepartmentsByDepartmentView(FilteredQuerysetMixin, RecordRuleMixin, API
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, department_id):
-        qs = self.get_queryset().filter(department=department_id)
+        qs = self.queryset.filter(department=department_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1887,7 +1922,7 @@ class TypeBySubDepartmentView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, subdepartment_id):
-        qs = self.get_queryset().filter(subdepartment=subdepartment_id)
+        qs = self.queryset.filter(subdepartment=subdepartment_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1898,7 +1933,7 @@ class BrandByTypeView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, type_id):
-        qs = self.get_queryset().filter(type=type_id)
+        qs = self.queryset.filter(type=type_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1909,7 +1944,7 @@ class PostModelByBrandView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, brand_id):
-        qs = self.get_queryset().filter(brand=brand_id)
+        qs = self.queryset.filter(brand=brand_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1920,7 +1955,7 @@ class SampradayByReligionView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, religion_id):
-        qs = self.get_queryset().filter(religion=religion_id)
+        qs = self.queryset.filter(religion=religion_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1931,7 +1966,7 @@ class PanthBySampradayView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, sampraday_id):
-        qs = self.get_queryset().filter(sampraday=sampraday_id)
+        qs = self.queryset.filter(sampraday=sampraday_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1942,7 +1977,7 @@ class VarnaByPanthView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, panth_id):
-        qs = self.get_queryset().filter(panth=panth_id)
+        qs = self.queryset.filter(panth=panth_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1953,7 +1988,7 @@ class CasteByVarnaView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, varna_id):
-        qs = self.get_queryset().filter(varna=varna_id)
+        qs = self.queryset.filter(varna=varna_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1964,7 +1999,7 @@ class SubCasteByCasteView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, caste_id):
-        qs = self.get_queryset().filter(caste=caste_id)
+        qs = self.queryset.filter(caste=caste_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1975,7 +2010,7 @@ class GotraBySubCasteView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, subcaste_id):
-        qs = self.get_queryset().filter(subcaste=subcaste_id)
+        qs = self.queryset.filter(subcaste=subcaste_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1986,18 +2021,51 @@ class SubGotraByGotraView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, gotra_id):
-        qs = self.get_queryset().filter(gotra=gotra_id)
+        qs = self.queryset.filter(gotra=gotra_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
 
-class PidhiBySubGotraView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+class KulBySubGotraView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Kul.objects.all()
+    serializer_class = KulSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, subgotra_id):
+        qs = self.queryset.filter(subgotra=subgotra_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class VanshByKulView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Vansh.objects.all()
+    serializer_class = VanshSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, kul_id):
+        qs = self.queryset.filter(kul=kul_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class FamilyByVanshView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Family.objects.all()
+    serializer_class = FamilySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, vansh_id):
+        qs = self.queryset.filter(vansh=vansh_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class PidhiByFamilyView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     queryset = Pidhi.objects.all()
     serializer_class = PidhiSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request, subgotra_id):
-        qs = self.get_queryset().filter(subgotra=subgotra_id)
+    def get(self, request, family_id):
+        qs = self.queryset.filter(family=family_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
