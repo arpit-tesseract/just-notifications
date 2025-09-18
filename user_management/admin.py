@@ -6,11 +6,11 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 # Register your models here.
 class CustomUserAdmin(BaseUserAdmin):
     add_form = CustomUserCreationForm
-    list_display = ('email', 'user_role', 'is_staff')
+    list_display = ('email', 'is_system_user', 'is_staff')
     list_filter = ('is_staff', 'user_role')
     fieldsets = (
         ('Permissions', {'fields': ('is_staff', 'is_superuser','is_system_user', 'is_verified',)}),
-        (None, {'fields': ('email', 'password', 'designation', 'user_role', 'date_of_birth', 'category_of_user')}),
+        (None, {'fields': ('email', 'password', 'designation', 'user_role', 'category_of_user')}),
     )
     add_fieldsets = (
         (None, {

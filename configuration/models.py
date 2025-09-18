@@ -5,7 +5,9 @@ from django.utils import timezone
 # from django.contrib.postgres.fields import JSONField
 
 
+# --------------------------------------------------------------------------------
 # Residential ->
+# --------------------------------------------------------------------------------
 class Glob(models.Model):
     name = models.CharField("Glob Name", max_length=100, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
@@ -300,7 +302,27 @@ class Houses(models.Model):
         return f"{self.block} - {self.code}"
 
 
+class RoomFlash(models.Model):
+    name = models.CharField("Room Name", max_length=20)
+    code = models.CharField("Number", max_length=10)
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
+    def save(self, *args, **kwargs):
+        if self.hold_date:
+            self.on_hold = True
+            if self.hold_date < timezone.now().date():
+                self.on_hold = False
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+# -------------------------------------------------------------------------------------------------
+# Model & Record Rule Access
+# -------------------------------------------------------------------------------------------------
 class ModelName(models.Model):
     app_label = models.CharField(max_length=100)  # e.g. "yourapp"
     model = models.CharField(max_length=100)      # e.g. "City"
@@ -341,7 +363,9 @@ class RecordRule(models.Model):
         return f"{self.name} ({self.model})"
 
 
+# -------------------------------------------------------------------------------------------------
 # Personal ->
+# -------------------------------------------------------------------------------------------------
 class Religion(models.Model):
     name = models.CharField("Religion", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
@@ -569,7 +593,9 @@ class Pidhi(models.Model):
         return self.name
 
 
+# ----------------------------------------------------------------------------------------------
 # Professional ->
+# ----------------------------------------------------------------------------------------------
 class Section(models.Model):
     name = models.CharField("Section", max_length=200)
     code = models.CharField("Code", max_length=5, unique=True)
@@ -771,19 +797,3 @@ class PostModel(models.Model):
     def __str__(self):
         return self.name
 
-class RoomFlash(models.Model):
-    name = models.CharField("Room Name", max_length=20)
-    code = models.CharField("Number", max_length=10)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-        if self.hold_date:
-            self.on_hold = True
-            if self.hold_date < timezone.now().date():
-                self.on_hold = False
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name

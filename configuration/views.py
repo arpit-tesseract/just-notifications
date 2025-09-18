@@ -18,10 +18,12 @@ from django.utils import timezone
 from django.db.models import Q
 
 from rest_framework.decorators import action
-# ==================
-# CRUD Views
-# ==================
 
+
+# CRUD Views
+# ========================================
+# Residential 
+# ========================================
 class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Glob.objects.all() 
     serializer_class = GlobSerializer
@@ -123,7 +125,9 @@ class HousesViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
 
-# Personal ->
+# ========================================
+# Personal 
+# ========================================
 class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Religion.objects.all()
     serializer_class = ReligionSerializer
@@ -190,9 +194,9 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     
-# ---------------------------------------------------------------------------------------
-# Professional ->
-# ---------------------------------------------------------------------------------------
+# ========================================
+# Residential 
+# ========================================
 class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Section.objects.all()
     serializer_class = SectionSerializer
@@ -1751,57 +1755,35 @@ class DistrictsByStateView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
         return Response(serializer.data)
 
 
-# class CityByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-#     queryset = City.objects.all()
-#     serializer_class = CitySerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-#     def get(self, request, district_id):
-#         qs = self.get_queryset().filter(district=district_id)
-#         serializer = self.serializer_class(qs, many=True)
-#         return Response(serializer.data)
-
-
-# class VillageByCityView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-#     queryset = Village.objects.all()
-#     serializer_class = VillageSerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-#     def get(self, request,city_id):
-#         qs = self.get_queryset().filter(city=city_id)
-#         serializer = self.serializer_class(qs, many=True)
-#         return Response(serializer.data)
- 
-    
-# class VillageByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-#     queryset = Village.objects.all()
-#     serializer_class = VillageSerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-#     def get(self, request,district_id):
-#         qs = self.get_queryset().filter(district=district_id)
-#         serializer = self.serializer_class(qs, many=True)
-#         return Response(serializer.data)
-
-
-class WardsByVillageView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Ward.objects.all()
-    serializer_class = WardSerializer
+class TalukaByDistrictView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Taluka.objects.all()
+    serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request, village_id):
-        qs = self.queryset.filter(village=village_id)
+    def get(self, request, district_id):
+        qs = self.queryset.filter(district=district_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
 
-class WardsByCityView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+class CityVillagesByTalukaView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = CityVillage.objects.all()
+    serializer_class = CityVillageSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, taluka_id):
+        qs = self.queryset.filter(taluka=taluka_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class WardsByCityVillageView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     queryset = Ward.objects.all()
     serializer_class = WardSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def get(self, request, city_id):
-        qs = self.queryset.filter(city=city_id)
+    def get(self, request, cityvillage_id):
+        qs = self.queryset.filter(city_village=cityvillage_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
@@ -1828,13 +1810,24 @@ class BlockBySocietyView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
         return Response(serializer.data)
 
 
-class HousesByBlockView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Houses.objects.all()
-    serializer_class = HousesSerializer
+class FloorsByBlockView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Floor.objects.all()
+    serializer_class = FloorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
     def get(self, request, block_id):
         qs = self.queryset.filter(block=block_id)
+        serializer = self.serializer_class(qs, many=True)
+        return Response(serializer.data)
+
+
+class HousesByFloorView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    queryset = Houses.objects.all()
+    serializer_class = HousesSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+    def get(self, request, floor_id):
+        qs = self.queryset.filter(floor=floor_id)
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 

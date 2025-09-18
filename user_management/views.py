@@ -79,10 +79,9 @@ from configuration.serializers import *
 
 class LoginWithEmailPasswordView(APIView):
     def post(self, request):
-        print("Api is called")
         serializer = LoginEmailPasswordSerializer(data=request.data)
+        
         if not serializer.is_valid():
-            print("flag False")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         validated_data = serializer.validated_data
@@ -112,10 +111,12 @@ class LoginWithEmailPasswordView(APIView):
             )
         
         refresh = RefreshToken.for_user(user)
+        serializer = CustomUserBasicDetailsOutputSerializer(user)
         return Response(
             {
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
+                "user": serializer.data
             },
             status=status.HTTP_200_OK)
         

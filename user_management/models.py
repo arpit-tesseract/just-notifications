@@ -55,7 +55,7 @@ class Designation(models.Model):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    user_role = models.ForeignKey(UserRole, on_delete=models.CASCADE)
+    user_role = models.ManyToManyField(UserRole)
     designation = models.ForeignKey(Designation,null=True,blank=True,on_delete=models.SET_NULL,related_name="users"
     )
     is_system_user = models.BooleanField(default=False)

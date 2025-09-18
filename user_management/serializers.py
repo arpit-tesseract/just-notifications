@@ -415,6 +415,27 @@ class LoginEmailPasswordSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
+class UserRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserRole
+        fields = ['id', 'name','display_name']
+        read_only_fields = ['id', 'name', 'display_name']
+
+
+class DesignationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = "__all__"
+        read_only_fields = ['id', 'name', 'display_name', 'code', 'reporting_designation', 'level']
+
+
+class CustomUserBasicDetailsOutputSerializer(serializers.ModelSerializer):
+    user_role = UserRoleSerializer(many=True)
+    designation = DesignationSerializer(many=False)
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'email', 'user_role', 'designation', 'is_system_user', 'category_of_user',]
+        read_only_fields = ['id', 'email', 'user_role', 'designation', 'is_system_user', 'category_of_user']
 
 # class OTPserializer(serializers.Serializer):
 #     email = serializers.EmailField()
