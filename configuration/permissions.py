@@ -18,7 +18,7 @@ class HasModelAccessPermission(BasePermission):
             return False
         
         # Super Admin of system user
-        if user.is_system_user and getattr(user.designation, "level", None) == 0:
+        if user.is_system_user:
             return True
 
         # Resolve model from queryset or model attr

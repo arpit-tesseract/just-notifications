@@ -56,7 +56,8 @@ class Country(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["continent", "name"], name="unique_country_per_continent"
+                fields=["continent", "name"], 
+                name="unique_country_per_continent",
             )
         ]
     
@@ -592,6 +593,14 @@ class Pidhi(models.Model):
     def __str__(self):
         return self.name
 
+# Defines a type of relation like Father-1, Mother-2, Son-3, Friend, etc.
+class RelationType(models.Model):
+    name = models.CharField("Relation", max_length=100, unique=True)
+    display_name = models.CharField("Display Name", max_length=100, unique=True)
+    post_no = models.IntegerField("Post No")
+    
+    def __str__(self):
+        return self.name
 
 # ----------------------------------------------------------------------------------------------
 # Professional ->
@@ -797,3 +806,11 @@ class PostModel(models.Model):
     def __str__(self):
         return self.name
 
+# Current / Owner / Permanent / Native / InLaws(Girl / Boy) / Maternal / Business
+class RelationTypes(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    display_name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=5, unique=True)
+    
+    def __str__(self):
+        return self.display_name

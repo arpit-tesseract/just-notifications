@@ -5,6 +5,7 @@ from user_management.models import CustomUser
 from .utils import *
 from django.apps import apps
 from django.db import transaction
+from rest_framework.validators import UniqueTogetherValidator
 
 # Residential ->
 class GlobSerializer(serializers.ModelSerializer):
@@ -19,23 +20,42 @@ class ContinentSerializer(serializers.ModelSerializer):
         model = Continent
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Continent.objects.all(),
+                fields=['glob', 'name'],
+                message="A continent with this name already exists in the selected glob.",
+            )
+        ]
+
+
+class ContinentDetailSerializer(serializers.ModelSerializer):
+    glob = GlobSerializer()
+    class Meta:
+        model = Continent
+        fields = '__all__'
+        read_only_fields = [f for f in Continent._meta.fields]
 
 
 class CountrySerializer(serializers.ModelSerializer):
-    # continent = serializers.CharField(required=True)
     class Meta:
         model = Country
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Country.objects.all(),
+                fields=['continent', 'name'],
+                message="A country with this name already exists in the selected continent.",
+            )
+        ]
 
-    # def validate_continent(self, value):
-    #     return get_object_by_name_or_error(Continent, value)
-
-    def create(self, validated_data):
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        return super().update(instance, validated_data)
+class CountryDetailSerializer(serializers.ModelSerializer):
+    continent = ContinentDetailSerializer()
+    class Meta:
+        model = Country
+        fields = '__all__'
+        read_only_fields = [f for f in Country._meta.fields]
 
 
 class StateSerializer(serializers.ModelSerializer):
@@ -43,6 +63,21 @@ class StateSerializer(serializers.ModelSerializer):
         model = State
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=State.objects.all(),
+                fields=['country', 'name'],
+                message="A state with this name already exists in the selected country.",
+            )
+        ]
+
+
+class StateDetailSerializer(serializers.ModelSerializer):
+    country = CountryDetailSerializer()
+    class Meta:
+        model = State
+        fields = '__all__'
+        read_only_fields = [f for f in State._meta.fields]
     
     
 class DistrictSerializer(serializers.ModelSerializer):
@@ -50,6 +85,21 @@ class DistrictSerializer(serializers.ModelSerializer):
         model = District
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=District.objects.all(),
+                fields=['state', 'name'],
+                message="A district with this name already exists in the selected state.",
+            )
+        ]
+
+
+class DistrictDetailSerializer(serializers.ModelSerializer):
+    state = StateDetailSerializer()
+    class Meta:
+        model = District
+        fields = '__all__'
+        read_only_fields = [f for f in District._meta.fields]
 
 
 class TalukaSerializer(serializers.ModelSerializer):
@@ -57,6 +107,21 @@ class TalukaSerializer(serializers.ModelSerializer):
         model = Taluka
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Taluka.objects.all(),
+                fields=['district', 'name'],
+                message="A taluka with this name already exists in the selected district.",
+            )
+        ]
+
+
+class TalukaDetailSerializer(serializers.ModelSerializer):
+    district = DistrictDetailSerializer()
+    class Meta:
+        model = Taluka
+        fields = '__all__'
+        read_only_fields = [f for f in Taluka._meta.fields]
 
 
 class CityVillageSerializer(serializers.ModelSerializer):
@@ -64,6 +129,21 @@ class CityVillageSerializer(serializers.ModelSerializer):
         model = CityVillage
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=CityVillage.objects.all(),
+                fields=['taluka', 'name'],
+                message="A city/village with this name already exists in the selected taluka.",
+            )
+        ]
+
+
+class CityVillageDetailSerializer(serializers.ModelSerializer):
+    taluka = TalukaDetailSerializer()
+    class Meta:
+        model = CityVillage
+        fields = '__all__'
+        read_only_fields = [f for f in CityVillage._meta.fields]
 
     
 class WardSerializer(serializers.ModelSerializer):
@@ -71,6 +151,21 @@ class WardSerializer(serializers.ModelSerializer):
         model = Ward
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Ward.objects.all(),
+                fields=['city_village', 'name'],
+                message="A ward with this name already exists in the selected city/village.",
+            )
+        ]
+
+
+class WardDetailSerializer(serializers.ModelSerializer):
+    city_village = CityVillageDetailSerializer()
+    class Meta:
+        model = Ward
+        fields = '__all__'
+        read_only_fields = [f for f in Ward._meta.fields]
 
     
 class SocietySerializer(serializers.ModelSerializer):
@@ -78,6 +173,21 @@ class SocietySerializer(serializers.ModelSerializer):
         model = Society
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Society.objects.all(),
+                fields=['ward', 'name'],
+                message="A society with this name already exists in the selected ward.",
+            )
+        ]
+
+
+class SocietyDetailSerializer(serializers.ModelSerializer):
+    ward = WardDetailSerializer()
+    class Meta:
+        model = Society
+        fields = '__all__'
+        read_only_fields = [f for f in Society._meta.fields]
 
 
 class BlockSerializer(serializers.ModelSerializer):
@@ -85,6 +195,20 @@ class BlockSerializer(serializers.ModelSerializer):
         model = Block
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Block.objects.all(),
+                fields=['society', 'name'],
+                message="A block with this name already exists in the selected society.",
+            )
+        ]
+
+class BlockDetailSerializer(serializers.ModelSerializer):
+    society = SocietyDetailSerializer()
+    class Meta:
+        model = Block
+        fields = '__all__'
+        read_only_fields = [f for f in Block._meta.fields]
 
     
 class FloorSerializer(serializers.ModelSerializer):
@@ -92,6 +216,20 @@ class FloorSerializer(serializers.ModelSerializer):
         model = Floor
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Floor.objects.all(),
+                fields=['block', 'name'],
+                message="A floor with this name already exists in the selected block.",
+            )
+        ]
+
+class FloorDetailSerializer(serializers.ModelSerializer):
+    block = BlockDetailSerializer()
+    class Meta:
+        model = Floor
+        fields = '__all__'
+        read_only_fields = [f for f in Floor._meta.fields]
     
     
 class HousesSerializer(serializers.ModelSerializer):
@@ -99,25 +237,22 @@ class HousesSerializer(serializers.ModelSerializer):
         model = Houses
         fields = '__all__'
         read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Houses.objects.all(),
+                fields=['floor', 'code'],
+                message="A house with this code already exists in the selected floor.",
+            )
+        ]
+
+class HousesDetailSerializer(serializers.ModelSerializer):
+    floor = FloorDetailSerializer()
+    class Meta:
+        model = Houses
+        fields = '__all__'
+        read_only_fields = [f for f in Houses._meta.fields]
 
     
-# class PermisionModuleSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = PermissionModule
-#         fields = '__all__'
-
-# class PermissionActionSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = PermissionAction
-#         fields = '__all__'
-
-# class AccessesSerializer(serializers.ModelSerializer):
-#     module = PermisionModuleSerializer(read_only=True)
-#     permission = PermissionActionSerializer(read_only=True)
-
-#     class Meta:
-#         model = Accesses
-#         fields = '__all__'
 
 # Personal ->
 class ReligionSerializer(serializers.ModelSerializer):
@@ -133,12 +268,26 @@ class SampradaySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class SampradayDetailSerializer(serializers.ModelSerializer):
+    religion = ReligionSerializer()
+    class Meta:
+        model = Sampraday
+        fields = '__all__'
+        read_only_fields = [f for f in Sampraday._meta.fields]
+
 
 class PanthSerializer(serializers.ModelSerializer):
     class Meta:
         model = Panth
         fields = '__all__'
         read_only_fields = ['id']
+        
+class PanthDetailSerializer(serializers.ModelSerializer):
+    sampraday = SampradayDetailSerializer()
+    class Meta:
+        model = Panth
+        fields = '__all__'
+        read_only_fields = [f for f in Panth._meta.fields]
 
 
 class VarnaSerializer(serializers.ModelSerializer):
@@ -147,6 +296,13 @@ class VarnaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class VarnaDetailSerializer(serializers.ModelSerializer):
+    panth = PanthDetailSerializer()
+    class Meta:
+        model = Varna
+        fields = '__all__'
+        read_only_fields = [f for f in Varna._meta.fields]
+
 
 class CasteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -154,12 +310,26 @@ class CasteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class CasteDetailSerializer(serializers.ModelSerializer):
+    varna = VarnaDetailSerializer()
+    class Meta:
+        model = Caste
+        fields = '__all__'
+        read_only_fields = [f for f in Caste._meta.fields]
+
 
 class SubCasteSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubCaste
         fields = '__all__'
         read_only_fields = ['id']
+
+class SubCasteDetailSerializer(serializers.ModelSerializer):
+    caste = CasteDetailSerializer()
+    class Meta:
+        model = SubCaste
+        fields = '__all__'
+        read_only_fields = [f for f in SubCaste._meta.fields]
     
     
 class GotraSerializer(serializers.ModelSerializer):
@@ -168,6 +338,13 @@ class GotraSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class GotraDetailSerializer(serializers.ModelSerializer):
+    caste = CasteDetailSerializer()
+    class Meta:
+        model = Gotra
+        fields = '__all__'
+        read_only_fields = [f for f in Gotra._meta.fields]
+
 
 class SubGotraSerializer(serializers.ModelSerializer):
     class Meta:
@@ -175,12 +352,26 @@ class SubGotraSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class SubGotraDetailSerializer(serializers.ModelSerializer):
+    gotra = GotraDetailSerializer()
+    class Meta:
+        model = SubGotra
+        fields = '__all__'
+        read_only_fields = [f for f in SubGotra._meta.fields]
+
 
 class KulSerializer(serializers.ModelSerializer):
     class Meta:
         model = Kul
         fields = '__all__'
         read_only_fields = ['id']
+
+class KulDetailSerializer(serializers.ModelSerializer):
+    caste = CasteDetailSerializer()
+    class Meta:
+        model = Kul
+        fields = '__all__'
+        read_only_fields = [f for f in Kul._meta.fields]
         
 
 class VanshSerializer(serializers.ModelSerializer):
@@ -188,6 +379,13 @@ class VanshSerializer(serializers.ModelSerializer):
         model = Vansh
         fields = '__all__'
         read_only_fields = ['id']
+
+class VanshDetailSerializer(serializers.ModelSerializer):
+    caste = CasteDetailSerializer()
+    class Meta:
+        model = Vansh
+        fields = '__all__'
+        read_only_fields = [f for f in Vansh._meta.fields]
         
 
 class FamilySerializer(serializers.ModelSerializer):
@@ -196,12 +394,26 @@ class FamilySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class FamilyDetailSerializer(serializers.ModelSerializer):
+    caste = CasteDetailSerializer()
+    class Meta:
+        model = Family
+        fields = '__all__'
+        read_only_fields = [f for f in Family._meta.fields]
+
 
 class PidhiSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pidhi
         fields = '__all__'
         read_only_fields = ['id']
+
+class PidhiDetailSerializer(serializers.ModelSerializer):
+    caste = CasteDetailSerializer()
+    class Meta:
+        model = Pidhi
+        fields = '__all__'
+        read_only_fields = [f for f in Pidhi._meta.fields]
 
 
 # Professional ->
@@ -218,12 +430,27 @@ class ClassSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class ClassDetailSerializer(serializers.ModelSerializer):
+    section = SectionSerializer()
+    class Meta:
+        model = Class
+        fields = '__all__'
+        read_only_fields = [f for f in Class._meta.fields]
+
 
 class ProfCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfCategory
         fields = '__all__'
         read_only_fields = ['id']
+
+class ProfCategoryDetailSerializer(serializers.ModelSerializer):
+    profclass = ClassDetailSerializer()
+    class Meta:
+        model = ProfCategory
+        fields = '__all__'
+        read_only_fields = [f for f in ProfCategory._meta.fields]
+        
 
 
 class ProfSubCategorySerializer(serializers.ModelSerializer):
@@ -232,12 +459,26 @@ class ProfSubCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class ProfSubCategoryDetailSerializer(serializers.ModelSerializer):
+    category = ProfCategoryDetailSerializer()
+    class Meta:
+        model = ProfSubCategory
+        fields = '__all__'
+        read_only_fields = [f for f in ProfSubCategory._meta.fields]
+
     
 class SectorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sector
         fields = '__all__'
         read_only_fields = ['id']
+
+class SectorDetailSerializer(serializers.ModelSerializer):
+    subcategory = ProfSubCategoryDetailSerializer()
+    class Meta:
+        model = Sector
+        fields = '__all__'
+        read_only_fields = [f for f in Sector._meta.fields]
 
 
 class SubSectorSerializer(serializers.ModelSerializer):
@@ -246,12 +487,26 @@ class SubSectorSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class SubSectorDetailSerializer(serializers.ModelSerializer):
+    sector = SectorDetailSerializer()
+    class Meta:
+        model = SubSector
+        fields = '__all__'
+        read_only_fields = [f for f in SubSector._meta.fields]
+
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = '__all__'
         read_only_fields = ['id']
+
+class DepartmentDetailSerializer(serializers.ModelSerializer):
+    subsector = SubSectorDetailSerializer()
+    class Meta:
+        model = Department
+        fields = '__all__'
+        read_only_fields = [f for f in Department._meta.fields]
 
 
 class SubDepartmentSerializer(serializers.ModelSerializer):
@@ -260,12 +515,26 @@ class SubDepartmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class SubDepartmentDetailSerializer(serializers.ModelSerializer):
+    department = DepartmentDetailSerializer()
+    class Meta:
+        model = SubDepartment
+        fields = '__all__'
+        read_only_fields = [f for f in SubDepartment._meta.fields]
+
 
 class TypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Type
         fields = '__all__'
         read_only_fields = ['id']
+
+class TypeDetailSerializer(serializers.ModelSerializer):
+    subdepartment = SubDepartmentDetailSerializer()
+    class Meta:
+        model = Type
+        fields = '__all__'
+        read_only_fields = [f for f in Type._meta.fields]
 
 
 class BrandSerializer(serializers.ModelSerializer):
@@ -274,6 +543,13 @@ class BrandSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class BrandDetailSerializer(serializers.ModelSerializer):
+    type = TypeDetailSerializer()
+    class Meta:
+        model = Brand
+        fields = '__all__'
+        read_only_fields = [f for f in Brand._meta.fields]
+
 
 class PostModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -281,12 +557,20 @@ class PostModelSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class PostModelDetailSerializer(serializers.ModelSerializer):
+    brand = BrandDetailSerializer()
+    class Meta:
+        model = PostModel
+        fields = '__all__'
+        read_only_fields = [f for f in PostModel._meta.fields]
+
 
 class RoomFlashSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomFlash
         fields = '__all__'
         read_only_fields = ['id']
+
 
 
 class ModelNameSerializer(serializers.ModelSerializer):

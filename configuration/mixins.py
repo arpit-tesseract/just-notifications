@@ -104,7 +104,7 @@ class RecordRuleMixin(SafeQueryMixin):
         perm_field = f"can_{self.action_map.get(action, 'read')}"
         
         #  Bypass if system user AND designation level = 0
-        if user.is_system_user and getattr(user.designation, "level", None) == 0:
+        if user.is_system_user:
             return qs
 
         # Fetch all record rules for this user and model

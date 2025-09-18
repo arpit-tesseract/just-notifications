@@ -429,13 +429,14 @@ class DesignationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'name', 'display_name', 'code', 'reporting_designation', 'level']
 
 
+# This Serializer Use after loggin success
 class CustomUserBasicDetailsOutputSerializer(serializers.ModelSerializer):
     user_role = UserRoleSerializer(many=True)
-    designation = DesignationSerializer(many=False)
+    # designation = DesignationSerializer(many=False)
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'user_role', 'designation', 'is_system_user', 'category_of_user',]
-        read_only_fields = ['id', 'email', 'user_role', 'designation', 'is_system_user', 'category_of_user']
+        fields = ['id', 'email', 'user_role', 'is_system_user',]
+        read_only_fields = ['id', 'email', 'user_role', 'is_system_user']
 
 # class OTPserializer(serializers.Serializer):
 #     email = serializers.EmailField()

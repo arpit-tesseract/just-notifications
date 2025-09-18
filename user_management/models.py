@@ -24,7 +24,6 @@ class CustomUserManager(BaseUserManager):
 class UserRole(models.Model):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=5, unique=True)
     
     def __str__(self):
         return self.name
@@ -55,12 +54,10 @@ class Designation(models.Model):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
+    contact_no = models.CharField(max_length=15, null=True, blank=True)
     user_role = models.ManyToManyField(UserRole)
-    designation = models.ForeignKey(Designation,null=True,blank=True,on_delete=models.SET_NULL,related_name="users"
-    )
+    # designation = models.ForeignKey(Designation,null=True,blank=True,on_delete=models.SET_NULL,related_name="users")
     is_system_user = models.BooleanField(default=False)
-    # date_of_birth = models.DateField(null=True, blank=True)
-    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     
@@ -72,15 +69,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
     
-    
-# Current / Owner / Permanent / Native / InLaws(Girl / Boy) / Maternal / Business
-class RelationTypes(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    display_name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=5, unique=True)
-    
-    def __str__(self):
-        return self.display_name
     
     
 # class Address(models.Model):
@@ -115,11 +103,27 @@ class RelationTypes(models.Model):
 #                 user.is_verified = True
 #             user.save(update_fields=['is_verified'])
 
+class Relation(models.Model):
+    relation_category_choices = [
+        ('current','Current'),
+        ('owner','Owner'),
+        ('permanent','Permanent'),
+        ('native','Native'),
+        ('inlaws','InLaws'),
+        ('maternal','Maternal'),
+        ('business','Business')
+    ]
+    from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
+    relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
+    relation_type = models.ForeignKey("configuration.RelationType", on_delete=models.CASCADE) # option-1 (Father, mother)
+    to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
 
+    def __str__(self):
+        return f"{self.from_user} - {self.relation_type.name} - {self.to_user}"
+    
     
 class PersonalTable(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    relation_type = models.ForeignKey(RelationTypes, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     religion = models.ForeignKey(configm.Religion, on_delete=models.SET_NULL, null=True)
     sampraday = models.ForeignKey(configm.Sampraday, on_delete=models.SET_NULL, null=True)
     panth = models.ForeignKey(configm.Panth, on_delete=models.SET_NULL, null=True)
@@ -133,6 +137,15 @@ class PersonalTable(models.Model):
     family = models.ForeignKey(configm.Family, on_delete=models.SET_NULL, null=True)
     pidhi = models.ForeignKey(configm.Pidhi, on_delete=models.SET_NULL, null=True)
     personal_code = models.CharField("Personal ID", max_length=100, null=True)
+    is_verified = models.BooleanField(default=False)
+    
+    # Remove Post model & add fields here
+    name = models.CharField("Real Name", max_length=50)
+    pet_name = models.CharField("Pet Name", max_length=50)
+    father_name = models.CharField("Father Name", max_length=50)
+    photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
+    date_of_birth = models.DateField("Date of Birth")
+    blood_group = models.CharField("Blood Group", max_length=4)
 
     def save(self, *args, **kwargs):
         self.personal_code = f"{self.religion.code if self.religion else '00'}-" \
@@ -146,28 +159,20 @@ class PersonalTable(models.Model):
                          f"{self.pidhi.code if self.pidhi else '00'}"
         super().save(*args, **kwargs)
 
-class Post(models.Model):
-    # personal_table = models.ForeignKey(
-    #     PersonalTable, 
-    #     on_delete=models.CASCADE,
-    #     related_name="post"
-    # )
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    relation_type = models.ForeignKey(RelationTypes, on_delete=models.SET_NULL, null=True)
-    post_name = models.CharField("Post Name", max_length=20)
-    post_no = models.CharField("Post Number", max_length=10)
-    name = models.CharField("Real Name", max_length=50)
-    pet_name = models.CharField("Pet Name", max_length=50)
-    father_name = models.CharField("Father Name", max_length=50)
-    # mother_name = models.CharField("Mother Name", max_length=50)
-    mobile = models.CharField("Mobile Number", max_length=14)
-    photo = models.ImageField("Photo", upload_to='post/', blank=True, null=True)
-    date_of_birth = models.DateField("Date of Birth")
-    blood_group = models.CharField("Blood Group", max_length=4)
-
+# class Post(models.Model):
+#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+#     # post_no = models.CharField("Post Number", max_length=10)
+#     name = models.CharField("Real Name", max_length=50)
+#     pet_name = models.CharField("Pet Name", max_length=50)
+#     father_name = models.CharField("Father Name", max_length=50)
+#     # mother_name = models.CharField("Mother Name", max_length=50)
+#     photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
+#     date_of_birth = models.DateField("Date of Birth")
+#     blood_group = models.CharField("Blood Group", max_length=4)
+#     is_verified = models.BooleanField(default=False)
 
 class Document(models.Model):
-    post = models.OneToOneField(Post, on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     adhar_card_no = models.CharField("Adhar Card Number", max_length=12, unique=True, blank=True, null=True)
     adhar_card_file = models.FileField("Adhar Card", upload_to='post/adharCard/', blank=True, null=True)
     pan_card_no = models.CharField("Pan Card Number", max_length=10, unique=True, blank=True, null=True)
@@ -182,8 +187,7 @@ class Document(models.Model):
 
 
 class ProfessionalDetail(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    relation_type = models.ForeignKey(RelationTypes, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     section = models.ForeignKey(configm.Section, on_delete=models.SET_NULL, null=True, blank=True)
     classs = models.ForeignKey(configm.Class, on_delete=models.SET_NULL, null=True, blank=True)
     category = models.ForeignKey(configm.ProfCategory, on_delete=models.SET_NULL, null=True, blank=True)
@@ -236,8 +240,8 @@ class ReportCard(models.Model):
     capacity = models.FloatField("Capacity/ Strength")
 
 class ResidentialDetail(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    relation_type = models.ForeignKey(RelationTypes, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
     glob = models.ForeignKey(configm.Glob, on_delete=models.SET_NULL, null=True, blank=True)
     continent = models.ForeignKey(configm.Continent, on_delete=models.SET_NULL, null=True, blank=True)
     country = models.ForeignKey(configm.Country, on_delete=models.SET_NULL, null=True, blank=True)
@@ -252,6 +256,7 @@ class ResidentialDetail(models.Model):
     houses = models.ForeignKey(configm.Houses, on_delete=models.SET_NULL, null=True, blank=True)
     no_of_rooms = models.IntegerField("No. of Rooms", default=1)
     residential_code = models.CharField("Residential ID", max_length=100, null=True)
+    is_verified = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         self.residential_code = f"{self.glob.code if self.glob else '00'}-" \
@@ -272,8 +277,8 @@ class ResidentialDetail(models.Model):
 class RoomDetail(models.Model):
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.CASCADE)
     room_name = models.CharField("Room Type", max_length=10)
-    room_member_count = models.IntegerField("Total Room Members", default=0)
     room_flash = models.ForeignKey(configm.RoomFlash, on_delete=models.SET_NULL, null=True)
+    room_member_count = models.IntegerField("Total Room Members", default=0)
 
 class RoomMembersDetail(models.Model):
     room = models.ForeignKey(RoomDetail, on_delete=models.CASCADE)

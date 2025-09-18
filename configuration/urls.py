@@ -3,17 +3,19 @@ from django.urls import path, include
 from .views import *
 
 router = DefaultRouter()
-router.register(r'globs', GlobViewSet)
-router.register(r'countries', CountryViewSet)
-router.register(r'continents', ContinentViewSet)
-router.register(r'states', StateViewSet)
-router.register(r'districts', DistrictViewSet)
-router.register(r'talukas', TalukaViewSet)
-router.register(r'cityvillages', CityVillageViewSet)
-router.register(r'wards', WardViewSet)
-router.register(r'societies', SocietyViewSet)
-router.register(r'blocks', BlockViewSet)
-router.register(r'housenums', HousesViewSet)
+router.register(r'globs_in_details', GlobViewSet)
+router.register(r'countries_in_details', CountryViewSet)
+router.register(r'continents_in_details', ContinentViewSet)
+router.register(r'states_in_details', StateViewSet)
+router.register(r'districts_in_details', DistrictViewSet)
+router.register(r'talukas_in_details', TalukaViewSet)
+router.register(r'cityvillages_in_details', CityVillageViewSet)
+router.register(r'wards_in_details', WardViewSet)
+router.register(r'societies_in_details', SocietyViewSet)
+router.register(r'blocks_in_details', BlockViewSet)
+router.register(r'floors_in_details', FloorViewSet)
+router.register(r'housenums_in_details', HousesViewSet)
+
 # router.register(r'accessactivity', AccessesViewSet)
 router.register(r'religion', ReligionViewSet)
 router.register(r'sampraday', SampradayViewSet)
@@ -39,6 +41,20 @@ router.register(r'roomflash', RoomFlashViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('globs/', GlobListView.as_view()),
+    path('continents/', ContinentListView.as_view()),
+    path('countries/', CountryListView.as_view()),
+    path('states/', StateListView.as_view()),
+    path('districts/', DistrictListView.as_view()),
+    path('talukas/', TalukaListView.as_view()),
+    path('cityvillages/', CityVillageListView.as_view()),
+    path('wards/', WardListView.as_view()),
+    path('societies/', SocietyListView.as_view()),
+    path('blocks/', BlockListView.as_view()),
+    path('floors/', FloorListView.as_view()),
+    path('housenums/', HousesListView.as_view()),
+    
+    
     path("import/continent/", ImportContinents.as_view()),
     path("import/country/", ImportCountries.as_view()),
     path("import/state/", ImportStates.as_view()),
@@ -73,39 +89,40 @@ urlpatterns = [
 
     # To get the related queryset
     # path("get_countries/<int:continent_id>/", get_countries_by_continent),
-    path("get_continents/<int:glob_id>/", ContinentsByGlobView.as_view(), name="get_continents_by_glob"),
-    path("get_countries/<int:continent_id>/", CountriesByContinentView.as_view(), name="get_countries_by_continent"),
-    path("get_states/<int:country_id>/", StatesByCountryView.as_view(), name="get_states_by_country"),
-    path("get_districts/<int:state_id>/", DistrictsByStateView.as_view(), name="get_districts_by_state"),
-    path("get_taluka/<int:district_id>/", TalukaByDistrictView.as_view(), name="get_taluka_by_district"),
-    path("get_city_villages/<int:taluka_id>/", CityVillagesByTalukaView.as_view(), name="get_city_village_by_taluka"),
-    path("get_wards/<int:cityvillage_id>/", WardsByCityVillageView.as_view(), name="get_wards_by_cityvillage"),
-    path("get_societies/<int:ward_id>/", SocietiesByWardView.as_view(), name="get_societies_by_ward"),
-    path("get_blocks/<int:society_id>/", BlockBySocietyView.as_view(), name="get_blocks_by_society"),
-    path("get_floors/<int:block_id>/", FloorsByBlockView.as_view(), name="get_floors_by_block"),
-    path("get_houses/<int:floor_id>/", HousesByFloorView.as_view(), name="get_houses_by_floor"),
-    path("get_classes/<int:section_id>/", ClassesBySectionView.as_view(), name="get_classes_by_section"),
-    path("get_categories/<int:class_id>/", ProfCategoryByClassView.as_view(), name="get_categories_by_class"),
-    path("get_subcategories/<int:category_id>/", ProfSubCategoryByCategoryView.as_view(), name="get_subcategories_by_category"),
-    path("get_sectors/<int:subcategory_id>/", SectorBySubCategoryView.as_view(), name="get_sectors_by_subcategory"),
-    path("get_subsectors/<int:sector_id>/", SubSectorBySectorView.as_view(), name="get_subsectors_by_sector"),
-    path("get_depts/<int:subsector_id>/", DepartmentsBySubSectorView.as_view(), name="get_depts_by_subsector"),
-    path("get_subdepts/<int:dept_id>/", SubDepartmentsByDepartmentView.as_view(), name="get_subdepts_by_dept"),
-    path("get_types/<int:subdept_id>/", TypeBySubDepartmentView.as_view(), name="get_types_by_subdept"),
-    path("get_brands/<int:type_id>/", BrandByTypeView.as_view(), name="get_brands_by_type"),
-    path("get_postmodels/<int:brand_id>/", PostModelByBrandView.as_view(), name="get_postmodels_by_brand"),
+    path("continents_by_glob/<int:glob_id>/", ContinentsByGlobView.as_view(), name="get_continents_by_glob"),
+    path("countries_by_continent/<int:continent_id>/", CountriesByContinentView.as_view(), name="get_countries_by_continent"),
+    path("states_by_country/<int:country_id>/", StatesByCountryView.as_view(), name="get_states_by_country"),
+    path("districts_by_state/<int:state_id>/", DistrictsByStateView.as_view(), name="get_districts_by_state"),
+    path("taluka_by_district/<int:district_id>/", TalukaByDistrictView.as_view(), name="get_taluka_by_district"),
+    path("city_villages_by_taluka/<int:taluka_id>/", CityVillagesByTalukaView.as_view(), name="get_city_village_by_taluka"),
+    path("wards_by_cityvillage/<int:cityvillage_id>/", WardsByCityVillageView.as_view(), name="get_wards_by_cityvillage"),
+    path("societies_by_ward/<int:ward_id>/", SocietiesByWardView.as_view(), name="get_societies_by_ward"),
+    path("blocks_by_society/<int:society_id>/", BlockBySocietyView.as_view(), name="get_blocks_by_society"),
+    path("floors_by_block/<int:block_id>/", FloorsByBlockView.as_view(), name="get_floors_by_block"),
+    path("houses_by_floor/<int:floor_id>/", HousesByFloorView.as_view(), name="get_houses_by_floor"),
     
-    path("get_sampradays/<int:religion_id>/", SampradayByReligionView.as_view(), name="get_sampradays_by_religion"),
-    path("get_panths/<int:sampraday_id>/", PanthBySampradayView.as_view(), name="get_panths_by_sampraday"),
-    path("get_varnas/<int:panth_id>/", VarnaByPanthView.as_view(), name="get_varnas_by_panth"),
-    path("get_castes/<int:varna_id>/", CasteByVarnaView.as_view(), name="get_castes_by_varna"),
-    path("get_subcastes/<int:caste_id>/", SubCasteByCasteView.as_view(), name="get_subcastes_by_caste"),
-    path("get_gotras/<int:subcaste_id>/", GotraBySubCasteView.as_view(), name="get_gotras_by_subcaste"),
-    path("get_subgotras/<int:gotra_id>/", SubGotraByGotraView.as_view(), name="get_subgotras_by_gotra"),
-    path("get_kul/<int:subgotra_id>/", KulBySubGotraView.as_view(), name="get_kuls_by_subgotra"),
-    path("get_vansh/<int:kul_id>/", VanshByKulView.as_view(), name="get_vansh_by_kul"),
-    path("get_family/<int:vansh_id>/", FamilyByVanshView.as_view(), name="get_family_by_vansh"),
-    path("get_pidhis/<int:family_id>/", PidhiByFamilyView.as_view(), name="get_pidhis_by_family"),
+    path("classes_by_section/<int:section_id>/", ClassesBySectionView.as_view(), name="get_classes_by_section"),
+    path("categories_by_class/<int:class_id>/", ProfCategoryByClassView.as_view(), name="get_categories_by_class"),
+    path("subcategories_by_category/<int:category_id>/", ProfSubCategoryByCategoryView.as_view(), name="get_subcategories_by_category"),
+    path("sectors_by_subcategory/<int:subcategory_id>/", SectorBySubCategoryView.as_view(), name="get_sectors_by_subcategory"),
+    path("subsectors_by_sector/<int:sector_id>/", SubSectorBySectorView.as_view(), name="get_subsectors_by_sector"),
+    path("depts_by_subsector/<int:subsector_id>/", DepartmentsBySubSectorView.as_view(), name="get_depts_by_subsector"),
+    path("subdepts_by_dept/<int:dept_id>/", SubDepartmentsByDepartmentView.as_view(), name="get_subdepts_by_dept"),
+    path("types_by_subdept/<int:subdept_id>/", TypeBySubDepartmentView.as_view(), name="get_types_by_subdept"),
+    path("brands_by_type/<int:type_id>/", BrandByTypeView.as_view(), name="get_brands_by_type"),
+    path("postmodels_by_brand/<int:brand_id>/", PostModelByBrandView.as_view(), name="get_postmodels_by_brand"),
+    
+    path("sampradays_by_religion/<int:religion_id>/", SampradayByReligionView.as_view(), name="get_sampradays_by_religion"),
+    path("panths_by_sampraday/<int:sampraday_id>/", PanthBySampradayView.as_view(), name="get_panths_by_sampraday"),
+    path("varnas_by_panth/<int:panth_id>/", VarnaByPanthView.as_view(), name="get_varnas_by_panth"),
+    path("castes_by_varna/<int:varna_id>/", CasteByVarnaView.as_view(), name="get_castes_by_varna"),
+    path("subcastes_by_caste/<int:caste_id>/", SubCasteByCasteView.as_view(), name="get_subcastes_by_caste"),
+    path("gotras_by_subcaste/<int:subcaste_id>/", GotraBySubCasteView.as_view(), name="get_gotras_by_subcaste"),
+    path("subgotras_by_gotra/<int:gotra_id>/", SubGotraByGotraView.as_view(), name="get_subgotras_by_gotra"),
+    path("kul_by_subgotra/<int:subgotra_id>/", KulBySubGotraView.as_view(), name="get_kuls_by_subgotra"),
+    path("vansh_by_kul/<int:kul_id>/", VanshByKulView.as_view(), name="get_vansh_by_kul"),
+    path("family_by_vansh/<int:vansh_id>/", FamilyByVanshView.as_view(), name="get_family_by_vansh"),
+    path("pidhis_by_family/<int:family_id>/", PidhiByFamilyView.as_view(), name="get_pidhis_by_family"),
     
     path("models/", ModelNameView.as_view(), name="get_models"),
     path("model_access_rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),

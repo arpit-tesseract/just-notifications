@@ -8,7 +8,8 @@ from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import *
-from .serializers import *
+from configuration.serializers import *
+
 from shashan.utils.validators import get_related_queryset
 from rest_framework.decorators import api_view, permission_classes
 
@@ -29,42 +30,30 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     serializer_class = GlobSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
+class GlobListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Glob.objects.all()
+        serializer = GlobSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+
 class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Continent.objects.all() 
     serializer_class = ContinentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return ContinentSerializer   # For POST, PUT, PATCH
+        return ContinentDetailSerializer
 
-    # # Override get_queryset to filter based on user allocations
-    # def get_queryset(self):
-    #     user = self.request.user
-    #     today = timezone.now().date()
-    #     base_qs = Continent.objects.filter(
-    #             is_hidden=False,
-    #             on_hold=False
-    #         ).filter(
-    #             Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-    #         )
-    #     if user.is_system_user:
-    #         # Super Admin can see all
-    #         qs = Continent.objects.all()
-    #         is_hidden = self.request.query_params.get('is_hidden')
-    #         on_hold = self.request.query_params.get('on_hold')
-
-    #         # Apply filters if provided
-    #         if is_hidden is not None:
-    #             if is_hidden.lower() == 'true':
-    #                 qs = qs.filter(is_hidden=True)
-    #             elif is_hidden.lower() == 'false':
-    #                 qs = qs.filter(is_hidden=False)
-            
-    #         if on_hold is not None:
-    #             if on_hold.lower() == 'true':
-    #                 qs = qs.filter(on_hold=True)
-    #             elif on_hold.lower() == 'false':
-    #                 qs = qs.filter(on_hold=False)
-    #         return self.apply_record_rules(base_qs) if not (is_hidden or on_hold) else self.apply_record_rules(qs)
-    #     # For other users, return 
-    #     return base_qs
+class ContinentListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Continent.objects.all()
+        serializer = ContinentSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -72,28 +61,89 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return CountrySerializer   # For POST, PUT, PATCH
+        return CountryDetailSerializer
+
+class CountryListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Country.objects.all()
+        serializer = CountrySerializer(queryset, many=True)
+        return Response(serializer.data)
+    
 
 class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = State.objects.all()
     serializer_class = StateSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return StateSerializer   # For POST, PUT, PATCH
+        return StateDetailSerializer
+
+class StateListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = State.objects.all()
+        serializer = StateSerializer(queryset, many=True)
+        return Response(serializer.data)
+   
    
 class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = District.objects.all()
     serializer_class = DistrictSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return DistrictSerializer   # For POST, PUT, PATCH
+        return DistrictDetailSerializer
+
+class DistrictListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = District.objects.all()
+        serializer = DistrictSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Taluka.objects.all()
     serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return TalukaSerializer   # For POST, PUT, PATCH
+        return TalukaDetailSerializer
+
+class TalukaListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Taluka.objects.all()
+        serializer = TalukaSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
 
 class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = CityVillage.objects.all()
     serializer_class = CityVillageSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return CityVillageSerializer   # For POST, PUT, PATCH
+        return CityVillageDetailSerializer
+
+class CityVillageListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = CityVillage.objects.all()
+        serializer = CityVillageSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -101,17 +151,52 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     serializer_class = WardSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return WardSerializer   # For POST, PUT, PATCH
+        return WardDetailSerializer
+
+class WardListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Ward.objects.all()
+        serializer = WardSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
 
 class SocietyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Society.objects.all()
     serializer_class = SocietySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return SocietySerializer   # For POST, PUT, PATCH
+        return SocietyDetailSerializer
+
+class SocietyListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Society.objects.all()
+        serializer = SocietySerializer(queryset, many=True)
+        return Response(serializer.data)
 
 class BlockViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Block.objects.all()
     serializer_class = BlockSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return BlockSerializer   # For POST, PUT, PATCH
+        return BlockDetailSerializer
+
+class BlockListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Block.objects.all()
+        serializer = BlockSerializer(queryset, many=True)
+        return Response(serializer.data)
     
     
 class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -119,10 +204,34 @@ class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = FloorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return FloorSerializer   # For POST, PUT, PATCH
+        return FloorDetailSerializer
+
+class FloorListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Floor.objects.all()
+        serializer = FloorSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
 class HousesViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Houses.objects.all()
     serializer_class = HousesSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return HousesSerializer   # For POST, PUT, PATCH
+        return HousesDetailSerializer
+
+class HousesListView(APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get(self, request):
+        queryset = Houses.objects.all()
+        serializer = HousesSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 # ========================================
@@ -137,7 +246,12 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
 class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Sampraday.objects.all()
     serializer_class = SampradaySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]        
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]  
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return SampradayDetailSerializer
+        return super().get_serializer_class()      
 
 
 class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -145,11 +259,21 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = PanthSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return PanthDetailSerializer
+        return super().get_serializer_class()
+    
 
 class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Varna.objects.all()
     serializer_class = VarnaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return VarnaDetailSerializer
+        return super().get_serializer_class()
     
 
 class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -157,11 +281,21 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = CasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return CasteDetailSerializer
+        return super().get_serializer_class()
+    
     
 class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = SubCaste.objects.all()
     serializer_class = SubCasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return SubCasteDetailSerializer
+        return super().get_serializer_class()
 
 
 class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -169,23 +303,43 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = GotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return GotraDetailSerializer
+        return super().get_serializer_class()
+    
 
 class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = SubGotra.objects.all()
     serializer_class = SubGotraSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]   
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return SubGotraDetailSerializer
+        return super().get_serializer_class() 
 
 
 class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Kul.objects.all()
     serializer_class = KulSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return KulDetailSerializer
+        return super().get_serializer_class()
 
 
 class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Family.objects.all()
     serializer_class = FamilySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return FamilyDetailSerializer
+        return super().get_serializer_class()
 
 
 class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -195,7 +349,7 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     
     
 # ========================================
-# Residential 
+# Professional 
 # ========================================
 class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Section.objects.all()
@@ -207,6 +361,11 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Class.objects.all()
     serializer_class = ClassSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return ClassDetailSerializer
+        return super().get_serializer_class()
 
 
 class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -214,11 +373,21 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
     serializer_class = ProfCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return ProfCategoryDetailSerializer
+        return super().get_serializer_class()
+    
 
 class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = ProfSubCategory.objects.all()
     serializer_class = ProfSubCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return ProfSubCategoryDetailSerializer
+        return super().get_serializer_class()
     
     
 class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -226,17 +395,32 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     serializer_class = TypeSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return TypeDetailSerializer
+        return super().get_serializer_class()
+    
 
 class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return BrandDetailSerializer
+        return super().get_serializer_class()
 
 
 class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = PostModel.objects.all()
     serializer_class = PostModelSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return PostModelDetailSerializer
+        return super().get_serializer_class()
 
 
 class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -244,11 +428,21 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     serializer_class = SectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return SectorDetailSerializer
+        return super().get_serializer_class()
+    
 
 class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = SubSector.objects.all()
     serializer_class = SubSectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return SubSectorDetailSerializer
+        return super().get_serializer_class()
 
 
 class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -256,11 +450,21 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return DepartmentDetailSerializer
+        return super().get_serializer_class()
+    
 
 class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = SubDepartment.objects.all()
     serializer_class = SubDepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return SubDepartmentDetailSerializer
+        return super().get_serializer_class()
     
 
 class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
