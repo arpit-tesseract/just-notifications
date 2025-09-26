@@ -11,21 +11,25 @@ router.register(r'districts_in_details', DistrictViewSet)
 router.register(r'talukas_in_details', TalukaViewSet)
 router.register(r'cityvillages_in_details', CityVillageViewSet)
 router.register(r'wards_in_details', WardViewSet)
-router.register(r'societies_in_details', SocietyViewSet)
-router.register(r'blocks_in_details', BlockViewSet)
-router.register(r'floors_in_details', FloorViewSet)
-router.register(r'housenums_in_details', HousesViewSet)
+# router.register(r'societies_in_details', SocietyViewSet)
+# router.register(r'blocks_in_details', BlockViewSet)
+# router.register(r'floors_in_details', FloorViewSet)
+# router.register(r'housenums_in_details', HousesViewSet)
 
 # router.register(r'accessactivity', AccessesViewSet)
-router.register(r'religion', ReligionViewSet)
-router.register(r'sampraday', SampradayViewSet)
-router.register(r'panth', PanthViewSet)
-router.register(r'varna', VarnaViewSet)
-router.register(r'caste', CasteViewSet)
-router.register(r'subcaste', SubCasteViewSet)
-router.register(r'gotra', GotraViewSet)
-router.register(r'subgotra', SubGotraViewSet)
-router.register(r'pidhi', PidhiViewSet)
+router.register(r'religions_in_details', ReligionViewSet)
+router.register(r'sampradays_in_details', SampradayViewSet)
+router.register(r'panths_in_details', PanthViewSet)
+router.register(r'varnas_in_details', VarnaViewSet)
+router.register(r'castes_in_details', CasteViewSet)
+router.register(r'subcastes_in_details', SubCasteViewSet)
+router.register(r'gotras_in_details', GotraViewSet)
+router.register(r'subgotras_in_details', SubGotraViewSet)
+router.register(r'kuls_in_details', KulViewSet)
+router.register(r'vanshes_in_details', VanshViewSet)
+router.register(r'families_in_details', FamilyViewSet)
+router.register(r'pidhis_in_details', PidhiViewSet)
+
 router.register(r'section', SectionViewSet)
 router.register(r'class', ClassViewSet)
 router.register(r'profCategory', ProfCategoryViewSet)
@@ -49,11 +53,19 @@ urlpatterns = [
     path('talukas/', TalukaListView.as_view()),
     path('cityvillages/', CityVillageListView.as_view()),
     path('wards/', WardListView.as_view()),
-    path('societies/', SocietyListView.as_view()),
-    path('blocks/', BlockListView.as_view()),
-    path('floors/', FloorListView.as_view()),
-    path('housenums/', HousesListView.as_view()),
     
+    path('religions/', ReligionListView.as_view()),
+    path('sampradays/', SampradayListView.as_view()),
+    path('panths/', PanthListView.as_view()),
+    path('varnas/', VarnaListView.as_view()),
+    path('castes/', CasteListView.as_view()),
+    path('subcastes/', SubCasteListView.as_view()),
+    path('gotras/', GotraListView.as_view()),
+    path('subgotras/', SubGotraListView.as_view()),
+    path('kuls/', KulListView.as_view()),
+    path('vanshes/', VanshListView.as_view()),
+    path('families/', FamilyListView.as_view()),
+    path('pidhis/', PidhiListView.as_view()),
     
     path("import/continent/", ImportContinents.as_view()),
     path("import/country/", ImportCountries.as_view()),
@@ -62,9 +74,7 @@ urlpatterns = [
     # path("import/city/", ImportCities.as_view()),
     # path("import/village/", ImportVillages.as_view()),
     # path("import/ward/", ImportWards.as_view()),
-    path("import/society/", ImportSocities.as_view()),
-    path("import/block/", ImportBlocks.as_view()),
-    path("import/housenum/", ImportHouses.as_view()),
+    # path("import/society/", ImportSocities.as_view()),
     path("import/religion/", ImportReligions.as_view()),
     path("import/sampraday/", ImportSampradays.as_view()),
     path("import/panth/", ImportPanths.as_view()),
@@ -93,14 +103,11 @@ urlpatterns = [
     path("countries_by_continent/<int:continent_id>/", CountriesByContinentView.as_view(), name="get_countries_by_continent"),
     path("states_by_country/<int:country_id>/", StatesByCountryView.as_view(), name="get_states_by_country"),
     path("districts_by_state/<int:state_id>/", DistrictsByStateView.as_view(), name="get_districts_by_state"),
-    path("taluka_by_district/<int:district_id>/", TalukaByDistrictView.as_view(), name="get_taluka_by_district"),
-    path("city_villages_by_taluka/<int:taluka_id>/", CityVillagesByTalukaView.as_view(), name="get_city_village_by_taluka"),
+    path("talukas_by_district/<int:district_id>/", TalukaByDistrictView.as_view(), name="get_taluka_by_district"),
+    path("cityvillages_by_taluka/<int:taluka_id>/", CityVillagesByTalukaView.as_view(), name="get_city_village_by_taluka"),
     path("wards_by_cityvillage/<int:cityvillage_id>/", WardsByCityVillageView.as_view(), name="get_wards_by_cityvillage"),
-    path("societies_by_ward/<int:ward_id>/", SocietiesByWardView.as_view(), name="get_societies_by_ward"),
-    path("blocks_by_society/<int:society_id>/", BlockBySocietyView.as_view(), name="get_blocks_by_society"),
-    path("floors_by_block/<int:block_id>/", FloorsByBlockView.as_view(), name="get_floors_by_block"),
-    path("houses_by_floor/<int:floor_id>/", HousesByFloorView.as_view(), name="get_houses_by_floor"),
-    
+    # path("societies_by_ward/<int:ward_id>/", SocietiesByWardView.as_view(), name="get_societies_by_ward"),
+
     path("classes_by_section/<int:section_id>/", ClassesBySectionView.as_view(), name="get_classes_by_section"),
     path("categories_by_class/<int:class_id>/", ProfCategoryByClassView.as_view(), name="get_categories_by_class"),
     path("subcategories_by_category/<int:category_id>/", ProfSubCategoryByCategoryView.as_view(), name="get_subcategories_by_category"),
@@ -119,9 +126,9 @@ urlpatterns = [
     path("subcastes_by_caste/<int:caste_id>/", SubCasteByCasteView.as_view(), name="get_subcastes_by_caste"),
     path("gotras_by_subcaste/<int:subcaste_id>/", GotraBySubCasteView.as_view(), name="get_gotras_by_subcaste"),
     path("subgotras_by_gotra/<int:gotra_id>/", SubGotraByGotraView.as_view(), name="get_subgotras_by_gotra"),
-    path("kul_by_subgotra/<int:subgotra_id>/", KulBySubGotraView.as_view(), name="get_kuls_by_subgotra"),
-    path("vansh_by_kul/<int:kul_id>/", VanshByKulView.as_view(), name="get_vansh_by_kul"),
-    path("family_by_vansh/<int:vansh_id>/", FamilyByVanshView.as_view(), name="get_family_by_vansh"),
+    path("kuls_by_subgotra/<int:subgotra_id>/", KulBySubGotraView.as_view(), name="get_kuls_by_subgotra"),
+    path("vanshes_by_kul/<int:kul_id>/", VanshByKulView.as_view(), name="get_vansh_by_kul"),
+    path("families_by_vansh/<int:vansh_id>/", FamilyByVanshView.as_view(), name="get_family_by_vansh"),
     path("pidhis_by_family/<int:family_id>/", PidhiByFamilyView.as_view(), name="get_pidhis_by_family"),
     
     path("models/", ModelNameView.as_view(), name="get_models"),

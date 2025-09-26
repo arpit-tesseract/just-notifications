@@ -3,14 +3,28 @@ from django.db.models import Q, ForeignKey
 from django.core.exceptions import FieldError
 from rest_framework.exceptions import ValidationError
 
-
 class SafeQueryMixin:
     """
     Base mixin to ensure super().get_queryset() can always be called safely.
     All other mixins should inherit this first.
     """
+    # def get_queryset(self):
+    #     print("get_queryset SafeQueryMixin")
+    #     return super().get_queryset()
+    
     def get_queryset(self):
-        return super().get_queryset()
+        # Use self.queryset if defined
+        # Use model if defined
+        if hasattr(self, "model") and self.model is not None:
+            return self.model.objects.all()
+        if hasattr(self, "get_base_queryset") and self.get_base_queryset is not None:
+            return self.get_base_queryset()
+        if hasattr(self, "queryset") and self.queryset is not None:
+            return self.queryset
+        
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must define `queryset` or `model`"
+        )
 
 
 # Working for APIView & Model ViewSet
@@ -104,7 +118,7 @@ class RecordRuleMixin(SafeQueryMixin):
         perm_field = f"can_{self.action_map.get(action, 'read')}"
         
         #  Bypass if system user AND designation level = 0
-        if user.is_system_user:
+        if user.check_is_super_admin():
             return qs
 
         # Fetch all record rules for this user and model
@@ -160,22 +174,26 @@ class FilteredQuerysetMixin(SafeQueryMixin):
             f"{self.__class__.__name__} must define either `model` or `queryset`."
         )
 
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        base_qs = super().get_queryset()
+    # def get_safe_queryset(self):
+    #     # today = timezone.now().date()
+    #     base_qs = super().get_queryset()
 
-        return base_qs.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-        )
+    #     return base_qs
+        # return base_qs.filter(
+        #     is_hidden=False,
+        #     on_hold=False
+        # ).filter(
+        #     Q(hold_date__gte=today) | Q(hold_date__isnull=True)
+        # )
+    # def get_base_queryset(self):
+    #     return self._model.objects.all()
 
     def get_queryset(self):
         user = self.request.user
-        base_qs = self.get_base_queryset()
+        # basw_qs = self.get_safe_queryset()
+        base_qs = super().get_queryset()
 
-        if user.is_system_user and user.is_verified:
+        if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
             qs = self._model.objects.all()
             is_hidden = self.request.query_params.get("is_hidden")
             on_hold = self.request.query_params.get("on_hold")
@@ -201,6 +219,19 @@ class FilteredQuerysetMixin(SafeQueryMixin):
         # if hasattr(self, "apply_record_rules"):
         #     return self.apply_record_rules(final_qs)
         return final_qs  
+
+
+class SearchMixin(SafeQueryMixin):
+    search_param = "search"
+    search_limit = 10          # configurable limit
+
+    def get_result_queryset(self):
+        qs = super().get_queryset()
+        search_value = self.request.query_params.get(self.search_param)
+        if search_value:
+            qs = qs.filter(name__icontains=search_value)[: self.search_limit]
+            return qs
+        return None
 
 
 # from django.db.models import Q

@@ -435,8 +435,8 @@ class CustomUserBasicDetailsOutputSerializer(serializers.ModelSerializer):
     # designation = DesignationSerializer(many=False)
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'user_role', 'is_system_user',]
-        read_only_fields = ['id', 'email', 'user_role', 'is_system_user']
+        fields = ['id', 'email', 'user_role', 'is_super_admin',]
+        read_only_fields = ['id', 'email', 'user_role', 'is_super_admin']
 
 # class OTPserializer(serializers.Serializer):
 #     email = serializers.EmailField()

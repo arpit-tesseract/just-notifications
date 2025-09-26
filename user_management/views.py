@@ -79,6 +79,7 @@ from configuration.serializers import *
 
 class LoginWithEmailPasswordView(APIView):
     def post(self, request):
+        print(request.data)
         serializer = LoginEmailPasswordSerializer(data=request.data)
         
         if not serializer.is_valid():

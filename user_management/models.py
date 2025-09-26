@@ -57,7 +57,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     contact_no = models.CharField(max_length=15, null=True, blank=True)
     user_role = models.ManyToManyField(UserRole)
     # designation = models.ForeignKey(Designation,null=True,blank=True,on_delete=models.SET_NULL,related_name="users")
-    is_system_user = models.BooleanField(default=False)
+    is_super_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     
@@ -68,7 +68,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    def check_is_system_admin(self):
+        # Check user role (case-insensitive match)
+        return self.user_role.filter(name__iexact="system_admin").exists()
     
+    def check_is_super_admin(self):
+        # Check boolean field
+        if self.is_super_admin and self.user_role.filter(name__iexact="system_admin").exists():
+            return True
+        # Check user role (case-insensitive match)
+        return False
     
     
 # class Address(models.Model):
@@ -250,10 +260,10 @@ class ResidentialDetail(models.Model):
     taluka = models.ForeignKey(configm.Taluka, on_delete=models.SET_NULL, null=True, blank=True)
     city_village = models.ForeignKey(configm.CityVillage, on_delete=models.SET_NULL, null=True, blank=True)
     ward = models.ForeignKey(configm.Ward, on_delete=models.SET_NULL, null=True, blank=True)
-    society = models.ForeignKey(configm.Society, on_delete=models.SET_NULL, null=True, blank=True)
-    block = models.ForeignKey(configm.Block, on_delete=models.SET_NULL, null=True, blank=True)
-    floor = models.ForeignKey(configm.Floor, on_delete=models.SET_NULL, null=True, blank=True)
-    houses = models.ForeignKey(configm.Houses, on_delete=models.SET_NULL, null=True, blank=True)
+    society = models.CharField("Society", max_length=255, null=True, blank=True)
+    block = models.CharField("Block", max_length=20, null=True, blank=True)
+    floor = models.CharField("Floor", max_length=20, null=True, blank=True)
+    house_no = models.CharField("House No", max_length=20, null=True, blank=True)
     no_of_rooms = models.IntegerField("No. of Rooms", default=1)
     residential_code = models.CharField("Residential ID", max_length=100, null=True)
     is_verified = models.BooleanField(default=False)
@@ -267,10 +277,10 @@ class ResidentialDetail(models.Model):
                             f"{self.taluka.code if self.taluka else '00'}-" \
                             f"{self.city_village.code if self.city_village else '00'}-" \
                             f"{self.ward.code if self.ward else '00'}-" \
-                            f"{self.society.code if self.society else '00'}-" \
-                            f"{self.block.name if self.block else '00'}-" \
-                            f"{self.floor.code if self.floor else '00'}-" \
-                            f"{self.houses.code if self.houses else '00'}"
+                            f"{self.society.code if self.society else '00'}-"
+                            # f"{self.block.name if self.block else '00'}-" \
+                            # f"{self.floor.code if self.floor else '00'}-" \
+                            # f"{self.houses.code if self.houses else '00'}"
         super().save(*args, **kwargs)
         
 

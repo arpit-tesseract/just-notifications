@@ -14,7 +14,7 @@ from shashan.utils.validators import get_related_queryset
 from rest_framework.decorators import api_view, permission_classes
 
 from .permissions import HasModelAccessPermission
-from .mixins import FilteredQuerysetMixin, RecordRuleMixin
+from .mixins import FilteredQuerysetMixin, RecordRuleMixin, SearchMixin
 from django.utils import timezone
 from django.db.models import Q
 
@@ -26,19 +26,31 @@ from rest_framework.decorators import action
 # Residential 
 # ========================================
 class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Glob.objects.all() 
+    queryset = Glob.objects.all() # First time load data when server starts
+    model = Glob 
     serializer_class = GlobSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-class GlobListView(APIView, RecordRuleMixin):
+class GlobListView(SearchMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Glob.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = Glob.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = GlobSerializer(queryset, many=True)
         return Response(serializer.data)
     
 
 class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Continent
     queryset = Continent.objects.all() 
     serializer_class = ContinentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -48,15 +60,26 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
             return ContinentSerializer   # For POST, PUT, PATCH
         return ContinentDetailSerializer
 
-class ContinentListView(APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+class ContinentListView(SearchMixin,APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Continent.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = Continent.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = ContinentSerializer(queryset, many=True)
         return Response(serializer.data)
 
 
 class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Country
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -66,15 +89,26 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
             return CountrySerializer   # For POST, PUT, PATCH
         return CountryDetailSerializer
 
-class CountryListView(APIView, RecordRuleMixin):
+class CountryListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Country.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = Country.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = CountrySerializer(queryset, many=True)
         return Response(serializer.data)
     
 
 class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = State
     queryset = State.objects.all()
     serializer_class = StateSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -84,15 +118,26 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
             return StateSerializer   # For POST, PUT, PATCH
         return StateDetailSerializer
 
-class StateListView(APIView, RecordRuleMixin):
+class StateListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return State.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = State.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = StateSerializer(queryset, many=True)
         return Response(serializer.data)
    
    
 class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = District
     queryset = District.objects.all()
     serializer_class = DistrictSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -102,15 +147,26 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
             return DistrictSerializer   # For POST, PUT, PATCH
         return DistrictDetailSerializer
 
-class DistrictListView(APIView, RecordRuleMixin):
+class DistrictListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return District.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = District.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = DistrictSerializer(queryset, many=True)
         return Response(serializer.data)
 
 
 class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Taluka
     queryset = Taluka.objects.all()
     serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -120,15 +176,26 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
             return TalukaSerializer   # For POST, PUT, PATCH
         return TalukaDetailSerializer
 
-class TalukaListView(APIView, RecordRuleMixin):
+class TalukaListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Taluka.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = Taluka.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = TalukaSerializer(queryset, many=True)
         return Response(serializer.data)
     
 
 class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = CityVillage
     queryset = CityVillage.objects.all()
     serializer_class = CityVillageSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -138,15 +205,26 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
             return CityVillageSerializer   # For POST, PUT, PATCH
         return CityVillageDetailSerializer
 
-class CityVillageListView(APIView, RecordRuleMixin):
+class CityVillageListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return CityVillage.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = CityVillage.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = CityVillageSerializer(queryset, many=True)
         return Response(serializer.data)
     
 
 class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Ward
     queryset = Ward.objects.all()
     serializer_class = WardSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -156,196 +234,368 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
             return WardSerializer   # For POST, PUT, PATCH
         return WardDetailSerializer
 
-class WardListView(APIView, RecordRuleMixin):
+class WardListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Ward.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
     def get(self, request):
-        queryset = Ward.objects.all()
+        queryset = self.get_result_queryset()   # search applied automatically
         serializer = WardSerializer(queryset, many=True)
         return Response(serializer.data)
     
-
-class SocietyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Society.objects.all()
-    serializer_class = SocietySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SocietySerializer   # For POST, PUT, PATCH
-        return SocietyDetailSerializer
-
-class SocietyListView(APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get(self, request):
-        queryset = Society.objects.all()
-        serializer = SocietySerializer(queryset, many=True)
-        return Response(serializer.data)
-
-class BlockViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Block.objects.all()
-    serializer_class = BlockSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return BlockSerializer   # For POST, PUT, PATCH
-        return BlockDetailSerializer
-
-class BlockListView(APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get(self, request):
-        queryset = Block.objects.all()
-        serializer = BlockSerializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    
-class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Floor.objects.all()
-    serializer_class = FloorSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return FloorSerializer   # For POST, PUT, PATCH
-        return FloorDetailSerializer
-
-class FloorListView(APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get(self, request):
-        queryset = Floor.objects.all()
-        serializer = FloorSerializer(queryset, many=True)
-        return Response(serializer.data)
-    
-class HousesViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Houses.objects.all()
-    serializer_class = HousesSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return HousesSerializer   # For POST, PUT, PATCH
-        return HousesDetailSerializer
-
-class HousesListView(APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get(self, request):
-        queryset = Houses.objects.all()
-        serializer = HousesSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 # ========================================
 # Personal 
 # ========================================
 class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Religion
     queryset = Religion.objects.all()
     serializer_class = ReligionSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+class ReligionListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Religion.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = ReligionSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
     
 class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Sampraday
     queryset = Sampraday.objects.all()
     serializer_class = SampradaySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]  
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SampradayDetailSerializer
-        return super().get_serializer_class()      
+        if self.action in ["create", "update", "partial_update"]:
+            return SampradaySerializer   # For POST, PUT, PATCH
+        return SampradayDetailSerializer 
+
+class SampradayListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Sampraday.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )     
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SampradaySerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Panth
     queryset = Panth.objects.all()
     serializer_class = PanthSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return PanthDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return PanthSerializer   # For POST, PUT, PATCH
+        return PanthDetailSerializer
+
+class PanthListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Panth.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = PanthSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Varna
     queryset = Varna.objects.all()
     serializer_class = VarnaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return VarnaDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return VarnaSerializer   # For POST, PUT, PATCH
+        return VarnaDetailSerializer
+
+class VarnaListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Varna.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = VarnaSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Caste
     queryset = Caste.objects.all()
     serializer_class = CasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return CasteDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return CasteSerializer   # For POST, PUT, PATCH
+        return CasteDetailSerializer
+
+class CasteListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Caste.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = CasteSerializer(queryset, many=True)
+        return Response(serializer.data)
     
     
 class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = SubCaste
     queryset = SubCaste.objects.all()
     serializer_class = SubCasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]    
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SubCasteDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return SubCasteSerializer   # For POST, PUT, PATCH
+        return SubCasteDetailSerializer
+
+class SubCasteListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return SubCaste.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SubCasteSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Gotra
     queryset = Gotra.objects.all()
     serializer_class = GotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return GotraDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return GotraSerializer   # For POST, PUT, PATCH
+        return GotraDetailSerializer
+
+class GotraListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Gotra.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = GotraSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = SubGotra
     queryset = SubGotra.objects.all()
     serializer_class = SubGotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]   
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SubGotraDetailSerializer
-        return super().get_serializer_class() 
+        if self.action in ["create", "update", "partial_update"]:
+            return SubGotraSerializer   # For POST, PUT, PATCH
+        return SubGotraDetailSerializer 
+
+class SubGotraListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return SubGotra.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SubGotraSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Kul
     queryset = Kul.objects.all()
     serializer_class = KulSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return KulDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return KulSerializer   # For POST, PUT, PATCH
+        return KulDetailSerializer
 
+class KulListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Kul.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = KulSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Vansh
+    queryset = Vansh.objects.all()
+    serializer_class = VanshSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return VanshSerializer   # For POST, PUT, PATCH
+        return VanshDetailSerializer
+
+class VanshListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Vansh.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = VanshSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Family
     queryset = Family.objects.all()
     serializer_class = FamilySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return FamilyDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return FamilySerializer   # For POST, PUT, PATCH
+        return FamilyDetailSerializer
+
+class FamilyListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Family.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = FamilySerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Pidhi
     queryset = Pidhi.objects.all()
     serializer_class = PidhiSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return PidhiSerializer   # For POST, PUT, PATCH
+        return PidhiDetailSerializer
+
+class PidhiListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Pidhi.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = PidhiSerializer(queryset, many=True)
+        return Response(serializer.data)
     
     
 # ========================================
@@ -837,141 +1087,141 @@ class ImportDistricts(APIView):
 #         return Response({"created": created, "errors": errors})
 
 
-class ImportSocities(APIView):
-    model = Society
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class ImportSocities(APIView):
+#     model = Society
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file uploaded."}, status=400)
+#     def post(self, request):
+#         file = request.FILES.get("file")
+#         if not file:
+#             return Response({"error": "No file uploaded."}, status=400)
 
-        try:
-            df = pd.read_excel(file, dtype={"Code": str})
-        except Exception as e:
-            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+#         try:
+#             df = pd.read_excel(file, dtype={"Code": str})
+#         except Exception as e:
+#             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
 
-        created = 0
-        errors = []
+#         created = 0
+#         errors = []
 
-        for idx, row in df.iterrows():
-            row_num = idx + 2
-            ward_code = clean(row.get("Ward Code"))
-            name = clean(row.get("Society"))
-            code = clean(row.get("Code"))
+#         for idx, row in df.iterrows():
+#             row_num = idx + 2
+#             ward_code = clean(row.get("Ward Code"))
+#             name = clean(row.get("Society"))
+#             code = clean(row.get("Code"))
 
-            if not name or not code or not ward_code:
-                errors.append(
-                    f"Row {row_num}: Missing 'Society', 'Code', or 'Ward Code'"
-                )
-                continue
+#             if not name or not code or not ward_code:
+#                 errors.append(
+#                     f"Row {row_num}: Missing 'Society', 'Code', or 'Ward Code'"
+#                 )
+#                 continue
 
-            try:
-                ward = Ward.objects.get(code__iexact=ward_code)
+#             try:
+#                 ward = Ward.objects.get(code__iexact=ward_code)
 
-                obj, is_created = Society.objects.get_or_create(
-                    name__iexact=name,
-                    code__iexact=code,
-                    ward=ward,
-                    defaults={"name": name, "code": code, "ward": ward},
-                )
-                if is_created:
-                    created += 1
-            except Ward.DoesNotExist:
-                errors.append(f"Row {row_num}: Ward with code '{ward_code}' not found")
+#                 obj, is_created = Society.objects.get_or_create(
+#                     name__iexact=name,
+#                     code__iexact=code,
+#                     ward=ward,
+#                     defaults={"name": name, "code": code, "ward": ward},
+#                 )
+#                 if is_created:
+#                     created += 1
+#             except Ward.DoesNotExist:
+#                 errors.append(f"Row {row_num}: Ward with code '{ward_code}' not found")
 
-        return Response({"created": created, "errors": errors})
-
-
-class ImportBlocks(APIView):
-    model = Block
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file uploaded."}, status=400)
-
-        try:
-            df = pd.read_excel(file, dtype={"Code": str})
-        except Exception as e:
-            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
-
-        created = 0
-        errors = []
-
-        for idx, row in df.iterrows():
-            row_num = idx + 2
-            society_code = clean(row.get("Society Code"))
-            name = clean(row.get("Block"))
-
-            if not name or not society_code:
-                errors.append(f"Row {row_num}: Missing 'Block' or 'Society Code'")
-                continue
-
-            try:
-                society = Society.objects.get(code__iexact=society_code)
-
-                obj, is_created = Block.objects.get_or_create(
-                    name__iexact=name,
-                    society=society,
-                    defaults={"name": name, "society": society},
-                )
-                if is_created:
-                    created += 1
-            except Society.DoesNotExist:
-                errors.append(
-                    f"Row {row_num}: Society with code '{society_code}' not found"
-                )
-
-        return Response({"created": created, "errors": errors})
+#         return Response({"created": created, "errors": errors})
 
 
-class ImportHouses(APIView):
-    model = Houses
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class ImportBlocks(APIView):
+#     model = Block
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
 
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file uploaded."}, status=400)
+#     def post(self, request):
+#         file = request.FILES.get("file")
+#         if not file:
+#             return Response({"error": "No file uploaded."}, status=400)
 
-        try:
-            df = pd.read_excel(file, dtype={"Code": str})
-        except Exception as e:
-            return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+#         try:
+#             df = pd.read_excel(file, dtype={"Code": str})
+#         except Exception as e:
+#             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
 
-        created = 0
-        errors = []
+#         created = 0
+#         errors = []
 
-        for idx, row in df.iterrows():
-            row_num = idx + 2
-            block = clean(row.get("Block"))
-            code = clean(row.get("Number of Flats/Houses"))
+#         for idx, row in df.iterrows():
+#             row_num = idx + 2
+#             society_code = clean(row.get("Society Code"))
+#             name = clean(row.get("Block"))
 
-            if not code or not block:
-                errors.append(
-                    f"Row {row_num}: Missing 'Block' or 'Number of Flats/Houses'"
-                )
-                continue
+#             if not name or not society_code:
+#                 errors.append(f"Row {row_num}: Missing 'Block' or 'Society Code'")
+#                 continue
 
-            try:
-                block = Block.objects.get(name__iexact=block)
+#             try:
+#                 society = Society.objects.get(code__iexact=society_code)
 
-                obj, is_created = Houses.objects.get_or_create(
-                    code__iexact=code,
-                    block=block,
-                    defaults={"code": code, "block": block},
-                )
-                if is_created:
-                    created += 1
-            except Block.DoesNotExist:
-                errors.append(f"Row {row_num}: '{block}' not found")
+#                 obj, is_created = Block.objects.get_or_create(
+#                     name__iexact=name,
+#                     society=society,
+#                     defaults={"name": name, "society": society},
+#                 )
+#                 if is_created:
+#                     created += 1
+#             except Society.DoesNotExist:
+#                 errors.append(
+#                     f"Row {row_num}: Society with code '{society_code}' not found"
+#                 )
 
-        return Response({"created": created, "errors": errors})
+#         return Response({"created": created, "errors": errors})
+
+
+# class ImportHouses(APIView):
+#     model = Houses
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+
+#     def post(self, request):
+#         file = request.FILES.get("file")
+#         if not file:
+#             return Response({"error": "No file uploaded."}, status=400)
+
+#         try:
+#             df = pd.read_excel(file, dtype={"Code": str})
+#         except Exception as e:
+#             return Response({"error": f"Invalid file format: {str(e)}"}, status=400)
+
+#         created = 0
+#         errors = []
+
+#         for idx, row in df.iterrows():
+#             row_num = idx + 2
+#             block = clean(row.get("Block"))
+#             code = clean(row.get("Number of Flats/Houses"))
+
+#             if not code or not block:
+#                 errors.append(
+#                     f"Row {row_num}: Missing 'Block' or 'Number of Flats/Houses'"
+#                 )
+#                 continue
+
+#             try:
+#                 block = Block.objects.get(name__iexact=block)
+
+#                 obj, is_created = Houses.objects.get_or_create(
+#                     code__iexact=code,
+#                     block=block,
+#                     defaults={"code": code, "block": block},
+#                 )
+#                 if is_created:
+#                     created += 1
+#             except Block.DoesNotExist:
+#                 errors.append(f"Row {row_num}: '{block}' not found")
+
+#         return Response({"created": created, "errors": errors})
 
 class ImportReligions(APIView):
     model = Religion
@@ -1991,49 +2241,6 @@ class WardsByCityVillageView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
         serializer = self.serializer_class(qs, many=True)
         return Response(serializer.data)
 
-
-class SocietiesByWardView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Society.objects.all()
-    serializer_class = SocietySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def get(self, request, ward_id):
-        qs = self.queryset.filter(ward=ward_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
-
-
-class BlockBySocietyView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Block.objects.all()
-    serializer_class = BlockSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def get(self, request, society_id):
-        qs = self.queryset.filter(society=society_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
-
-
-class FloorsByBlockView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Floor.objects.all()
-    serializer_class = FloorSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def get(self, request, block_id):
-        qs = self.queryset.filter(block=block_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
-
-
-class HousesByFloorView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    queryset = Houses.objects.all()
-    serializer_class = HousesSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def get(self, request, floor_id):
-        qs = self.queryset.filter(floor=floor_id)
-        serializer = self.serializer_class(qs, many=True)
-        return Response(serializer.data)
 
 
 class ClassesBySectionView(FilteredQuerysetMixin, RecordRuleMixin, APIView):

@@ -28,7 +28,7 @@ class Glob(models.Model):
 
 class Continent(models.Model):
     glob = models.ForeignKey(Glob, on_delete=models.CASCADE)
-    name = models.CharField("Continent", max_length=100, unique=True)
+    name = models.CharField("Continent", max_length=100, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -47,7 +47,7 @@ class Continent(models.Model):
 
 class Country(models.Model):
     continent = models.ForeignKey(Continent, on_delete=models.CASCADE)
-    name = models.CharField("Country", max_length=100)
+    name = models.CharField("Country", max_length=100, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -74,7 +74,7 @@ class Country(models.Model):
 
 class State(models.Model):
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
-    name = models.CharField("State", max_length=200)
+    name = models.CharField("State", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -100,7 +100,7 @@ class State(models.Model):
 
 class District(models.Model):
     state = models.ForeignKey(State, on_delete=models.CASCADE)
-    name = models.CharField("District", max_length=200)
+    name = models.CharField("District", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -126,7 +126,7 @@ class District(models.Model):
 
 class Taluka(models.Model):
     district = models.ForeignKey(District, on_delete=models.CASCADE)
-    name = models.CharField("Taluka", max_length=200)
+    name = models.CharField("Taluka", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -152,7 +152,7 @@ class Taluka(models.Model):
 
 class CityVillage(models.Model):
     district = models.ForeignKey(District, on_delete=models.CASCADE)
-    name = models.CharField("City", max_length=200)
+    name = models.CharField("City", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -178,8 +178,8 @@ class CityVillage(models.Model):
 
 class Ward(models.Model):
     city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, null=True)
-    # name = models.CharField("Ward", max_length=200)
-    code = models.CharField("Code", max_length=5)
+    name = models.CharField("Ward", max_length=200, db_index=True)
+    code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
@@ -201,7 +201,7 @@ class Ward(models.Model):
     def __str__(self):
         return f"{self.city_village} - {self.code}"
     
-    
+"""    
 class Society(models.Model):
     ward = models.ForeignKey(Ward, on_delete=models.CASCADE)
     name = models.CharField("Society", max_length=200)
@@ -301,7 +301,7 @@ class Houses(models.Model):
 
     def __str__(self):
         return f"{self.block} - {self.code}"
-
+"""
 
 class RoomFlash(models.Model):
     name = models.CharField("Room Name", max_length=20)
@@ -368,7 +368,7 @@ class RecordRule(models.Model):
 # Personal ->
 # -------------------------------------------------------------------------------------------------
 class Religion(models.Model):
-    name = models.CharField("Religion", max_length=200)
+    name = models.CharField("Religion", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -387,7 +387,7 @@ class Religion(models.Model):
 
 class Sampraday(models.Model):
     religion = models.ForeignKey(Religion, on_delete=models.CASCADE)
-    name = models.CharField("Sampraday", max_length=200)
+    name = models.CharField("Sampraday", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -407,7 +407,7 @@ class Sampraday(models.Model):
 
 class Panth(models.Model):
     sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE)
-    name = models.CharField("Panth", max_length=200)
+    name = models.CharField("Panth", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -426,7 +426,7 @@ class Panth(models.Model):
 
 class Varna(models.Model):
     panth = models.ForeignKey(Panth, on_delete=models.CASCADE)
-    name = models.CharField("Varna", max_length=200)
+    name = models.CharField("Varna", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -445,7 +445,7 @@ class Varna(models.Model):
 
 class Caste(models.Model):
     varna = models.ForeignKey(Varna, on_delete=models.CASCADE)
-    name = models.CharField("Caste", max_length=200)
+    name = models.CharField("Caste", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -464,7 +464,7 @@ class Caste(models.Model):
 
 class SubCaste(models.Model):
     caste = models.ForeignKey(Caste, on_delete=models.CASCADE)
-    name = models.CharField("Sub-Caste", max_length=200)
+    name = models.CharField("Sub-Caste", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -483,7 +483,7 @@ class SubCaste(models.Model):
 
 class Gotra(models.Model):
     subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE)
-    name = models.CharField("Gotra", max_length=200)
+    name = models.CharField("Gotra", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -502,7 +502,7 @@ class Gotra(models.Model):
 
 class SubGotra(models.Model):
     gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE)
-    name = models.CharField("Sub-Gotra", max_length=200)
+    name = models.CharField("Sub-Gotra", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -521,7 +521,7 @@ class SubGotra(models.Model):
 
 class Kul(models.Model):
     subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE)
-    name = models.CharField("Kul", max_length=200)
+    name = models.CharField("Kul", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -540,7 +540,7 @@ class Kul(models.Model):
 
 class Vansh(models.Model):
     kul = models.ForeignKey(Kul, on_delete=models.CASCADE)
-    name = models.CharField("Vansh", max_length=200)
+    name = models.CharField("Vansh", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -559,7 +559,7 @@ class Vansh(models.Model):
 
 class Family(models.Model):
     vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE)
-    name = models.CharField("Family", max_length=200)
+    name = models.CharField("Family", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -577,7 +577,7 @@ class Family(models.Model):
 
 class Pidhi(models.Model):
     family = models.ForeignKey(Family, on_delete=models.CASCADE)
-    name = models.CharField("Pidhi", max_length=200)
+    name = models.CharField("Pidhi", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -606,7 +606,7 @@ class RelationType(models.Model):
 # Professional ->
 # ----------------------------------------------------------------------------------------------
 class Section(models.Model):
-    name = models.CharField("Section", max_length=200)
+    name = models.CharField("Section", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -625,7 +625,7 @@ class Section(models.Model):
 
 class Class(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE)
-    name = models.CharField("Class", max_length=200)
+    name = models.CharField("Class", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -644,7 +644,7 @@ class Class(models.Model):
 
 class ProfCategory(models.Model):
     profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
-    name = models.CharField("Category", max_length=200)
+    name = models.CharField("Category", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -663,7 +663,7 @@ class ProfCategory(models.Model):
 
 class ProfSubCategory(models.Model):
     category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
-    name = models.CharField("Sub Category", max_length=200)
+    name = models.CharField("Sub Category", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -681,7 +681,7 @@ class ProfSubCategory(models.Model):
     
 class Sector(models.Model):
     subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
-    name = models.CharField("Sector", max_length=200)
+    name = models.CharField("Sector", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -699,7 +699,7 @@ class Sector(models.Model):
 
 class SubSector(models.Model):
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
-    name = models.CharField("Sub Sector", max_length=200)
+    name = models.CharField("Sub Sector", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -717,7 +717,7 @@ class SubSector(models.Model):
 
 class Department(models.Model):
     subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
-    name = models.CharField("Department", max_length=200)
+    name = models.CharField("Department", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -735,7 +735,7 @@ class Department(models.Model):
 
 class SubDepartment(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    name = models.CharField("Sub Department", max_length=200)
+    name = models.CharField("Sub Department", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -754,7 +754,7 @@ class SubDepartment(models.Model):
 
 class Type(models.Model):
     subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
-    name = models.CharField("Type", max_length=200)
+    name = models.CharField("Type", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -772,7 +772,7 @@ class Type(models.Model):
 
 class Brand(models.Model):
     type = models.ForeignKey(Type, on_delete=models.CASCADE)
-    name = models.CharField("Brand", max_length=200)
+    name = models.CharField("Brand", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -790,7 +790,7 @@ class Brand(models.Model):
 
 class PostModel(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
-    name = models.CharField("Post Model", max_length=200)
+    name = models.CharField("Post Model", max_length=200, db_index=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)

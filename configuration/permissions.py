@@ -10,7 +10,7 @@ class HasModelAccessPermission(BasePermission):
     Checks if the user has access to the model and the requested CRUD operation.
     Supports both ViewSets (with .action) and APIViews (with HTTP method).
     """
-
+    
     def has_permission(self, request, view):
         user = request.user
         
@@ -18,14 +18,16 @@ class HasModelAccessPermission(BasePermission):
             return False
         
         # Super Admin of system user
-        if user.is_system_user:
+        if user.check_is_super_admin():
             return True
 
         # Resolve model from queryset or model attr
-        if hasattr(view, "queryset") and view.queryset is not None:
-            model_name = view.queryset.model._meta.label
         elif hasattr(view, "model") and view.model is not None:
             model_name = view.model._meta.label
+        elif hasattr(view, "get_base_queryset") and view.get_base_queryset is not None:
+            model_name = view.get_base_queryset().model._meta.label
+        if hasattr(view, "queryset") and view.queryset is not None:
+            model_name = view.queryset.model._meta.label
         else:
             raise AttributeError(
                 f"{view.__class__.__name__} must define either `queryset` or `model`"
@@ -60,7 +62,7 @@ class HasModelAccessPermission(BasePermission):
         # Fetch model access
         try:
             model_access = user.model_access_rule.get(model__technical_name=model_name)
-        except ModelAccess.DoesNotExist:
+        except Exception:
             return False
 
         return getattr(model_access, perm_field, False)
