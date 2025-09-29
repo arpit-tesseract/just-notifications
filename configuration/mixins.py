@@ -230,8 +230,8 @@ class SearchMixin(SafeQueryMixin):
         search_value = self.request.query_params.get(self.search_param)
         if search_value:
             qs = qs.filter(name__icontains=search_value)[: self.search_limit]
-            return qs
-        return None
+            # return qs
+        return qs
 
 
 # from django.db.models import Q

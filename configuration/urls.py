@@ -30,18 +30,18 @@ router.register(r'vanshes_in_details', VanshViewSet)
 router.register(r'families_in_details', FamilyViewSet)
 router.register(r'pidhis_in_details', PidhiViewSet)
 
-router.register(r'section', SectionViewSet)
-router.register(r'class', ClassViewSet)
-router.register(r'profCategory', ProfCategoryViewSet)
-router.register(r'profSubCategory', ProfSubCategoryViewSet)
-router.register(r'type', TypeViewSet)
-router.register(r'brand', BrandViewSet)
-router.register(r'postmodel', PostModelViewSet)
-router.register(r'sector', SectorViewSet)
-router.register(r'subsector', SubSectorViewSet)
-router.register(r'department', DepartmentViewSet)
-router.register(r'subdepartment', SubDepartmentViewSet)
-router.register(r'roomflash', RoomFlashViewSet)
+router.register(r'sections_in_details', SectionViewSet)
+router.register(r'classes_in_details', ClassViewSet)
+router.register(r'profCategories_in_details', ProfCategoryViewSet)
+router.register(r'profSubCategories_in_details', ProfSubCategoryViewSet)
+router.register(r'types_in_details', TypeViewSet)
+router.register(r'brands_in_details', BrandViewSet)
+router.register(r'postmodeles_in_details', PostModelViewSet)
+router.register(r'sectors_in_details', SectorViewSet)
+router.register(r'subsectors_in_details', SubSectorViewSet)
+router.register(r'departments_in_details', DepartmentViewSet)
+router.register(r'subdepartments_in_details', SubDepartmentViewSet)
+router.register(r'roomflashes', RoomFlashViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -66,6 +66,18 @@ urlpatterns = [
     path('vanshes/', VanshListView.as_view()),
     path('families/', FamilyListView.as_view()),
     path('pidhis/', PidhiListView.as_view()),
+    
+    path('sections/', SectionListView.as_view()),
+    path('classes/', ClassListView.as_view()),
+    path('profCategories/', ProfCategoryListView.as_view()),
+    path('profSubCategories/', ProfSubCategoryListView.as_view()),
+    path('types/', TypeListView.as_view()),
+    path('brands/', BrandListView.as_view()),
+    path('postmodeles/', PostModelListView.as_view()),
+    path('sectors/', SectorListView.as_view()),
+    path('subsectors/', SubSectorListView.as_view()),
+    path('departments/', DepartmentListView.as_view()),
+    path('subdepartments/', SubDepartmentListView.as_view()),
     
     path("import/continent/", ImportContinents.as_view()),
     path("import/country/", ImportCountries.as_view()),

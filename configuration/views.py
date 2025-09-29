@@ -602,119 +602,322 @@ class PidhiListView(SearchMixin, APIView, RecordRuleMixin):
 # Professional 
 # ========================================
 class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Section
     queryset = Section.objects.all()
     serializer_class = SectionSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]   
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return SectionSerializer   # For POST, PUT, PATCH
+        return SectorDetailSerializer 
+
+class SectionListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Section.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SectionSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Class
     queryset = Class.objects.all()
     serializer_class = ClassSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return ClassDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return ClassSerializer   # For POST, PUT, PATCH
+        return ClassDetailSerializer
+
+class ClassListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Class.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = ClassSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = ProfCategory
     queryset = ProfCategory.objects.all()
     serializer_class = ProfCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return ProfCategoryDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return ProfCategorySerializer   # For POST, PUT, PATCH
+        return ProfCategoryDetailSerializer
+
+class ProfCategoryListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return ProfCategory.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = ProfCategorySerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = ProfSubCategory
     queryset = ProfSubCategory.objects.all()
     serializer_class = ProfSubCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return ProfSubCategoryDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return ProfSubCategorySerializer   # For POST, PUT, PATCH
+        return ProfSubCategoryDetailSerializer
+
+class ProfSubCategoryListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return ProfSubCategory.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = ProfSubCategorySerializer(queryset, many=True)
+        return Response(serializer.data)
     
     
 class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Type
     queryset = Type.objects.all()
     serializer_class = TypeSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return TypeDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return TypeSerializer   # For POST, PUT, PATCH
+        return TypeDetailSerializer
+
+class TypeListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Type.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = TypeSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Brand
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return BrandDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return BrandSerializer   # For POST, PUT, PATCH
+        return BrandDetailSerializer
+
+class BrandListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Brand.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = BrandSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = PostModel
     queryset = PostModel.objects.all()
     serializer_class = PostModelSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return PostModelDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return PostModelSerializer   # For POST, PUT, PATCH
+        return PostModelDetailSerializer
+
+class PostModelListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return PostModel.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = PostModelSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Sector
     queryset = Sector.objects.all()
     serializer_class = SectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SectorDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return SectorSerializer   # For POST, PUT, PATCH
+        return SectorDetailSerializer
+
+class SectorListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Sector.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SectorSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = SubSector
     queryset = SubSector.objects.all()
     serializer_class = SubSectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SubSectorDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return SubSectorSerializer   # For POST, PUT, PATCH
+        return SubSectorDetailSerializer
+
+class SubSectorListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return SubSector.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SubSectorSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Department
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return DepartmentDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return DepartmentSerializer   # For POST, PUT, PATCH
+        return DepartmentDetailSerializer
+
+class DepartmentListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Department.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = DepartmentSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = SubDepartment
     queryset = SubDepartment.objects.all()
     serializer_class = SubDepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SubDepartmentDetailSerializer
-        return super().get_serializer_class()
+        if self.action in ["create", "update", "partial_update"]:
+            return SubDepartmentSerializer   # For POST, PUT, PATCH
+        return SubDepartmentDetailSerializer
+
+class SubDepartmentListView(SearchMixin, APIView, RecordRuleMixin):
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return SubDepartment.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    def get(self, request):
+        queryset = self.get_result_queryset()   # search applied automatically
+        serializer = SubDepartmentSerializer(queryset, many=True)
+        return Response(serializer.data)
     
 
 class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
