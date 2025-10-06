@@ -9,6 +9,4 @@ router = DefaultRouter()
 urlpatterns = [
     path('login/', views.LoginWithEmailPasswordView.as_view(), name='login'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('user/', include(router.urls)),
-    # path('user/get_access/', views.get_user_access_option)
 ]

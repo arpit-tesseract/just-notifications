@@ -3,14 +3,11 @@ from django.db.models import Q, ForeignKey
 from django.core.exceptions import FieldError
 from rest_framework.exceptions import ValidationError
 
-class SafeQueryMixin:
+class BaseQueryMixin:
     """
     Base mixin to ensure super().get_queryset() can always be called safely.
     All other mixins should inherit this first.
     """
-    # def get_queryset(self):
-    #     print("get_queryset SafeQueryMixin")
-    #     return super().get_queryset()
     
     def get_queryset(self):
         # Use self.queryset if defined
@@ -28,7 +25,7 @@ class SafeQueryMixin:
 
 
 # Working for APIView & Model ViewSet
-class RecordRuleMixin(SafeQueryMixin):
+class RecordRuleMixin(BaseQueryMixin):
     action_map = {
         'list': 'read',
         'retrieve': 'read',
@@ -42,7 +39,6 @@ class RecordRuleMixin(SafeQueryMixin):
         'put': 'write',
         'patch': 'write',
         'delete': 'delete',
-        
     }
     
     def get_queryset(self):
@@ -157,11 +153,13 @@ class RecordRuleMixin(SafeQueryMixin):
 
 
     
-class FilteredQuerysetMixin(SafeQueryMixin):
+class FilteredQuerysetMixin(BaseQueryMixin):
     """
     Provides a reusable get_queryset with common filters.
     Automatically infers `model` from queryset if not defined.
     """
+
+    FILTER_FIELDS = {}
 
     @property
     def _model(self):
@@ -173,20 +171,6 @@ class FilteredQuerysetMixin(SafeQueryMixin):
         raise AttributeError(
             f"{self.__class__.__name__} must define either `model` or `queryset`."
         )
-
-    # def get_safe_queryset(self):
-    #     # today = timezone.now().date()
-    #     base_qs = super().get_queryset()
-
-    #     return base_qs
-        # return base_qs.filter(
-        #     is_hidden=False,
-        #     on_hold=False
-        # ).filter(
-        #     Q(hold_date__gte=today) | Q(hold_date__isnull=True)
-        # )
-    # def get_base_queryset(self):
-    #     return self._model.objects.all()
 
     def get_queryset(self):
         user = self.request.user
@@ -210,8 +194,17 @@ class FilteredQuerysetMixin(SafeQueryMixin):
                     qs = qs.filter(on_hold=True)
                 elif on_hold.lower() == 'false':
                     qs = qs.filter(on_hold=False)
+            
+            for param, field in self.FILTER_FIELDS.items():
+                print("param:", param)
+                print("field:", field)
+                value = self.request.query_params.get(param)
+                print("value:", value)
+                if value is not None and value is not '':
+                    qs = qs.filter(**{field: value})
+                    print(qs)
 
-            final_qs = base_qs if not (is_hidden or on_hold) else qs
+            final_qs = qs
         else:
             final_qs = base_qs
         
@@ -221,7 +214,7 @@ class FilteredQuerysetMixin(SafeQueryMixin):
         return final_qs  
 
 
-class SearchMixin(SafeQueryMixin):
+class SearchMixin(BaseQueryMixin):
     search_param = "search"
     search_limit = 10          # configurable limit
 
@@ -230,80 +223,5 @@ class SearchMixin(SafeQueryMixin):
         search_value = self.request.query_params.get(self.search_param)
         if search_value:
             qs = qs.filter(name__icontains=search_value)[: self.search_limit]
-            # return qs
         return qs
 
-
-# from django.db.models import Q
-# Only work for Model View Set
-# class RecordRuleMixin:
-#     action_map = {
-#         'list': 'read',
-#         'retrieve': 'read',
-#         'create': 'create',
-#         'update': 'write',
-#         'partial_update': 'write',
-#         'destroy': 'delete',
-#     }
-#     def apply_record_rules(self, qs):
-#         user = self.request.user
-#         model_name = qs.model._meta.label
-
-#         # Fetch all record rules for this user and model
-#         rules = user.record_rules.filter(
-#             model__technical_name=model_name,
-#             **{f"perm_{self.action_map.get(self.action, 'read')}": True}
-#         )
-        
-#         # Combine all domain filters
-#         if not rules.exists():
-#             return qs
-        
-#         combined_q = Q()
-#         for rule in rules:
-#             domain_filter = {}
-#             for k, v in rule.domain_filter.items():
-#                 if isinstance(v, list):  
-#                     # Convert to __in lookup
-#                     domain_filter[f"{k}__in"] = v
-#                 else:
-#                     domain_filter[k] = v
-#             combined_q |= Q(**domain_filter)
-
-#         return qs.filter(combined_q)
-
-
-# class RecordRuleFilteredMixin:
-#     action_map = {
-#         'list': 'read',
-#         'retrieve': 'read',
-#         'create': 'create',
-#         'update': 'write',
-#         'partial_update': 'write',
-#         'destroy': 'delete',
-#     }
-
-#     def get_queryset(self):
-#         qs = super().get_queryset()
-#         user = self.request.user
-#         model_name = qs.model._meta.label
-
-#         rules = user.record_rules.filter(
-#             model__technical_name=model_name,
-#             **{f"perm_{self.action_map.get(self.action, 'read')}": True}
-#         )
-
-#         if not rules.exists():
-#             return qs.none()  # no rules = no access
-
-#         filters = Q()
-#         first = True
-#         for rule in rules:
-#             rule_q = Q(**rule.domain_filter)
-#             if first:
-#                 filters = rule_q
-#                 first = False
-#             else:
-#                 filters &= rule_q   # <-- AND instead of OR
-
-#         return qs.filter(filters)

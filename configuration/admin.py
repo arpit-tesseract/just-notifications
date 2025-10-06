@@ -45,6 +45,7 @@ admin.site.register(ModelName)
 admin.site.register(ModelAccess)
 admin.site.register(RecordRule)
 
+admin.site.register(Designation)
 admin.site.register(RelationTypes)
 # admin.site.register(PermissionModule)
 # admin.site.register(PermissionAction)

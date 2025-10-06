@@ -100,3 +100,35 @@ def get_related_field_name(model_cls, target_model):
         if field.is_relation and field.related_model == target_model:
             return field.name
     return None
+
+import pandas as pd
+from django.core.exceptions import ValidationError
+
+def read_file(file, required_columns):
+    if file.name.endswith(".csv"):
+        df = pd.read_csv(file, encoding="utf-8")
+    elif file.name.endswith(('.xls', '.xlsx')):
+        df = pd.read_excel(file)
+    else:
+        raise ValidationError("Unsupported file format.")
+
+    # Normalize headers
+    df.columns = df.columns.str.strip()
+    if required_columns:
+        missing_cols = [col for col in required_columns if col not in df.columns]
+        if missing_cols:
+            raise ValidationError(f"Missing required columns: {', '.join(missing_cols)}")
+        
+    return df
+
+def normalize_bool(val):
+    """Safely convert Excel/CSV boolean values to Python bool."""
+    if pd.isna(val):
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        return val.strip().lower() in ["true", "1", "yes", "y"]
+    return False

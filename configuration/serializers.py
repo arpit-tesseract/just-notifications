@@ -34,7 +34,7 @@ class ContinentDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Continent
         fields = '__all__'
-        read_only_fields = [f for f in Continent._meta.fields]
+        read_only_fields = ['id']
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -253,7 +253,7 @@ class GotraSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class GotraDetailSerializer(serializers.ModelSerializer):
-    caste = CasteDetailSerializer()
+    subcaste = SubCasteDetailSerializer()
     class Meta:
         model = Gotra
         fields = '__all__'
@@ -281,7 +281,7 @@ class KulSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class KulDetailSerializer(serializers.ModelSerializer):
-    caste = CasteDetailSerializer()
+    subgotra = SubGotraDetailSerializer()
     class Meta:
         model = Kul
         fields = '__all__'
@@ -295,7 +295,7 @@ class VanshSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class VanshDetailSerializer(serializers.ModelSerializer):
-    caste = CasteDetailSerializer()
+    kul = KulDetailSerializer()
     class Meta:
         model = Vansh
         fields = '__all__'
@@ -309,7 +309,7 @@ class FamilySerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class FamilyDetailSerializer(serializers.ModelSerializer):
-    caste = CasteDetailSerializer()
+    vansh = VanshDetailSerializer()
     class Meta:
         model = Family
         fields = '__all__'
@@ -323,7 +323,7 @@ class PidhiSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class PidhiDetailSerializer(serializers.ModelSerializer):
-    caste = CasteDetailSerializer()
+    family = FamilyDetailSerializer()
     class Meta:
         model = Pidhi
         fields = '__all__'
@@ -639,3 +639,63 @@ class ModelAndRecordRuleAccessOutputSerializer(serializers.Serializer):
                 "domain_filter": record_rule.domain_filter if record_rule else None,
             })
         return result
+
+
+
+class ResidentialSearchInputSerializer(serializers.Serializer):
+    glob = serializers.CharField(required=False, allow_blank=True)
+    continent = serializers.CharField(required=False, allow_blank=True)
+    country = serializers.CharField(required=False, allow_blank=True)
+    state = serializers.CharField(required=False, allow_blank=True)
+    district = serializers.CharField(required=False, allow_blank=True)
+    taluka = serializers.CharField(required=False, allow_blank=True)
+    city_village = serializers.CharField(required=False, allow_blank=True)
+    search_key = serializers.CharField(required=False, allow_blank=True)
+
+class GlobIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Glob
+        fields = ["id", "name"]
+
+class ContinentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Continent
+        fields = ["id", "name"]
+
+class CountryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Country
+        fields = ["id", "name"]
+
+class StateIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = State
+        fields = ["id", "name"]
+
+class DistrictIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = District
+        fields = ["id", "name"]
+
+class TalukaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Taluka
+        fields = ["id", "name"]
+
+class CityVillageIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CityVillage
+        fields = ["id", "name"]
+    
+# Residential Unified Output Serializer (always same structure)
+class ResidentialOutputSerializer(serializers.Serializer):
+    glob = GlobIdNameSerializer(allow_null=True)
+    continent = ContinentIdNameSerializer(allow_null=True)
+    country = CountryIdNameSerializer(allow_null=True)
+    state = StateIdNameSerializer(allow_null=True)
+    district = DistrictIdNameSerializer(allow_null=True)
+    taluka = TalukaIdNameSerializer(allow_null=True)
+    city_village = CityVillageIdNameSerializer(allow_null=True)
+
+class FileUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()

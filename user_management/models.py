@@ -1,24 +1,123 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from datetime import datetime
 from configuration import models as configm
+
+# class CustomUserManager(BaseUserManager):
+#     def create_user(self, email, password=None, **extra_fields):
+#         if not email:
+#             raise ValueError("Email must be provided")
+#         email = self.normalize_email(email)
+        
+#         # Extract roles before creating the instance
+#         roles = extra_fields.pop("user_role", None)
+        
+#         user = self.model(email=email, **extra_fields)  # <-- no ManyToMany in extra_fields
+#         user.set_password(password)
+#         user.save()  # must save before setting ManyToMany
+        
+#         if roles:
+#             if not isinstance(roles, list):
+#                 roles = [roles]
+#             user.user_role.set(roles)  # <-- safe
+#         return user
+
+#     def create_superuser(self, email, password, **extra_fields):
+#         # get or create admin role
+#         role, _ = UserRole.objects.get_or_create(
+#             name="tesseract_admin",
+#             display_name="Tesseract Admin"
+#         )
+#         extra_fields.setdefault("is_staff", True)
+#         extra_fields.setdefault("is_superuser", True)
+        
+#         # Pass role separately, not in extra_fields
+#         return self.create_user(email, password, user_role=[role], **extra_fields)
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("Email must be provided")
         email = self.normalize_email(email)
+
+        # Extract roles before creating the instance (don't pass M2M into model __init__)
+        roles = extra_fields.pop("user_role", None)
+
         user = self.model(email=email, **extra_fields)
-        print("flag True")
         user.set_password(password)
         user.save()
+
+        if roles:
+            if not isinstance(roles, (list, tuple)):
+                roles = [roles]
+            user.user_role.set(roles)
+
         return user
 
-    def create_superuser(self, email, password, **extra_fields):
-        role, _ = UserRole.objects.get_or_create(name="tesseract_admin", code="Tess")
-        extra_fields.setdefault("user_role", role)
+    def create_superuser(self, email=None, password=None, **extra_fields):
+        # Django's createsuperuser already prompts for email & password; they come here
+        # Ensure we don't accidentally prompt for them again or pass them twice.
+        # Remove them from extra_fields if present.
+        extra_fields.pop("email", None)
+        extra_fields.pop("password", None)
+
+        # ensure admin role exists
+        role, _ = UserRole.objects.get_or_create(
+            name="tesseract_admin",
+            display_name="Tesseract Admin"
+        )
+
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        return self.create_user(email, password, **extra_fields)
+        extra_fields.setdefault("is_verified", True)
+
+        # Build list of NOT NULL concrete fields to prompt for,
+        # but exclude these known ones that are handled by Django or are auto fields.
+        skip_field_names = {
+            "id", "email", "password", "last_login", "is_staff", "is_superuser", "is_super_admin"
+        }
+
+        not_null_fields = [
+            f for f in CustomUser._meta.get_fields()
+            if (getattr(f, "concrete", False)
+                and not getattr(f, "null", False)
+                and not getattr(f, "auto_created", False)
+                and f.name not in skip_field_names
+                and not isinstance(f, models.ManyToManyField))
+        ]
+
+        # Prompt for missing required fields (email already provided by caller)
+        for field in not_null_fields:
+            if field.name in extra_fields:
+                continue  # caller provided it already
+
+            prompt_label = f"Enter {getattr(field, 'verbose_name', field.name)} ({field.name}): "
+
+            if isinstance(field, models.DateField):
+                while True:
+                    val = input(prompt_label + " (YYYY-MM-DD): ").strip()
+                    if not val:
+                        print("This field is required.")
+                        continue
+                    try:
+                        extra_fields[field.name] = datetime.strptime(val, "%Y-%m-%d").date()
+                        break
+                    except ValueError:
+                        print("Invalid date. Use YYYY-MM-DD.")
+            else:
+                while True:
+                    val = input(prompt_label).strip()
+                    if not val:
+                        print("This field is required.")
+                        continue
+                    extra_fields[field.name] = val
+                    break
+
+        # Now create the user (pass email and password as single values)
+        return self.create_user(email=email, password=password, user_role=[role], **extra_fields)
+
+
+
 
 # System Admin / User / Merchant / Service Provider 
 class UserRole(models.Model):
@@ -28,38 +127,24 @@ class UserRole(models.Model):
     def __str__(self):
         return self.name
     
-class Designation(models.Model):
-    # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
-    name = models.CharField(max_length=100, unique=True)
-    display_name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=50, unique=True, help_text="Short identifier, e.g. SUPER_ADMIN")
-    reporting_designation = models.ForeignKey(
-        "user_management.Designation",
-        null=True,
-        blank=True,
-        related_name="children",
-        on_delete=models.SET_NULL,
-        help_text="Parent designation for hierarchy"
-    )
-    level = models.PositiveIntegerField(default=0, help_text="Hierarchy level, 0=top")
-    
-    def __str__(self):
-        return f"{self.name} (Level {self.level})"
-    
-    def save(self, *args, **kwargs):
-        # Auto-set hierarchy level based on parent
-        self.level = self.reporting_designation.level + 1 if self.reporting_designation else 0
-        super().save(*args, **kwargs)
+
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    contact_no = models.CharField(max_length=15, null=True, blank=True)
+    contact_no = models.CharField(max_length=15)
     user_role = models.ManyToManyField(UserRole)
-    # designation = models.ForeignKey(Designation,null=True,blank=True,on_delete=models.SET_NULL,related_name="users")
     is_super_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
+    
+    full_name = models.CharField("Real Name", max_length=50)
+    pet_name = models.CharField("Pet Name", max_length=50, null=True, blank=True)
+    father_name = models.CharField("Father Name", max_length=50)
+    photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
+    date_of_birth = models.DateField("Date of Birth")
+    blood_group = models.CharField("Blood Group", max_length=4, null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -113,26 +198,27 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 #                 user.is_verified = True
 #             user.save(update_fields=['is_verified'])
 
-class Relation(models.Model):
-    relation_category_choices = [
-        ('current','Current'),
-        ('owner','Owner'),
-        ('permanent','Permanent'),
-        ('native','Native'),
-        ('inlaws','InLaws'),
-        ('maternal','Maternal'),
-        ('business','Business')
-    ]
-    from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
-    relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
-    relation_type = models.ForeignKey("configuration.RelationType", on_delete=models.CASCADE) # option-1 (Father, mother)
-    to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
 
-    def __str__(self):
-        return f"{self.from_user} - {self.relation_type.name} - {self.to_user}"
+# class Relation(models.Model):
+#     relation_category_choices = [
+#         ('current','Current'),
+#         ('owner','Owner'),
+#         ('permanent','Permanent'),
+#         ('native','Native'),
+#         ('inlaws','InLaws'),
+#         ('maternal','Maternal'),
+#         ('business','Business')
+#     ]
+#     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
+#     relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
+#     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
+#     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
+
+#     def __str__(self):
+#         return f"{self.from_user} - {self.designation.name} - {self.to_user}"
     
     
-class PersonalTable(models.Model):
+class PersonalDetail(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     religion = models.ForeignKey(configm.Religion, on_delete=models.SET_NULL, null=True)
     sampraday = models.ForeignKey(configm.Sampraday, on_delete=models.SET_NULL, null=True)
@@ -149,14 +235,6 @@ class PersonalTable(models.Model):
     personal_code = models.CharField("Personal ID", max_length=100, null=True)
     is_verified = models.BooleanField(default=False)
     
-    # Remove Post model & add fields here
-    name = models.CharField("Real Name", max_length=50)
-    pet_name = models.CharField("Pet Name", max_length=50)
-    father_name = models.CharField("Father Name", max_length=50)
-    photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
-    date_of_birth = models.DateField("Date of Birth")
-    blood_group = models.CharField("Blood Group", max_length=4)
-
     def save(self, *args, **kwargs):
         self.personal_code = f"{self.religion.code if self.religion else '00'}-" \
                          f"{self.sampraday.code if self.sampraday else '00'}-" \
@@ -168,18 +246,36 @@ class PersonalTable(models.Model):
                          f"{self.subgotra.code if self.subgotra else '00'}-" \
                          f"{self.pidhi.code if self.pidhi else '00'}"
         super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.user} - {self.personal_code}"
 
-# class Post(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-#     # post_no = models.CharField("Post Number", max_length=10)
-#     name = models.CharField("Real Name", max_length=50)
-#     pet_name = models.CharField("Pet Name", max_length=50)
-#     father_name = models.CharField("Father Name", max_length=50)
-#     # mother_name = models.CharField("Mother Name", max_length=50)
-#     photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
-#     date_of_birth = models.DateField("Date of Birth")
-#     blood_group = models.CharField("Blood Group", max_length=4)
-#     is_verified = models.BooleanField(default=False)
+class Relation(models.Model):
+    relation_category_choices = [
+        ('current','Current'),
+        ('owner','Owner'),
+        ('permanent','Permanent'),
+        ('native','Native'),
+        ('inlaws','InLaws'),
+        ('maternal','Maternal'),
+        ('business','Business')
+    ]
+    from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
+    relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
+    designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
+    to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
+    custom_post_no = models.CharField("Post Number", max_length=10, null=True, blank=True)
+    # to_user_name = models.CharField("Real Name", max_length=50)
+    # to_user_pet_name = models.CharField("Pet Name", max_length=50)
+    # to_user_father_name = models.CharField("Father Name", max_length=50)
+    # # mother_name = models.CharField("Mother Name", max_length=50)
+    # to_user_photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
+    # to_user_date_of_birth = models.DateField("Date of Birth")
+    # to_user_blood_group = models.CharField("Blood Group", max_length=4)
+    # is_verified = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"{self.from_user} - {self.designation.name} - {self.to_user}"
 
 class Document(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -194,6 +290,9 @@ class Document(models.Model):
     ration_card_no = models.CharField("Ration Card Number", max_length=20, blank=True, null=True)
     ration_card_file = models.FileField("Ration Card", upload_to='post/rationCard/', blank=True, null=True)
     is_verified = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"{self.user}"
 
 
 class ProfessionalDetail(models.Model):
@@ -209,6 +308,7 @@ class ProfessionalDetail(models.Model):
     type = models.ForeignKey(configm.Type, on_delete=models.SET_NULL, null=True, blank=True)
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
     postmodel = models.ForeignKey(configm.PostModel, on_delete=models.SET_NULL, null=True, blank=True)
+    designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
     pay_scale = models.CharField("Pay Scale", max_length=20)
     mfg_dt_time = models.DateTimeField("MFG Date & Time")
     mfg_life = models.CharField("MFG Life", max_length=20)
@@ -227,6 +327,9 @@ class ProfessionalDetail(models.Model):
                              f"{self.brand.code if self.brand else '00'}-" \
                              f"{self.postmodel.code if self.postmodel else '00'}"
         super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.user} - {self.professional_code}"
 
 class ReportCard(models.Model):
     prof_detail = models.ForeignKey(ProfessionalDetail, on_delete=models.CASCADE)
@@ -248,6 +351,9 @@ class ReportCard(models.Model):
     used_rate = models.FloatField("Used Rate")
     used_quantity = models.IntegerField("Used Quantity")
     capacity = models.FloatField("Capacity/ Strength")
+    
+    def __str__(self):
+        return f"{self.prof_detail}"
 
 class ResidentialDetail(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -276,19 +382,22 @@ class ResidentialDetail(models.Model):
                             f"{self.district.code if self.district else '00'}-" \
                             f"{self.taluka.code if self.taluka else '00'}-" \
                             f"{self.city_village.code if self.city_village else '00'}-" \
-                            f"{self.ward.code if self.ward else '00'}-" \
-                            f"{self.society.code if self.society else '00'}-"
+                            f"{self.ward.code if self.ward else '00'}-" 
+                            # f"{self.society.code if self.society else '00'}-"
                             # f"{self.block.name if self.block else '00'}-" \
                             # f"{self.floor.code if self.floor else '00'}-" \
                             # f"{self.houses.code if self.houses else '00'}"
         super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.user} - {self.residential_code}"
         
 
 class RoomDetail(models.Model):
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.CASCADE)
-    room_name = models.CharField("Room Type", max_length=10)
     room_flash = models.ForeignKey(configm.RoomFlash, on_delete=models.SET_NULL, null=True)
-    room_member_count = models.IntegerField("Total Room Members", default=0)
+    room_no = models.CharField("Room No", max_length=20, null=True, blank=True)
+    room_member_count = models.IntegerField("Total Room Members",null=True,blank=True, default=0)
 
 class RoomMembersDetail(models.Model):
     room = models.ForeignKey(RoomDetail, on_delete=models.CASCADE)
