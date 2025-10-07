@@ -96,11 +96,24 @@ urlpatterns = [
     path('upload/families/', UploadFamilyView.as_view()),
     path('upload/pidhis/', UploadPidhiView.as_view()),
     
+    path('upload/sections/', UploadSectionView.as_view()),
+    path('upload/classes/', UploadClassView.as_view()),
+    path('upload/prof_categories/', UploadProfCategoryView.as_view()),
+    path('upload/prof_sub_categories/', UploadProfSubCategoryView.as_view()),
+    path('upload/sectors/', UploadSectorView.as_view()),
+    path('upload/subsectors/', UploadSubSectorView.as_view()),
+    path('upload/departments/', UploadDepartmentView.as_view()),
+    path('upload/subdepartments/', UploadSubDepartmentView.as_view()),
+    path('upload/types/', UploadTypeView.as_view()),
+    path('upload/brands/', UploadBrandView.as_view()),
+    path('upload/postmodels/', UploadPostModelView.as_view()),
+
     
     path("models/", ModelNameView.as_view(), name="get_models"),
     path("model_access_rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
     path("model_access_rules/<int:user_id>/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
     
     path("residential_search/", ResidentialSearchView.as_view(), name="search_residential"),
-    path('personal_search/', PersonalSearchView.as_view(), name="search_personal"),
+    path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
+    path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
 ]

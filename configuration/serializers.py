@@ -789,3 +789,86 @@ class PersonalOutputSerializer(serializers.Serializer):
     vansh = VanshIdNameSerializer(allow_null=True)
     family = FamilyIdNameSerializer(allow_null=True)
     pidhi = PidhiIdNameSerializer(allow_null=True)
+
+
+class SectionIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Section
+        fields = ["id", "name"]
+
+class ClassIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Class
+        fields = ["id", "name"]
+
+class ProfCategoryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfCategory
+        fields = ["id", "name"]
+
+class ProfSubCategoryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfSubCategory
+        fields = ["id", "name"]
+
+class SectorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sector
+        fields = ["id", "name"]
+
+class SubSectorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubSector
+        fields = ["id", "name"]
+
+class DepartmentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ["id", "name"]
+
+class SubDepartmentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubDepartment
+        fields = ["id", "name"]
+
+class TypeIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Type
+        fields = ["id", "name"]
+
+class BrandIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ["id", "name"]
+
+class PostModelIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PostModel
+        fields = ["id", "name"]
+
+class ProfessionalInputSerializer(serializers.Serializer):
+    section = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    class_ = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    prof_category = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    prof_sub_category = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sector = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sub_sector = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    department = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sub_department = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    type = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    brand = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    post_model = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+class ProfessionalOutputSerializer(serializers.Serializer):
+    section = SectionIdNameSerializer(allow_null=True)
+    profclass = ClassIdNameSerializer(allow_null=True)
+    prof_category = ProfCategoryIdNameSerializer(allow_null=True)
+    prof_sub_category = ProfSubCategoryIdNameSerializer(allow_null=True)
+    sector = SectorIdNameSerializer(allow_null=True)
+    sub_sector = SubSectorIdNameSerializer(allow_null=True)
+    department = DepartmentIdNameSerializer(allow_null=True)
+    sub_department = SubDepartmentIdNameSerializer(allow_null=True)
+    type = TypeIdNameSerializer(allow_null=True)
+    brand = BrandIdNameSerializer(allow_null=True)
+    post_model = PostModelIdNameSerializer(allow_null=True)
