@@ -1754,13 +1754,13 @@ class UploadReligionView(APIView):
         try:
             df = read_file(file, required_columns=["religion", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -1798,13 +1798,13 @@ class UploadReligionView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 Religion.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -1826,13 +1826,13 @@ class UploadSampradayView(APIView):
         try:
             df = read_file(file, required_columns=["religion", "sampraday", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -1878,13 +1878,13 @@ class UploadSampradayView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 Sampraday.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -1907,13 +1907,13 @@ class UploadPanthView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -1960,13 +1960,13 @@ class UploadPanthView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 Panth.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -1989,13 +1989,13 @@ class UploadVarnaView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2047,13 +2047,13 @@ class UploadVarnaView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 Varna.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2076,13 +2076,13 @@ class UploadCasteView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2136,13 +2136,13 @@ class UploadCasteView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 Caste.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2165,13 +2165,13 @@ class UploadSubCasteView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2227,13 +2227,13 @@ class UploadSubCasteView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 SubCaste.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2255,13 +2255,13 @@ class UploadGotraView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2320,13 +2320,13 @@ class UploadGotraView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 Gotra.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2349,13 +2349,13 @@ class UploadSubGotraView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2414,13 +2414,13 @@ class UploadSubGotraView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
                 SubGotra.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2443,13 +2443,13 @@ class UploadKulView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2510,13 +2510,13 @@ class UploadKulView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             with transaction.atomic():
                 Kul.objects.bulk_create(objs, ignore_conflicts=True)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2539,13 +2539,13 @@ class UploadVanshView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2606,13 +2606,13 @@ class UploadVanshView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
+            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             with transaction.atomic():
                 Vansh.objects.bulk_create(objs)
         except Exception as e:  
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({
             "message": f"{len(objs)} Vansh uploaded successfully",
@@ -2633,13 +2633,13 @@ class UploadFamilyView(APIView):
         try:
             df = read_file(file, required_columns=["religion", "sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2704,13 +2704,13 @@ class UploadFamilyView(APIView):
                 continue
         
         if not objs:
-            return Response({"error": "No valid data found in the file."}, status=400)
+            return Response({"error": "No valid data found in the file."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             with transaction.atomic():
                 Family.objects.bulk_create(objs)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2733,13 +2733,13 @@ class UploadPidhiView(APIView):
         try:
             df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if the DataFrame is empty
         if df.empty:
-            return Response({"error": "File is empty."}, status=400)
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         objs = []
         invalid_rows = []
@@ -2806,13 +2806,13 @@ class UploadPidhiView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=400)
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             with transaction.atomic():
                 Pidhi.objects.bulk_create(objs)
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
@@ -2820,7 +2820,975 @@ class UploadPidhiView(APIView):
                 "invalid_rows": invalid_rows
             }, status=status.HTTP_201_CREATED
         )
+ 
+# ======================================================================
+# Professional Upload excel/csv
+# ====================================================================== 
+
+class UploadSectionView(APIView):
+    model = Section
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                objs.append(Section(
+                    name = section,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+                
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                Section.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Section uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+   
+ 
+class UploadClassView(APIView):
+    model = Class
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    section_obj = Section.objects.get(name=section)
+                except Section.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Section: '{section}' not found."})
+                    continue
+                
+                objs.append(Class(
+                    section = section_obj,
+                    name = class_name,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+                
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                Class.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Class uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )      
+
+
+class UploadProfCategoryView(APIView):
+    model = ProfCategory
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+       
+       # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    class_obj = Class.objects.get(name=class_name, section__name=section)
+                except Class.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Class: '{class_name}' not found for section: {section}"})
+                    continue
+                
+                objs.append(ProfCategory(
+                    profclass = class_obj,
+                    category = category,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+                
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                ProfCategory.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} ProfCategory uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+                
+class UploadProfSubCategoryView(APIView):
+    model = ProfSubCategory
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+       
+       # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    category_obj = ProfCategory(name=category, profclass__name=class_name, profclass__section__name=section)
+                except ProfCategory.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Category: '{category}' not found for class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(ProfSubCategory(
+                    category = category_obj,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                ProfSubCategory.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} ProfSubCategory uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+                
+
+class UploadSectorView(APIView):
+    model = Sector
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "code", "is_hidden", "on_hold", "hold_date"])    
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    sub_category_obj = ProfSubCategory(name=sub_category, category__name=category, category__profclass__name=class_name, category__profclass__section__name=section)
+                except ProfSubCategory.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"SubCategory: '{sub_category}' not found for category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(Sector(
+                    subcategory = sub_category_obj,
+                    name = sector,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                Sector.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Sector uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )                
+                
+
+class UploadSubSectorView(APIView):
+    model = SubSector
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                sub_sector = clean(row.get("sub_sector"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, sub_sector, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    sector_obj = Sector(name=sector, subcategory__name=sub_category, subcategory__category__name=category, subcategory__category__profclass__name=class_name, subcategory__category__profclass__section__name=section)
+                except Sector.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Sector: '{sector}' not found for subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(SubSector(
+                    sector = sector_obj,
+                    name = sub_sector,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                SubSector.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} SubSector uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )                
+
+class UploadDepartmentView(APIView):
+    model = Department
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file'] 
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                sub_sector = clean(row.get("sub_sector"))
+                department = clean(row.get("department"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, sub_sector, department, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                    
+                try:
+                    sub_sector_obj = SubSector.objects.get(
+                        name=sub_sector,
+                        sector__name=sector,
+                        sector__subcategory__name=sub_category,
+                        sector__subcategory__category__name=category,
+                        sector__subcategory__category__profclass__name=class_name,
+                        sector__subcategory__category__profclass__section__name=section 
+                    )
+                except SubSector.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"SubSector: '{sub_sector}' not found for sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(Department(
+                    subsector = sub_sector_obj,
+                    name = department,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+                
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                Department.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Department uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )    
+                       
+
+class UploadSubDepartmentView(APIView):
+    model = SubDepartment
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                sub_sector = clean(row.get("sub_sector"))
+                department = clean(row.get("department"))
+                sub_department = clean(row.get("sub_department"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                    
+                try:
+                    department_obj = Department.objects.get(
+                        name=department,
+                        subsector__name=sub_sector,
+                        subsector__sector__name=sector,
+                        subsector__sector__subcategory__name=sub_category,
+                        subsector__sector__subcategory__category__name=category,
+                        subsector__sector__subcategory__category__profclass__name=class_name,
+                        subsector__sector__subcategory__category__profclass__section__name=section 
+                        )
+                except Department.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(SubDepartment(
+                    department = department_obj,
+                    name = sub_department,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                SubDepartment.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Sub Department uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+     
+     
+class UploadTypeView(APIView):
+    model = Type
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "type", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)                
+                          
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                sub_sector = clean(row.get("sub_sector"))
+                department = clean(row.get("department"))
+                sub_department = clean(row.get("sub_department"))
+                type_name = clean(row.get("type"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, type_name, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    sub_department_obj = SubDepartment.objects.get(
+                        name = sub_department,
+                        department__name = department,
+                        department__subsector__name = sub_sector,
+                        department__subsector__sector__name = sector,
+                        department__subsector__sector__subcategory__name = sub_category,
+                        department__subsector__sector__subcategory__category__name = category,
+                        department__subsector__sector__subcategory__category__profclass__name = class_name,
+                        department__subsector__sector__subcategory__category__profclass__section__name = section 
+                        )
+                except SubDepartment.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Sub Department: '{sub_department}' not found for sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(Type(
+                    subdepartment = sub_department_obj,
+                    name = type_name,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                Type.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Type uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )      
+
+
+class UploadBrandView(APIView):
+    model = Brand
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "type", "brand", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                sub_sector = clean(row.get("sub_sector"))
+                department = clean(row.get("department"))
+                sub_department = clean(row.get("sub_department"))
+                type_name = clean(row.get("type"))
+                brand_name = clean(row.get("brand"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, type_name, brand_name, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    type_obj = Type.objects.get(
+                        name = type_name,
+                        subdepartment__name = sub_department,
+                        subdepartment__department__name = department,
+                        subdepartment__department__subsector__name = sub_sector,
+                        subdepartment__department__subsector__sector__name = sector,
+                        subdepartment__department__subsector__sector__subcategory__name = sub_category,
+                        subdepartment__department__subsector__sector__subcategory__category__name = category,
+                        subdepartment__department__subsector__sector__subcategory__category__profclass__name = class_name,
+                        subdepartment__department__subsector__sector__subcategory__category__profclass__section__name = section 
+                        )
+                except Type.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Type: '{type_name}' not found for sub_department: {sub_department}, department: {department}, subsector: {sub_sector}, sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(Brand(
+                    type = type_obj,
+                    name = brand_name,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                Brand.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Brand uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadPostModelView(APIView):
+    model = PostModel
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "type", "brand", "post_model", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                section = clean(row.get("section"))
+                class_name = clean(row.get("class"))
+                category = clean(row.get("category"))
+                sub_category = clean(row.get("sub_category"))
+                sector = clean(row.get("sector"))
+                sub_sector = clean(row.get("sub_sector"))
+                department = clean(row.get("department"))
+                sub_department = clean(row.get("sub_department"))
+                type_name = clean(row.get("type"))
+                brand_name = clean(row.get("brand"))
+                post_model = clean(row.get("post_model"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, type_name, brand_name, post_model, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                try:
+                    brand_obj = Brand.objects.get(
+                        name=brand_name,
+                        type__name=type_name,
+                        type__subdepartment__name=sub_department,
+                        type__subdepartment__department__name=department,
+                        type__subdepartment__department__subsector__name=sub_sector,
+                        type__subdepartment__department__subsector__sector__name=sector,
+                        type__subdepartment__department__subsector__sector__subcategory__name=sub_category,
+                        type__subdepartment__department__subsector__sector__subcategory__category__name=category,
+                        type__subdepartment__department__subsector__sector__subcategory__category__profclass__name=class_name,
+                        type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name=section
+                    )
+                except Brand.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Brand: '{brand_name}' not found for sub_department: {sub_department}, department: {department}, subsector: {sub_sector}, sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    continue
+                
+                objs.append(PostModel(
+                    brand=brand_obj,
+                    name=post_model,
+                    code=code,
+                    is_hidden=is_hidden,
+                    on_hold=on_hold,
+                    hold_date=hold_date
+                ))
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid rows found in the file"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                PostModel.objects.bulk_create(objs)
+        except Exception as e: 
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} PostModel uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+                   
+                                                    
 
 class ModelAndAccessRulesView(APIView):
     permission_classes = [IsAuthenticated]
@@ -3529,4 +4497,417 @@ class PersonalSearchView(APIView):
         # return unified response structure
         output = PersonalOutputSerializer(results, many=True)
         return Response(output.data, status=200)
-                      
+
+
+class ProfessionalSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ProfessionalInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        search_key = data.get("search_key")  
+        section_name = data.get("section")
+        prof_class_name = data.get("prof_class")
+        prof_category_name = data.get("prof_category")
+        prof_sub_category_name = data.get("prof_sub_category")
+        sector_name = data.get("sector")
+        sub_sector_name = data.get("sub_sector")
+        department_name = data.get("department")
+        sub_department_name = data.get("sub_department")
+        type_name = data.get("type")
+        brand_name = data.get("brand")
+        post_model_name = data.get("post_model")
+        
+        if search_key == "section":
+            qs = Section.objects.all()
+            if section_name:
+                qs = qs.filter(name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj).data,
+                    "prof_class": None,
+                    "prof_category": None,
+                    "prof_sub_category": None,
+                    "sector": None,
+                    "sub_sector": None,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }                
+                for obj in qs
+            ]
+        
+        elif search_key == "prof_class":
+            qs = Class.objects.all()
+            if prof_class_name:
+                qs = qs.filter(name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.section).data,
+                    "prof_class": ClassIdNameSerializer(obj).data,
+                    "prof_category": None,
+                    "prof_sub_category": None,
+                    "sector": None,
+                    "sub_sector": None,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "prof_category":
+            qs = ProfCategory.objects.all()
+            if prof_category_name:
+                qs = qs.filter(name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj).data,
+                    "prof_sub_category": None,
+                    "sector": None,
+                    "sub_sector": None,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "prof_sub_category":
+            qs = ProfSubCategory.objects.all()
+            if prof_sub_category_name:
+                qs = qs.filter(name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj).data,
+                    "sector": None,
+                    "sub_sector": None,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "sector":
+            qs = Sector.objects.all()
+            if sector_name:
+                qs = qs.filter(name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj).data,
+                    "sub_sector": None,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "sub_sector":
+            qs = SubSector.objects.all()
+            if sub_sector_name:
+                qs = qs.filter(name__icontains=sub_sector_name)
+            if sector_name:
+                qs = qs.filter(sector__name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(sector__subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(sector__subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(sector__subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.sector.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.sector.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.sector.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.sector.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj.sector).data,
+                    "sub_sector": SubSectorIdNameSerializer(obj).data,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "department":
+            qs = Department.objects.all()
+            if department_name:
+                qs = qs.filter(name__icontains=department_name)
+            if sub_sector_name:
+                qs = qs.filter(subsector__name__icontains=sub_sector_name)
+            if sector_name:
+                qs = qs.filter(subsector__sector__name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(subsector__sector__subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(subsector__sector__subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.subsector.sector.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.subsector.sector.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.subsector.sector.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.subsector.sector.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj.subsector.sector).data,
+                    "sub_sector": SubSectorIdNameSerializer(obj.subsector).data,
+                    "department": DepartmentIdNameSerializer(obj).data,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "sub_department":
+            qs = SubDepartment.objects.all()
+            if sub_department_name:
+                qs = qs.filter(name__icontains=sub_department_name)
+            if department_name:
+                qs = qs.filter(department__name__icontains=department_name)
+            if sub_sector_name:
+                qs = qs.filter(department__subsector__name__icontains=sub_sector_name)
+            if sector_name:
+                qs = qs.filter(department__subsector__sector__name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.department.subsector.sector.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.department.subsector.sector.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj.department.subsector.sector).data,
+                    "sub_sector": SubSectorIdNameSerializer(obj.department.subsector).data,
+                    "department": DepartmentIdNameSerializer(obj.department).data,
+                    "sub_department": SubDepartmentIdNameSerializer(obj).data,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "type":
+            qs = Type.objects.all()
+            if type_name:
+                qs = qs.filter(name__icontains=type_name)
+            if sub_department_name:
+                qs = qs.filter(subdepartment__name__icontains=sub_department_name)
+            if department_name:
+                qs = qs.filter(subdepartment__department__name__icontains=department_name)
+            if sub_sector_name:
+                qs = qs.filter(subdepartment__department__subsector__name__icontains=sub_sector_name)
+            if sector_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj.subdepartment.department.subsector.sector).data,
+                    "sub_sector": SubSectorIdNameSerializer(obj.subdepartment.department.subsector).data,
+                    "department": DepartmentIdNameSerializer(obj.subdepartment.department).data,
+                    "sub_department": SubDepartmentIdNameSerializer(obj.subdepartment).data,
+                    "type": TypeIdNameSerializer(obj).data,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "brand":
+            qs = Brand.objects.all()
+            if brand_name:
+                qs = qs.filter(name__icontains=brand_name)
+            if type_name:
+                qs = qs.filter(type__name__icontains=type_name)
+            if sub_department_name:
+                qs = qs.filter(type__subdepartment__name__icontains=sub_department_name)
+            if department_name:
+                qs = qs.filter(type__subdepartment__department__name__icontains=department_name)
+            if sub_sector_name:
+                qs = qs.filter(type__subdepartment__department__subsector__name__icontains=sub_sector_name)
+            if sector_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj.type.subdepartment.department.subsector.sector).data,
+                    "sub_sector": SubSectorIdNameSerializer(obj.type.subdepartment.department.subsector).data,
+                    "department": DepartmentIdNameSerializer(obj.type.subdepartment.department).data,
+                    "sub_department": SubDepartmentIdNameSerializer(obj.type.subdepartment).data,
+                    "type": TypeIdNameSerializer(obj.type).data,
+                    "brand": BrandIdNameSerializer(obj).data,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "post_model":
+            qs = PostModel.objects.all()
+            if post_model_name:
+                qs = qs.filter(name__icontains=post_model_name)
+            if brand_name:
+                qs = qs.filter(brand__name__icontains=brand_name)
+            if type_name:
+                qs = qs.filter(brand__type__name__icontains=type_name)
+            if sub_department_name:
+                qs = qs.filter(brand__type__subdepartment__name__icontains=sub_department_name)
+            if department_name:
+                qs = qs.filter(brand__type__subdepartment__department__name__icontains=department_name)
+            if sub_sector_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__name__icontains=sub_sector_name)
+            if sector_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__name__icontains=sector_name)
+            if prof_sub_category_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
+            if prof_category_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
+            if prof_class_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if section_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
+                    "prof_class": ClassIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
+                    "prof_category": ProfCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category).data,
+                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory).data,
+                    "sector": SectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector).data,
+                    "sub_sector": SubSectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector).data,
+                    "department": DepartmentIdNameSerializer(obj.brand.type.subdepartment.department).data,
+                    "sub_department": SubDepartmentIdNameSerializer(obj.brand.type.subdepartment).data,
+                    "type": TypeIdNameSerializer(obj.brand.type).data,
+                    "brand": BrandIdNameSerializer(obj.brand).data,
+                    "post_model": PostModelIdNameSerializer(obj).data
+                }
+                for obj in qs
+            ]
+        
+        else:
+            # fallback - default sections
+            qs = Section.objects.all()
+            qs = qs[:10]
+            results = [
+                {
+                    "section": SectionIdNameSerializer(obj).data,
+                    "prof_class": None,
+                    "prof_category": None,
+                    "prof_sub_category": None,
+                    "sector": None,
+                    "sub_sector": None,
+                    "department": None,
+                    "sub_department": None,
+                    "type": None,
+                    "brand": None,
+                    "post_model": None
+                }
+                for obj in qs
+            ]
+        
+        output = ProfessionalOutputSerializer(results, many=True)
+        return Response(output.data, status=status.HTTP_200_OK)
+            
+                    
+            
+                            
