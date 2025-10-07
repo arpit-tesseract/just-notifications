@@ -196,13 +196,9 @@ class FilteredQuerysetMixin(BaseQueryMixin):
                     qs = qs.filter(on_hold=False)
             
             for param, field in self.FILTER_FIELDS.items():
-                print("param:", param)
-                print("field:", field)
                 value = self.request.query_params.get(param)
-                print("value:", value)
                 if value is not None and value is not '':
                     qs = qs.filter(**{field: value})
-                    print(qs)
 
             final_qs = qs
         else:

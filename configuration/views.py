@@ -1734,6 +1734,1092 @@ class ModelNameView(APIView):
         model_names = ModelName.objects.all()
         serializer = self.serializer_class(model_names, many=True)
         return Response(serializer.data)
+
+
+
+
+# ======================================================================
+# Personal Upload excel/csv
+# ======================================================================
+class UploadReligionView(APIView):
+    model = Religion
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([religion, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                objs.append(Religion(
+                    name=religion, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                Religion.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Religion uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+class UploadSampradayView(APIView):
+    model = Sampraday
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion", "sampraday", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([religion, sampraday, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                try:
+                    religion_obj = Religion.objects.get(name=religion)
+                except Religion.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Religion '{religion}' not found"})
+                    continue    
+                
+                objs.append(Sampraday(
+                    religion = religion_obj,
+                    name=sampraday, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                Sampraday.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Sampraday uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadPanthView(APIView):
+    model = Panth
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([sampraday, religion, panth, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                try:
+                    sampraday_obj = Sampraday.objects.get(name=religion, sampraday__name=sampraday, sampraday__religion__name=religion)
+                except Sampraday.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Sampraday '{sampraday}' not found for religion: {religion}"})
+                    continue    
+                
+                objs.append(Panth(
+                    sampraday = sampraday_obj,
+                    name=panth, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                Panth.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Panth uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+        
+
+class UploadVarnaView(APIView):
+    model = Varna
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([religion, sampraday, panth, varna, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                try:
+                    panth_obj = Panth.objects.get(
+                        name=panth, 
+                        sampraday__name=sampraday, 
+                        sampraday__religion__name=religion
+                    )
+                except Panth.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday} and religion: {religion}"}) 
+                    continue    
+                
+                objs.append(Varna(
+                    panth = panth_obj,
+                    name=varna, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                Varna.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Varna uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadCasteView(APIView):
+    model = Caste
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([sampraday, religion, panth, varna, caste, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                try:
+                    varna_obj = Varna.objects.get(
+                        name=varna, 
+                        panth__name=panth, 
+                        panth__sampraday__name=sampraday, 
+                        panth__sampraday__religion__name=religion
+                    )
+                except Varna.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Varna '{varna}' not found for panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
+                    continue    
+                
+                objs.append(Caste(
+                    varna = varna_obj,
+                    name=caste, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                Caste.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Caste uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+        
+
+class UploadSubCasteView(APIView):
+    model = SubCaste
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([sampraday, religion, panth, varna, caste, sub_caste, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                try:
+                    caste_obj = Caste.objects.get(
+                        name=caste, 
+                        varna__name=varna, 
+                        varna__panth__name=panth, 
+                        varna__panth__sampraday__name=sampraday, 
+                        varna__panth__sampraday__religion__name=religion
+                    )
+                except Caste.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Caste '{caste}' not found for varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
+                    continue    
+                
+                objs.append(SubCaste(
+                    caste = caste_obj,
+                    name=sub_caste, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                SubCaste.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} SubCaste uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+class UploadGotraView(APIView):
+    model = Gotra
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                gotra = clean(row.get("gotra"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                 
+                    
+                try:
+                    sub_caste_obj = SubCaste.objects.get(
+                        name=sub_caste, 
+                        caste__name=caste, 
+                        caste__varna__name=varna, 
+                        caste__varna__panth__name=panth, 
+                        caste__varna__panth__sampraday__name=sampraday, 
+                        caste__varna__panth__sampraday__religion__name=religion
+                    )
+                except SubCaste.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {sub_caste} not found for caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
+                    continue    
+                
+                objs.append(Gotra(
+                    subcaste = sub_caste_obj,
+                    name=gotra, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                Gotra.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Gotra uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadSubGotraView(APIView):
+    model = SubGotra
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                gotra = clean(row.get("gotra"))
+                sub_gotra = clean(row.get("sub_gotra"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([sampraday, religion, panth, varna, caste, sub_caste, gotra, sub_gotra, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                try:
+                    gotra_obj = Gotra.objects.get(
+                        name=gotra, 
+                        subcaste__caste__name=caste, 
+                        subcaste__caste__varna__name=varna, 
+                        subcaste__caste__varna__panth__name=panth, 
+                        subcaste__caste__varna__panth__sampraday__name=sampraday, 
+                        subcaste__caste__varna__panth__sampraday__religion__name=religion
+                    )
+                except Gotra.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for sub_caste: {sub_caste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    continue    
+                
+                objs.append(SubGotra(
+                    gotra = gotra_obj,
+                    name=sub_gotra, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))                                
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+
+        try:
+            with transaction.atomic():
+                SubGotra.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} SubGotra uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadKulView(APIView):
+    model = Kul
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                gotra = clean(row.get("gotra"))
+                sub_gotra = clean(row.get("sub_gotra"))
+                kul = clean(row.get("kul"))
+                code = clean(row.get("code"))
+                
+                # Skip invalid rows early
+                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                    
+                try:
+                    sub_gotra_obj = SubGotra.objects.get(
+                        name=sub_gotra, 
+                        gotra__name=gotra, 
+                        gotra__subcaste__caste__name=caste, 
+                        gotra__subcaste__caste__varna__name=varna, 
+                        gotra__subcaste__caste__varna__panth__name=panth, 
+                        gotra__subcaste__caste__varna__panth__sampraday__name=sampraday, 
+                        gotra__subcaste__caste__varna__panth__sampraday__religion__name=religion
+                    )
+                except SubGotra.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{sub_gotra}' not found for gotra: {gotra}, sub caste: {sub_caste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
+                    continue    
+                
+                objs.append(Kul(
+                    subgotra = sub_gotra_obj,
+                    name=kul, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                Kul.objects.bulk_create(objs, ignore_conflicts=True)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Kul uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadVanshView(APIView):
+    model = Vansh
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                gotra = clean(row.get("gotra"))
+                sub_gotra = clean(row.get("sub_gotra"))
+                kul = clean(row.get("kul"))
+                vansh = clean(row.get("vansh"))
+                code = clean(row.get("code"))
+                
+                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, vansh, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    kul_obj = Kul.objects.get(
+                        name = kul,
+                        subgotra__name = sub_gotra,
+                        subgotra__gotra__name = gotra,
+                        subgotra__gotra__subcaste__caste__name = caste,
+                        subgotra__gotra__subcaste__caste__varna__name = varna,
+                        subgotra__gotra__subcaste__caste__varna__panth__name = panth,
+                        subgotra__gotra__subcaste__caste__varna__panth__sampraday__name = sampraday,
+                        subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
+                    )
+                except Kul.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {sub_gotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    continue
+                
+                objs.append(Vansh(
+                    kul = kul_obj,
+                    name=vansh, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid rows found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                Vansh.objects.bulk_create(objs)
+        except Exception as e:  
+            return Response({"error": str(e)}, status=400)
+        
+        return Response({
+            "message": f"{len(objs)} Vansh uploaded successfully",
+            "invalid_rows": invalid_rows,
+        })
+
+
+class UploadFamilyView(APIView):
+    model = Family
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+        
+        try:
+            df = read_file(file, required_columns=["religion", "sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get("hold_date")
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday")) 
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                gotra = clean(row.get("gotra"))
+                sub_gotra = clean(row.get("sub_gotra"))
+                kul = clean(row.get("kul"))
+                vansh = clean(row.get("vansh"))
+                family = clean(row.get("family"))
+                code = clean(row.get("code"))    
+                
+                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, vansh, family, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    vansh_obj = Vansh.objects.get(
+                        name = vansh,
+                        kul__name = kul,
+                        kul__subgotra__name = sub_gotra,
+                        kul__subgotra__gotra__name = gotra,
+                        kul__subgotra__gotra__subcaste__name = sub_caste,
+                        kul__subgotra__gotra__subcaste__caste__name = caste,
+                        kul__subgotra__gotra__subcaste__caste__varna__name = varna,
+                        kul__subgotra__gotra__subcaste__caste__varna__panth__name = panth,
+                        kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name = sampraday,
+                        kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
+                    )
+                except Vansh.DoesNotExist:
+                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {sub_gotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    continue
+                
+                objs.append(Family(
+                    vansh = vansh_obj,
+                    name = family,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+                continue
+        
+        if not objs:
+            return Response({"error": "No valid data found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                Family.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Families uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadPidhiView(APIView):
+    model = Pidhi
+    permission_classes = [IsAuthenticated]
+    serializer_class = FileUploadSerializer
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=400)
+        
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=400)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday")) 
+                panth = clean(row.get("panth"))
+                varna = clean(row.get("varna"))
+                caste = clean(row.get("caste"))
+                sub_caste = clean(row.get("sub_caste"))
+                gotra = clean(row.get("gotra"))
+                sub_gotra = clean(row.get("sub_gotra"))
+                kul = clean(row.get("kul"))
+                vansh = clean(row.get("vansh"))
+                family = clean(row.get("family"))
+                pidhi = clean(row.get("pidhi"))
+                code = clean(row.get("code"))
+                
+                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, vansh, family, pidhi, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                try:
+                    family_obj = Family.objects.get(
+                        family = family,
+                        vansh__name = vansh,
+                        vansh__kul__name = kul,
+                        vansh__kul__subgotra__name = sub_gotra,
+                        vansh__kul__subgotra__gotra__name = gotra,
+                        vansh__kul__subgotra__gotra__subcaste__name = sub_caste,
+                        vansh__kul__subgotra__gotra__subcaste__caste__name = caste,
+                        vansh__kul__subgotra__gotra__subcaste__caste__varna__name = varna,
+                        vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name = panth,
+                        vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name = sampraday,
+                        vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
+                    )
+                except Exception as e:
+                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, sub_gotra: {sub_gotra}, gotra: {gotra}, sub_caste: {sub_caste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    continue
+                
+                objs.append(Pidhi(
+                    family = family_obj,
+                    name = pidhi,
+                    code = code,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+                
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({"error": "No valid records found in the file."}, status=400)
+        
+        try:
+            with transaction.atomic():
+                Pidhi.objects.bulk_create(objs)
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Pidhis uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
     
 
 class ModelAndAccessRulesView(APIView):
@@ -1971,4 +3057,476 @@ class ResidentialSearchView(APIView):
         # Return unified response structure
         output = ResidentialOutputSerializer(results, many=True)
         return Response(output.data) 
+
+
+class PersonalSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PersonalInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        search_key = data.get('search_key')
+        religion_name = data.get('religion')
+        sampraday_name = data.get('sampraday')
+        panth_name = data.get('panth')
+        varna_name = data.get('varna')
+        caste_name = data.get('caste')
+        sub_caste_name = data.get('sub_caste')
+        gotra_name = data.get('gotra')
+        sub_gotra_name = data.get('sub_gotra')
+        kul_name = data.get('kul')
+        vansh_name = data.get('vansh')
+        family_name = data.get('family')
+        pidhi_name = data.get('pidhi')
+        
+        if search_key == "religion":
+            qs = Religion.objects.all()
+            if religion_name:
+                qs = qs.filter(name__icontains=religion_name)
+            qs = qs[:10]
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj).data,
+                    "sampraday": None,
+                    "panth": None,
+                    "varna": None,
+                    "caste": None,
+                    "sub_caste": None,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None,
+                }
+                for obj in qs
+            ]
+
+        elif search_key == "sampraday":
+            qs = Sampraday.objects.all()
+            if sampraday_name:
+                qs = qs.filter(name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(religion__name__icontains=religion_name)
+            qs = qs[:10]
             
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj).data,
+                    "panth": None,
+                    "varna": None,
+                    "caste": None,
+                    "sub_caste": None,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None,
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "panth":
+            qs = Panth.objects.all()
+            if panth_name:
+                qs = qs.filter(name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj).data,
+                    "varna": None,
+                    "caste": None,
+                    "sub_caste": None,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None,
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "varna":
+            qs = Varna.objects.all()
+            if varna_name:
+                qs = qs.filter(name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.panth).data,
+                    "varna": VarnaIdNameSerializer(obj).data,
+                    "caste": None,
+                    "sub_caste": None,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None,
+                }
+                for obj in qs
+            ]
+        
+        
+        elif search_key == "caste":
+            qs = Caste.objects.all()
+            if caste_name:
+                qs = qs.filter(name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.varna).data,
+                    "caste": CasteIdNameSerializer(obj).data,
+                    "sub_caste": None,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None
+                }
+                for obj in qs
+            ] 
+        
+        
+        elif search_key == "sub_caste":
+            qs = SubCaste.objects.all()
+            if sub_caste_name:
+                qs = qs.filter(name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(caste__varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj).data,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None
+                }
+                for obj in qs
+            ] 
+        
+        
+        elif search_key == "gotra":
+            qs = Gotra.objects.all()
+            if gotra_name:
+                qs = qs.filter(name__icontains=gotra_name)
+            if sub_caste_name:
+                qs = qs.filter(subcaste__name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(subcaste__caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(subcaste__caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(subcaste__caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.subcaste.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.subcaste.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.subcaste.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj.subcaste).data,
+                    "gotra": GotraIdNameSerializer(obj).data,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None
+                }
+                for obj in qs
+            ]  
+        
+        
+        elif search_key == "sub_gotra":
+            qs = SubGotra.objects.all()
+            if sub_gotra_name:
+                qs = qs.filter(name__icontains=sub_gotra_name)
+            if gotra_name:
+                qs = qs.filter(gotra__name__icontains=gotra_name)
+            if sub_caste_name:
+                qs = qs.filter(gotra__subcaste__name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(gotra__subcaste__caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(gotra__subcaste__caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.gotra.subcaste.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.gotra.subcaste.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.gotra.subcaste.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj.gotra.subcaste).data,
+                    "gotra": GotraIdNameSerializer(obj.gotra).data,
+                    "sub_gotra": SubGotraIdNameSerializer(obj).data,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "kul":
+            qs = Kul.objects.all()
+            if kul_name:
+                qs = qs.filter(name__icontains=kul_name)
+            if sub_gotra_name:
+                qs = qs.filter(subgotra__name__icontains=sub_gotra_name) 
+            if gotra_name:
+                qs = qs.filter(subgotra__gotra__name__icontains=gotra_name)
+            if sub_caste_name:
+                qs = qs.filter(subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)       
+            if religion_name:
+                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.subgotra.gotra.subcaste.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj.subgotra.gotra.subcaste).data,
+                    "gotra": GotraIdNameSerializer(obj.subgotra.gotra).data,
+                    "sub_gotra": SubGotraIdNameSerializer(obj.subgotra).data,
+                    "kul": KulIdNameSerializer(obj).data,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "vansh":
+            qs = Vansh.objects.all()
+            if vansh_name:
+                qs = qs.filter(name__icontains=vansh_name)
+            if kul_name:
+                qs = qs.filter(kul__name__icontains=kul_name)
+            if sub_gotra_name:  
+                qs = qs.filter(kul__subgotra__name__icontains=sub_gotra_name)                  
+            if gotra_name:  
+                qs = qs.filter(kul__subgotra__gotra__name__icontains=gotra_name)
+            if sub_caste_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste).data,
+                    "gotra": GotraIdNameSerializer(obj.kul.subgotra.gotra).data,
+                    "sub_gotra": SubGotraIdNameSerializer(obj.kul.subgotra).data,
+                    "kul": KulIdNameSerializer(obj.kul).data,
+                    "vansh": VanshIdNameSerializer(obj).data,
+                    "family": None,
+                    "pidhi": None
+                }
+                for obj in qs
+            ]  
+            
+        elif search_key == "family":
+            qs = Family.objects.all()
+            if family_name:
+                qs = qs.filter(name__icontains=family_name)
+            if vansh_name:    
+                qs = qs.filter(vansh__name__icontains=vansh_name)
+            if kul_name:
+                qs = qs.filter(vansh__kul__name__icontains=kul_name)
+            if sub_gotra_name:  
+                qs = qs.filter(vansh__kul__subgotra__name__icontains=sub_gotra_name)                  
+            if gotra_name:  
+                qs = qs.filter(vansh__kul__subgotra__gotra__name__icontains=gotra_name)
+            if sub_caste_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste).data,
+                    "gotra": GotraIdNameSerializer(obj.vansh.kul.subgotra.gotra).data,
+                    "sub_gotra": SubGotraIdNameSerializer(obj.vansh.kul.subgotra).data,
+                    "kul": KulIdNameSerializer(obj.vansh.kul).data,
+                    "vansh": VanshIdNameSerializer(obj.vansh).data,
+                    "family": FamilyIdNameSerializer(obj).data,
+                    "pidhi": None
+                }                
+                for obj in qs
+            ]
+
+        
+        elif search_key == "pidhi":
+            qs = Pidhi.objects.all()
+            if pidhi_name:
+                qs = qs.filter(name__icontains=pidhi_name)
+            if family_name:
+                qs = qs.filter(family__name__icontains=family_name)    
+            if vansh_name:    
+                qs = qs.filter(family__vansh__name__icontains=vansh_name)
+            if kul_name:
+                qs = qs.filter(family__vansh__kul__name__icontains=kul_name)
+            if sub_gotra_name:  
+                qs = qs.filter(family__vansh__kul__subgotra__name__icontains=sub_gotra_name)                  
+            if gotra_name:  
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__name__icontains=gotra_name)
+            if sub_caste_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if caste_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+            if varna_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+            if panth_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+            if sampraday_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+            if religion_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
+                    "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
+                    "sub_caste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
+                    "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
+                    "sub_gotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
+                    "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
+                    "vansh": VanshIdNameSerializer(obj.family.vansh).data,
+                    "family": FamilyIdNameSerializer(obj.family).data,
+                    "pidhi": PidhiIdNameSerializer(obj).data
+                }                
+                for obj in qs
+            ]
+        
+        else:
+            # fallback - default religions
+            qs = Religion.objects.all()[:10]
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj).data,
+                    "sampraday": None,
+                    "panth": None,
+                    "varna": None,
+                    "caste": None,
+                    "sub_caste": None,
+                    "gotra": None,
+                    "sub_gotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None
+                }                
+                for obj in qs
+            ]
+        
+        # return unified response structure
+        output = PersonalOutputSerializer(results, many=True)
+        return Response(output.data, status=200)
+                      

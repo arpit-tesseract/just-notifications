@@ -458,6 +458,12 @@ class Pidhi(HoldableSaveMixin, models.Model):
 
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
 class Designation(models.Model):
+    category_choices = [
+        ('personal', 'Personal'),
+        ('professional', 'Professional'),
+        ('residential', 'Residential'),        
+    ]
+    category = models.CharField("Designation Category",choices=category_choices, max_length=20)
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
     reporting_designation = models.ForeignKey(

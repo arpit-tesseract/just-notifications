@@ -699,3 +699,93 @@ class ResidentialOutputSerializer(serializers.Serializer):
 
 class FileUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
+    
+
+class ReligionIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Religion
+        fields = ["id", "name"]
+
+class SampradayIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sampraday
+        fields = ["id", "name"]
+
+class PanthIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Panth
+        fields = ["id", "name"]
+
+class VarnaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Varna
+        fields = ["id", "name"]
+
+class CasteIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Caste
+        fields = ["id", "name"]
+
+class SubCasteIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubCaste
+        fields = ["id", "name"]
+
+class GotraIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gotra
+        fields = ["id", "name"]
+
+class SubGotraIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubGotra
+        fields = ["id", "name"]
+
+class KulIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Kul
+        fields = ["id", "name"]
+
+class VanshIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vansh
+        fields = ["id", "name"]
+
+class FamilyIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Family
+        fields = ["id", "name"]
+
+class PidhiIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pidhi
+        fields = ["id", "name"]
+
+class PersonalInputSerializer(serializers.Serializer):
+    religion = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sampraday = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    panth = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    varna = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    caste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sub_caste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    gotra = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sub_gotra = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    kul = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    vansh = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    family = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    pidhi = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+class PersonalOutputSerializer(serializers.Serializer):
+    religion = ReligionIdNameSerializer(allow_null=True)
+    sampraday = SampradayIdNameSerializer(allow_null=True)
+    panth = PanthIdNameSerializer(allow_null=True)
+    varna = VarnaIdNameSerializer(allow_null=True)
+    caste = CasteIdNameSerializer(allow_null=True)
+    sub_caste = SubCasteIdNameSerializer(allow_null=True)
+    gotra = GotraIdNameSerializer(allow_null=True)
+    sub_gotra = SubGotraIdNameSerializer(allow_null=True)
+    kul = KulIdNameSerializer(allow_null=True)
+    vansh = VanshIdNameSerializer(allow_null=True)
+    family = FamilyIdNameSerializer(allow_null=True)
+    pidhi = PidhiIdNameSerializer(allow_null=True)
