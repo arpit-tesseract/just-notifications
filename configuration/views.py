@@ -30,6 +30,10 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     model = Glob 
     serializer_class = GlobSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    FILTER_FIELDS = {
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
+    }
 
 class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -66,7 +70,9 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     serializer_class = ContinentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'glob': 'glob__id'
+        'glob': 'glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -98,7 +104,10 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'continent': 'continent__id'
+        'continent': 'continent__id',
+        'glob': 'continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -130,12 +139,17 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = StateSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'country': 'country__id'
+        'country': 'country__id',
+        'continent': 'country__continent__id',
+        'glob': 'country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return StateSerializer   # For POST, PUT, PATCH
+        print(True)
         return StateDetailSerializer
 
 class StateListView(SearchMixin, APIView, RecordRuleMixin):
@@ -162,7 +176,12 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     serializer_class = DistrictSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'state': 'state__id'
+        'state': 'state__id',
+        'country': 'state__country__id',
+        'continent': 'state__country__continent__id',
+        'glob': 'state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -194,7 +213,13 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'district': 'district__id'
+        'district': 'district__id',
+        'state': 'district__state__id',
+        'country': 'district__state__country__id',
+        'continent': 'district__state__country__continent__id',
+        'glob': 'district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -226,7 +251,14 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
     serializer_class = CityVillageSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'taluka': 'taluka__id'
+        'taluka': 'taluka__id',
+        'district': 'taluka__district__id',
+        'state': 'taluka__district__state__id',
+        'country': 'taluka__district__state__country__id',
+        'continent': 'taluka__district__state__country__continent__id',
+        'glob': 'taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -258,7 +290,15 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     serializer_class = WardSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'cityvillage': 'cityvillage__id'
+        'city_village': 'city_village__id',
+        'taluka': 'city_village__taluka__id',
+        'district': 'city_village__taluka__district__id',
+        'state': 'city_village__taluka__district__state__id',
+        'country': 'city_village__taluka__district__state__country__id',
+        'continent': 'city_village__taluka__district__state__country__continent__id',
+        'glob': 'city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -293,6 +333,10 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     queryset = Religion.objects.all()
     serializer_class = ReligionSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    FILTER_FIELDS = {
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
+    }
     
 class ReligionListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -318,7 +362,9 @@ class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     serializer_class = SampradaySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission] 
     FILTER_FIELDS = {
-        'religion': 'religion__id'
+        'religion': 'religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     } 
     
     def get_serializer_class(self):
@@ -350,7 +396,10 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = PanthSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'sampraday': 'sampraday__id'
+        'sampraday': 'sampraday__id',
+        'religion': 'sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -382,7 +431,11 @@ class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = VarnaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'panth': 'panth__id'
+        'panth': 'panth__id',
+        'sampraday': 'panth__sampraday__id',
+        'religion': 'panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -414,7 +467,12 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = CasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'varna': 'varna__id'
+        'varna': 'varna__id',
+        'panth': 'varna__panth__id',
+        'sampraday': 'varna__panth__sampraday__id',
+        'religion': 'varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -446,7 +504,13 @@ class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     serializer_class = SubCasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]    
     FILTER_FIELDS = {
-        'caste': 'caste__id'
+        'caste': 'caste__id',
+        'varna': 'caste__varna__id',
+        'panth': 'caste__varna__panth__id',
+        'sampraday': 'caste__varna__panth__sampraday__id',
+        'religion': 'caste__varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -478,7 +542,14 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = GotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'subcaste': 'subcaste__id'
+        'subcaste': 'subcaste__id',
+        'caste': 'subcaste__caste__id',
+        'varna': 'subcaste__caste__varna__id',
+        'panth': 'subcaste__caste__varna__panth__id',
+        'sampraday': 'subcaste__caste__varna__panth__sampraday__id',
+        'religion': 'subcaste__caste__varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -510,7 +581,15 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     serializer_class = SubGotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]  
     FILTER_FIELDS = {
-        'gotra': 'gotra__id'
+        'gotra': 'gotra__id',
+        'subcaste': 'gotra__subcaste__id',
+        'caste': 'gotra__subcaste__caste__id',
+        'varna': 'gotra__subcaste__caste__varna__id',
+        'panth': 'gotra__subcaste__caste__varna__panth__id',
+        'sampraday': 'gotra__subcaste__caste__varna__panth__sampraday__id',
+        'religion': 'gotra__subcaste__caste__varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     } 
     
     def get_serializer_class(self):
@@ -542,7 +621,16 @@ class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     serializer_class = KulSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'subgotra': 'subgotra__id'
+        'subgotra': 'subgotra__id',
+        'gotra': 'subgotra__gotra__id',
+        'subcaste': 'subgotra__gotra__subcaste__id',
+        'caste': 'subgotra__gotra__subcaste__caste__id',
+        'varna': 'subgotra__gotra__subcaste__caste__varna__id',
+        'panth': 'subgotra__gotra__subcaste__caste__varna__panth__id',
+        'sampraday': 'subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+        'religion': 'subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -574,7 +662,17 @@ class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = VanshSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'kul': 'kul__id'
+        'kul': 'kul__id',
+        'subgotra': 'kul__subgotra__id',
+        'gotra': 'kul__subgotra__gotra__id',
+        'subcaste': 'kul__subgotra__gotra__subcaste__id',
+        'caste': 'kul__subgotra__gotra__subcaste__caste__id',
+        'varna': 'kul__subgotra__gotra__subcaste__caste__varna__id',
+        'panth': 'kul__subgotra__gotra__subcaste__caste__varna__panth__id',
+        'sampraday': 'kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+        'religion': 'kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -605,7 +703,18 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     serializer_class = FamilySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'vansh': 'vansh__id'
+        'vansh': 'vansh__id',
+        'kul': 'vansh__kul__id',
+        'subgotra': 'vansh__kul__subgotra__id',
+        'gotra': 'vansh__kul__subgotra__gotra__id',
+        'subcaste': 'vansh__kul__subgotra__gotra__subcaste__id',
+        'caste': 'vansh__kul__subgotra__gotra__subcaste__caste__id',
+        'varna': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
+        'panth': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
+        'sampraday': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+        'religion': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -637,7 +746,18 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = PidhiSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'family': 'family__id'
+        'family': 'family__id',
+        'vansh': 'family__vansh__id',
+        'kul': 'family__vansh__kul__id',
+        'subgotra': 'family__vansh__kul__subgotra__id',
+        'gotra': 'family__vansh__kul__subgotra__gotra__id',
+        'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
+        'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
+        'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
+        'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
+        'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -670,12 +790,16 @@ class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     model = Section
     queryset = Section.objects.all()
     serializer_class = SectionSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]   
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    FILTER_FIELDS = {
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
+    }   
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SectionSerializer   # For POST, PUT, PATCH
-        return SectorDetailSerializer 
+        return SectionSerializer
 
 class SectionListView(SearchMixin, APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -701,7 +825,9 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = ClassSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'section': 'section__id'
+        'section': 'section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -733,7 +859,10 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
     serializer_class = ProfCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'class': 'profclass__id'
+        'profclass': 'profclass__id',
+        'section': 'profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -765,7 +894,11 @@ class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mo
     serializer_class = ProfSubCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'category': 'profcategory__id'
+        'category': 'category__id',
+        'profclass': 'category__profclass__id',
+        'section': 'category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold' 
     }
     
     def get_serializer_class(self):
@@ -797,7 +930,12 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     serializer_class = SectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'subcategory': 'subcategory__id'
+        'subcategory': 'subcategory__id',
+        'category': 'subcategory__category__id',
+        'profclass': 'subcategory__category__profclass__id',
+        'section': 'subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -828,7 +966,13 @@ class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     serializer_class = SubSectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'sector': 'sector__id'
+        'sector': 'sector__id',
+        'subcategory': 'sector__subcategory__id',
+        'category': 'sector__subcategory__category__id',
+        'profclass': 'sector__subcategory__category__profclass__id',
+        'section': 'sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -860,7 +1004,14 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'subsector': 'subsector__id'
+        'subsector': 'subsector__id',
+        'sector': 'subsector__sector__id',
+        'subcategory': 'subsector__sector__subcategory__id',
+        'category': 'subsector__sector__subcategory__category__id',
+        'profclass': 'subsector__sector__subcategory__category__profclass__id',
+        'section': 'subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -892,7 +1043,15 @@ class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mode
     serializer_class = SubDepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'department': 'department__id'
+        'department': 'department__id',
+        'subsector': 'department__subsector__id',
+        'sector': 'department__subsector__sector__id',
+        'subcategory': 'department__subsector__sector__subcategory__id',
+        'category': 'department__subsector__sector__subcategory__category__id',
+        'profclass': 'department__subsector__sector__subcategory__category__profclass__id',
+        'section': 'department__subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -924,7 +1083,16 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     serializer_class = TypeSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'subdepartment': 'subdepartment__id'
+        'subdepartment': 'subdepartment__id',
+        'department': 'subdepartment__department__id',
+        'subsector': 'subdepartment__department__subsector__id',
+        'sector': 'subdepartment__department__subsector__sector__id',
+        'subcategory': 'subdepartment__department__subsector__sector__subcategory__id',
+        'category': 'subdepartment__department__subsector__sector__subcategory__category__id',
+        'profclass': 'subdepartment__department__subsector__sector__subcategory__category__profclass__id',
+        'section': 'subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     
     def get_serializer_class(self):
@@ -956,7 +1124,17 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'type': 'type__id'
+        'type': 'type__id',
+        'subdepartment': 'type__subdepartment__id',
+        'department': 'type__subdepartment__department__id',
+        'subsector': 'type__subdepartment__department__subsector__id',
+        'sector': 'type__subdepartment__department__subsector__sector__id',
+        'subcategory': 'type__subdepartment__department__subsector__sector__subcategory__id',
+        'category': 'type__subdepartment__department__subsector__sector__subcategory__category__id',
+        'profclass': 'type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
+        'section': 'type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -987,7 +1165,18 @@ class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     serializer_class = PostModelSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     FILTER_FIELDS = {
-        'brand': 'brand__id'
+        'brand': 'brand__id',
+        'type': 'brand__type__id',
+        'subdepartment': 'brand__type__subdepartment__id',
+        'department': 'brand__type__subdepartment__department__id',
+        'subsector': 'brand__type__subdepartment__department__subsector__id',
+        'sector': 'brand__type__subdepartment__department__subsector__sector__id',
+        'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
+        'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
+        'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
+        'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -1013,6 +1202,7 @@ class PostModelListView(SearchMixin, APIView, RecordRuleMixin):
 
 
 class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = RoomFlash
     queryset = RoomFlash.objects.all()
     serializer_class = RoomFlashSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -1089,7 +1279,12 @@ class UploadGlobsView(APIView):
 
         try:
             with transaction.atomic():
-                Glob.objects.bulk_create(objs, ignore_conflicts=True)
+                Glob.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1169,7 +1364,12 @@ class UploadContinentsView(APIView):
         
         try:
             with transaction.atomic():
-                Continent.objects.bulk_create(objs, ignore_conflicts=True)
+                Continent.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1254,7 +1454,12 @@ class UploadCountriesView(APIView):
         
         try:
             with transaction.atomic():
-                Country.objects.bulk_create(objs, ignore_conflicts=True)
+                Country.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1341,7 +1546,12 @@ class UploadStatesView(APIView):
         
         try:
             with transaction.atomic():
-                State.objects.bulk_create(objs, ignore_conflicts=True)
+                State.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1430,7 +1640,12 @@ class UploadDistrictsView(APIView):
         
         try:
             with transaction.atomic():
-                District.objects.bulk_create(objs, ignore_conflicts=True)
+                District.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1522,7 +1737,12 @@ class UploadTalukasView(APIView):
         
         try:
             with transaction.atomic():
-                Taluka.objects.bulk_create(objs, ignore_conflicts=True)
+                Taluka.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1616,7 +1836,12 @@ class UploadCityVillagesView(APIView):
         
         try:
             with transaction.atomic():
-                CityVillage.objects.bulk_create(objs, ignore_conflicts=True)
+                CityVillage.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1710,7 +1935,12 @@ class UploadWardsView(APIView):
 
         try:
             with transaction.atomic():
-                Ward.objects.bulk_create(objs, ignore_conflicts=True)
+                Ward.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -1802,7 +2032,12 @@ class UploadReligionView(APIView):
 
         try:
             with transaction.atomic():
-                Religion.objects.bulk_create(objs, ignore_conflicts=True)
+                Religion.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -1882,7 +2117,12 @@ class UploadSampradayView(APIView):
 
         try:
             with transaction.atomic():
-                Sampraday.objects.bulk_create(objs, ignore_conflicts=True)
+                Sampraday.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -1964,7 +2204,12 @@ class UploadPanthView(APIView):
 
         try:
             with transaction.atomic():
-                Panth.objects.bulk_create(objs, ignore_conflicts=True)
+                Panth.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2051,7 +2296,12 @@ class UploadVarnaView(APIView):
 
         try:
             with transaction.atomic():
-                Varna.objects.bulk_create(objs, ignore_conflicts=True)
+                Varna.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2140,7 +2390,12 @@ class UploadCasteView(APIView):
 
         try:
             with transaction.atomic():
-                Caste.objects.bulk_create(objs, ignore_conflicts=True)
+                Caste.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2163,7 +2418,7 @@ class UploadSubCasteView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2194,11 +2449,11 @@ class UploadSubCasteView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, sub_caste, code]):
+                if not all([sampraday, religion, panth, varna, caste, subcaste, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
@@ -2216,7 +2471,7 @@ class UploadSubCasteView(APIView):
                 
                 objs.append(SubCaste(
                     caste = caste_obj,
-                    name=sub_caste, 
+                    name=subcaste, 
                     code=code, 
                     is_hidden = is_hidden, 
                     on_hold = on_hold, 
@@ -2231,7 +2486,12 @@ class UploadSubCasteView(APIView):
 
         try:
             with transaction.atomic():
-                SubCaste.objects.bulk_create(objs, ignore_conflicts=True)
+                SubCaste.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2253,7 +2513,7 @@ class UploadGotraView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2284,19 +2544,19 @@ class UploadGotraView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, code]):
+                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                  
                     
                 try:
-                    sub_caste_obj = SubCaste.objects.get(
-                        name=sub_caste, 
+                    subcaste_obj = SubCaste.objects.get(
+                        name=subcaste, 
                         caste__name=caste, 
                         caste__varna__name=varna, 
                         caste__varna__panth__name=panth, 
@@ -2304,11 +2564,11 @@ class UploadGotraView(APIView):
                         caste__varna__panth__sampraday__religion__name=religion
                     )
                 except SubCaste.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {sub_caste} not found for caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
+                    invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {subcaste} not found for caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
                     continue    
                 
                 objs.append(Gotra(
-                    subcaste = sub_caste_obj,
+                    subcaste = subcaste_obj,
                     name=gotra, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -2324,7 +2584,12 @@ class UploadGotraView(APIView):
 
         try:
             with transaction.atomic():
-                Gotra.objects.bulk_create(objs, ignore_conflicts=True)
+                Gotra.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2347,7 +2612,7 @@ class UploadSubGotraView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2378,13 +2643,13 @@ class UploadSubGotraView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
-                sub_gotra = clean(row.get("sub_gotra"))
+                subgotra = clean(row.get("subgotra"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, sub_caste, gotra, sub_gotra, code]):
+                if not all([sampraday, religion, panth, varna, caste, subcaste, gotra, subgotra, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
@@ -2398,12 +2663,12 @@ class UploadSubGotraView(APIView):
                         subcaste__caste__varna__panth__sampraday__religion__name=religion
                     )
                 except Gotra.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for sub_caste: {sub_caste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue    
                 
                 objs.append(SubGotra(
                     gotra = gotra_obj,
-                    name=sub_gotra, 
+                    name=subgotra, 
                     code=code, 
                     is_hidden = is_hidden, 
                     on_hold = on_hold, 
@@ -2418,7 +2683,12 @@ class UploadSubGotraView(APIView):
 
         try:
             with transaction.atomic():
-                SubGotra.objects.bulk_create(objs, ignore_conflicts=True)
+                SubGotra.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2441,7 +2711,7 @@ class UploadKulView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2472,20 +2742,20 @@ class UploadKulView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
-                sub_gotra = clean(row.get("sub_gotra"))
+                subgotra = clean(row.get("subgotra"))
                 kul = clean(row.get("kul"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, code]):
+                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
                 try:
-                    sub_gotra_obj = SubGotra.objects.get(
-                        name=sub_gotra, 
+                    subgotra_obj = SubGotra.objects.get(
+                        name=subgotra, 
                         gotra__name=gotra, 
                         gotra__subcaste__caste__name=caste, 
                         gotra__subcaste__caste__varna__name=varna, 
@@ -2494,11 +2764,11 @@ class UploadKulView(APIView):
                         gotra__subcaste__caste__varna__panth__sampraday__religion__name=religion
                     )
                 except SubGotra.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{sub_gotra}' not found for gotra: {gotra}, sub caste: {sub_caste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
+                    invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{subgotra}' not found for gotra: {gotra}, sub caste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
                     continue    
                 
                 objs.append(Kul(
-                    subgotra = sub_gotra_obj,
+                    subgotra = subgotra_obj,
                     name=kul, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -2514,7 +2784,12 @@ class UploadKulView(APIView):
         
         try:
             with transaction.atomic():
-                Kul.objects.bulk_create(objs, ignore_conflicts=True)
+                Kul.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2537,7 +2812,7 @@ class UploadVanshView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2568,21 +2843,21 @@ class UploadVanshView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
-                sub_gotra = clean(row.get("sub_gotra"))
+                subgotra = clean(row.get("subgotra"))
                 kul = clean(row.get("kul"))
                 vansh = clean(row.get("vansh"))
                 code = clean(row.get("code"))
                 
-                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, vansh, code]):
+                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
                 try:
                     kul_obj = Kul.objects.get(
                         name = kul,
-                        subgotra__name = sub_gotra,
+                        subgotra__name = subgotra,
                         subgotra__gotra__name = gotra,
                         subgotra__gotra__subcaste__caste__name = caste,
                         subgotra__gotra__subcaste__caste__varna__name = varna,
@@ -2591,7 +2866,7 @@ class UploadVanshView(APIView):
                         subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
                     )
                 except Kul.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {sub_gotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {subgotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Vansh(
@@ -2610,7 +2885,12 @@ class UploadVanshView(APIView):
         
         try:
             with transaction.atomic():
-                Vansh.objects.bulk_create(objs)
+                Vansh.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:  
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2631,7 +2911,7 @@ class UploadFamilyView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["religion", "sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["religion", "sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2662,15 +2942,15 @@ class UploadFamilyView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
-                sub_gotra = clean(row.get("sub_gotra"))
+                subgotra = clean(row.get("subgotra"))
                 kul = clean(row.get("kul"))
                 vansh = clean(row.get("vansh"))
                 family = clean(row.get("family"))
                 code = clean(row.get("code"))    
                 
-                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, vansh, family, code]):
+                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
@@ -2678,9 +2958,9 @@ class UploadFamilyView(APIView):
                     vansh_obj = Vansh.objects.get(
                         name = vansh,
                         kul__name = kul,
-                        kul__subgotra__name = sub_gotra,
+                        kul__subgotra__name = subgotra,
                         kul__subgotra__gotra__name = gotra,
-                        kul__subgotra__gotra__subcaste__name = sub_caste,
+                        kul__subgotra__gotra__subcaste__name = subcaste,
                         kul__subgotra__gotra__subcaste__caste__name = caste,
                         kul__subgotra__gotra__subcaste__caste__varna__name = varna,
                         kul__subgotra__gotra__subcaste__caste__varna__panth__name = panth,
@@ -2688,7 +2968,7 @@ class UploadFamilyView(APIView):
                         kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
                     )
                 except Vansh.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {sub_gotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Family(
@@ -2708,7 +2988,12 @@ class UploadFamilyView(APIView):
         
         try:
             with transaction.atomic():
-                Family.objects.bulk_create(objs)
+                Family.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2731,7 +3016,7 @@ class UploadPidhiView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "sub_caste", "gotra", "sub_gotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2762,16 +3047,16 @@ class UploadPidhiView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                sub_caste = clean(row.get("sub_caste"))
+                subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
-                sub_gotra = clean(row.get("sub_gotra"))
+                subgotra = clean(row.get("subgotra"))
                 kul = clean(row.get("kul"))
                 vansh = clean(row.get("vansh"))
                 family = clean(row.get("family"))
                 pidhi = clean(row.get("pidhi"))
                 code = clean(row.get("code"))
                 
-                if not all([religion, sampraday, panth, varna, caste, sub_caste, gotra, sub_gotra, kul, vansh, family, pidhi, code]):
+                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
@@ -2780,9 +3065,9 @@ class UploadPidhiView(APIView):
                         family = family,
                         vansh__name = vansh,
                         vansh__kul__name = kul,
-                        vansh__kul__subgotra__name = sub_gotra,
+                        vansh__kul__subgotra__name = subgotra,
                         vansh__kul__subgotra__gotra__name = gotra,
-                        vansh__kul__subgotra__gotra__subcaste__name = sub_caste,
+                        vansh__kul__subgotra__gotra__subcaste__name = subcaste,
                         vansh__kul__subgotra__gotra__subcaste__caste__name = caste,
                         vansh__kul__subgotra__gotra__subcaste__caste__varna__name = varna,
                         vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name = panth,
@@ -2790,7 +3075,7 @@ class UploadPidhiView(APIView):
                         vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
                     )
                 except Exception as e:
-                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, sub_gotra: {sub_gotra}, gotra: {gotra}, sub_caste: {sub_caste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Pidhi(
@@ -2810,7 +3095,12 @@ class UploadPidhiView(APIView):
         
         try:
             with transaction.atomic():
-                Pidhi.objects.bulk_create(objs)
+                Pidhi.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2886,7 +3176,12 @@ class UploadSectionView(APIView):
         
         try:
             with transaction.atomic():
-                Section.objects.bulk_create(objs)
+                Section.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],  # field(s) to check for conflicts
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],  # fields to update
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -2909,7 +3204,7 @@ class UploadClassView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "profclass", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2936,7 +3231,7 @@ class UploadClassView(APIView):
                 
                 # Clean text safely
                 section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
+                class_name = clean(row.get("profclass"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
@@ -2967,7 +3262,12 @@ class UploadClassView(APIView):
         
         try:
             with transaction.atomic():
-                Class.objects.bulk_create(objs)
+                Class.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -3049,7 +3349,12 @@ class UploadProfCategoryView(APIView):
         
         try:
             with transaction.atomic():
-                ProfCategory.objects.bulk_create(objs)
+                ProfCategory.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -3071,7 +3376,7 @@ class UploadProfSubCategoryView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3100,11 +3405,11 @@ class UploadProfSubCategoryView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, code]):
+                if not all([section, class_name, category, subcategory, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
@@ -3130,7 +3435,12 @@ class UploadProfSubCategoryView(APIView):
         
         try:
             with transaction.atomic():
-                ProfSubCategory.objects.bulk_create(objs)
+                ProfSubCategory.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3153,7 +3463,7 @@ class UploadSectorView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "code", "is_hidden", "on_hold", "hold_date"])    
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "code", "is_hidden", "on_hold", "hold_date"])    
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3182,23 +3492,23 @@ class UploadSectorView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, code]):
+                if not all([section, class_name, category, subcategory, sector, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
                 try:
-                    sub_category_obj = ProfSubCategory(name=sub_category, category__name=category, category__profclass__name=class_name, category__profclass__section__name=section)
+                    subcategory_obj = ProfSubCategory(name=subcategory, category__name=category, category__profclass__name=class_name, category__profclass__section__name=section)
                 except ProfSubCategory.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubCategory: '{sub_category}' not found for category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"SubCategory: '{subcategory}' not found for category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(Sector(
-                    subcategory = sub_category_obj,
+                    subcategory = subcategory_obj,
                     name = sector,
                     code = code,
                     is_hidden = is_hidden,
@@ -3213,7 +3523,12 @@ class UploadSectorView(APIView):
         
         try:
             with transaction.atomic():
-                Sector.objects.bulk_create(objs)
+                Sector.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3236,7 +3551,7 @@ class UploadSubSectorView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3265,25 +3580,25 @@ class UploadSubSectorView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                sub_sector = clean(row.get("sub_sector"))
+                subsector = clean(row.get("subsector"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, sub_sector, code]):
+                if not all([section, class_name, category, subcategory, sector, subsector, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
                 try:
-                    sector_obj = Sector(name=sector, subcategory__name=sub_category, subcategory__category__name=category, subcategory__category__profclass__name=class_name, subcategory__category__profclass__section__name=section)
+                    sector_obj = Sector(name=sector, subcategory__name=subcategory, subcategory__category__name=category, subcategory__category__profclass__name=class_name, subcategory__category__profclass__section__name=section)
                 except Sector.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sector: '{sector}' not found for subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Sector: '{sector}' not found for subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(SubSector(
                     sector = sector_obj,
-                    name = sub_sector,
+                    name = subsector,
                     code = code,
                     is_hidden = is_hidden,
                     on_hold = on_hold,
@@ -3298,7 +3613,12 @@ class UploadSubSectorView(APIView):
         
         try:
             with transaction.atomic():
-                SubSector.objects.bulk_create(objs)
+                SubSector.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3320,7 +3640,7 @@ class UploadDepartmentView(APIView):
         file = serializer.validated_data['file'] 
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3349,32 +3669,32 @@ class UploadDepartmentView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                sub_sector = clean(row.get("sub_sector"))
+                subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, sub_sector, department, code]):
+                if not all([section, class_name, category, subcategory, sector, subsector, department, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
                 try:
-                    sub_sector_obj = SubSector.objects.get(
-                        name=sub_sector,
+                    subsector_obj = SubSector.objects.get(
+                        name=subsector,
                         sector__name=sector,
-                        sector__subcategory__name=sub_category,
+                        sector__subcategory__name=subcategory,
                         sector__subcategory__category__name=category,
                         sector__subcategory__category__profclass__name=class_name,
                         sector__subcategory__category__profclass__section__name=section 
                     )
                 except SubSector.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubSector: '{sub_sector}' not found for sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"SubSector: '{subsector}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(Department(
-                    subsector = sub_sector_obj,
+                    subsector = subsector_obj,
                     name = department,
                     code = code,
                     is_hidden = is_hidden,
@@ -3390,7 +3710,12 @@ class UploadDepartmentView(APIView):
         
         try:
             with transaction.atomic():
-                Department.objects.bulk_create(objs)
+                Department.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3413,7 +3738,7 @@ class UploadSubDepartmentView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3442,35 +3767,35 @@ class UploadSubDepartmentView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                sub_sector = clean(row.get("sub_sector"))
+                subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
-                sub_department = clean(row.get("sub_department"))
+                subdepartment = clean(row.get("subdepartment"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, code]):
+                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
                 try:
                     department_obj = Department.objects.get(
                         name=department,
-                        subsector__name=sub_sector,
+                        subsector__name=subsector,
                         subsector__sector__name=sector,
-                        subsector__sector__subcategory__name=sub_category,
+                        subsector__sector__subcategory__name=subcategory,
                         subsector__sector__subcategory__category__name=category,
                         subsector__sector__subcategory__category__profclass__name=class_name,
                         subsector__sector__subcategory__category__profclass__section__name=section 
                         )
                 except Department.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(SubDepartment(
                     department = department_obj,
-                    name = sub_department,
+                    name = subdepartment,
                     code = code,
                     is_hidden = is_hidden,
                     on_hold = on_hold,
@@ -3485,7 +3810,12 @@ class UploadSubDepartmentView(APIView):
         
         try:
             with transaction.atomic():
-                SubDepartment.objects.bulk_create(objs)
+                SubDepartment.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3508,7 +3838,7 @@ class UploadTypeView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "type", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)                
                           
@@ -3535,36 +3865,36 @@ class UploadTypeView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                sub_sector = clean(row.get("sub_sector"))
+                subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
-                sub_department = clean(row.get("sub_department"))
+                subdepartment = clean(row.get("subdepartment"))
                 type_name = clean(row.get("type"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, type_name, code]):
+                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
                 try:
-                    sub_department_obj = SubDepartment.objects.get(
-                        name = sub_department,
+                    subdepartment_obj = SubDepartment.objects.get(
+                        name = subdepartment,
                         department__name = department,
-                        department__subsector__name = sub_sector,
+                        department__subsector__name = subsector,
                         department__subsector__sector__name = sector,
-                        department__subsector__sector__subcategory__name = sub_category,
+                        department__subsector__sector__subcategory__name = subcategory,
                         department__subsector__sector__subcategory__category__name = category,
                         department__subsector__sector__subcategory__category__profclass__name = class_name,
                         department__subsector__sector__subcategory__category__profclass__section__name = section 
                         )
                 except SubDepartment.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sub Department: '{sub_department}' not found for sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Sub Department: '{subdepartment}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(Type(
-                    subdepartment = sub_department_obj,
+                    subdepartment = subdepartment_obj,
                     name = type_name,
                     code = code,
                     is_hidden = is_hidden,
@@ -3580,7 +3910,12 @@ class UploadTypeView(APIView):
         
         try:
             with transaction.atomic():
-                Type.objects.bulk_create(objs)
+                Type.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3603,7 +3938,7 @@ class UploadBrandView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "type", "brand", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "brand", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -3630,34 +3965,34 @@ class UploadBrandView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                sub_sector = clean(row.get("sub_sector"))
+                subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
-                sub_department = clean(row.get("sub_department"))
+                subdepartment = clean(row.get("subdepartment"))
                 type_name = clean(row.get("type"))
                 brand_name = clean(row.get("brand"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, type_name, brand_name, code]):
+                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
                 try:
                     type_obj = Type.objects.get(
                         name = type_name,
-                        subdepartment__name = sub_department,
+                        subdepartment__name = subdepartment,
                         subdepartment__department__name = department,
-                        subdepartment__department__subsector__name = sub_sector,
+                        subdepartment__department__subsector__name = subsector,
                         subdepartment__department__subsector__sector__name = sector,
-                        subdepartment__department__subsector__sector__subcategory__name = sub_category,
+                        subdepartment__department__subsector__sector__subcategory__name = subcategory,
                         subdepartment__department__subsector__sector__subcategory__category__name = category,
                         subdepartment__department__subsector__sector__subcategory__category__profclass__name = class_name,
                         subdepartment__department__subsector__sector__subcategory__category__profclass__section__name = section 
                         )
                 except Type.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Type: '{type_name}' not found for sub_department: {sub_department}, department: {department}, subsector: {sub_sector}, sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Type: '{type_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(Brand(
@@ -3677,7 +4012,12 @@ class UploadBrandView(APIView):
         
         try:
             with transaction.atomic():
-                Brand.objects.bulk_create(objs)
+                Brand.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -3700,7 +4040,7 @@ class UploadPostModelView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["section", "class", "category", "sub_category", "sector", "sub_sector", "department", "sub_department", "type", "brand", "post_model", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "brand", "postmodel", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3729,18 +4069,18 @@ class UploadPostModelView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                sub_category = clean(row.get("sub_category"))
+                subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                sub_sector = clean(row.get("sub_sector"))
+                subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
-                sub_department = clean(row.get("sub_department"))
+                subdepartment = clean(row.get("subdepartment"))
                 type_name = clean(row.get("type"))
                 brand_name = clean(row.get("brand"))
-                post_model = clean(row.get("post_model"))
+                postmodel = clean(row.get("postmodel"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
-                if not all([section, class_name, category, sub_category, sector, sub_sector, department, sub_department, type_name, brand_name, post_model, code]):
+                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, postmodel, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                 
@@ -3748,22 +4088,22 @@ class UploadPostModelView(APIView):
                     brand_obj = Brand.objects.get(
                         name=brand_name,
                         type__name=type_name,
-                        type__subdepartment__name=sub_department,
+                        type__subdepartment__name=subdepartment,
                         type__subdepartment__department__name=department,
-                        type__subdepartment__department__subsector__name=sub_sector,
+                        type__subdepartment__department__subsector__name=subsector,
                         type__subdepartment__department__subsector__sector__name=sector,
-                        type__subdepartment__department__subsector__sector__subcategory__name=sub_category,
+                        type__subdepartment__department__subsector__sector__subcategory__name=subcategory,
                         type__subdepartment__department__subsector__sector__subcategory__category__name=category,
                         type__subdepartment__department__subsector__sector__subcategory__category__profclass__name=class_name,
                         type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name=section
                     )
                 except Brand.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Brand: '{brand_name}' not found for sub_department: {sub_department}, department: {department}, subsector: {sub_sector}, sector: {sector}, subcategory: {sub_category}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Brand: '{brand_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(PostModel(
                     brand=brand_obj,
-                    name=post_model,
+                    name=postmodel,
                     code=code,
                     is_hidden=is_hidden,
                     on_hold=on_hold,
@@ -3777,7 +4117,12 @@ class UploadPostModelView(APIView):
         
         try:
             with transaction.atomic():
-                PostModel.objects.bulk_create(objs)
+                PostModel.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
         except Exception as e: 
             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
@@ -4041,9 +4386,9 @@ class PersonalSearchView(APIView):
         panth_name = data.get('panth')
         varna_name = data.get('varna')
         caste_name = data.get('caste')
-        sub_caste_name = data.get('sub_caste')
+        subcaste_name = data.get('subcaste')
         gotra_name = data.get('gotra')
-        sub_gotra_name = data.get('sub_gotra')
+        subgotra_name = data.get('subgotra')
         kul_name = data.get('kul')
         vansh_name = data.get('vansh')
         family_name = data.get('family')
@@ -4061,9 +4406,9 @@ class PersonalSearchView(APIView):
                     "panth": None,
                     "varna": None,
                     "caste": None,
-                    "sub_caste": None,
+                    "subcaste": None,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4087,9 +4432,9 @@ class PersonalSearchView(APIView):
                     "panth": None,
                     "varna": None,
                     "caste": None,
-                    "sub_caste": None,
+                    "subcaste": None,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4115,9 +4460,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj).data,
                     "varna": None,
                     "caste": None,
-                    "sub_caste": None,
+                    "subcaste": None,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4145,9 +4490,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.panth).data,
                     "varna": VarnaIdNameSerializer(obj).data,
                     "caste": None,
-                    "sub_caste": None,
+                    "subcaste": None,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4178,9 +4523,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.varna).data,
                     "caste": CasteIdNameSerializer(obj).data,
-                    "sub_caste": None,
+                    "subcaste": None,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4190,10 +4535,10 @@ class PersonalSearchView(APIView):
             ] 
         
         
-        elif search_key == "sub_caste":
+        elif search_key == "subcaste":
             qs = SubCaste.objects.all()
-            if sub_caste_name:
-                qs = qs.filter(name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(caste__name__icontains=caste_name)
             if varna_name:
@@ -4213,9 +4558,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj).data,
+                    "subcaste": SubCasteIdNameSerializer(obj).data,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4229,8 +4574,8 @@ class PersonalSearchView(APIView):
             qs = Gotra.objects.all()
             if gotra_name:
                 qs = qs.filter(name__icontains=gotra_name)
-            if sub_caste_name:
-                qs = qs.filter(subcaste__name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(subcaste__name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(subcaste__caste__name__icontains=caste_name)
             if varna_name:
@@ -4250,9 +4595,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.subcaste.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.subcaste.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj.subcaste).data,
+                    "subcaste": SubCasteIdNameSerializer(obj.subcaste).data,
                     "gotra": GotraIdNameSerializer(obj).data,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4262,14 +4607,14 @@ class PersonalSearchView(APIView):
             ]  
         
         
-        elif search_key == "sub_gotra":
+        elif search_key == "subgotra":
             qs = SubGotra.objects.all()
-            if sub_gotra_name:
-                qs = qs.filter(name__icontains=sub_gotra_name)
+            if subgotra_name:
+                qs = qs.filter(name__icontains=subgotra_name)
             if gotra_name:
                 qs = qs.filter(gotra__name__icontains=gotra_name)
-            if sub_caste_name:
-                qs = qs.filter(gotra__subcaste__name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(gotra__subcaste__name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(gotra__subcaste__caste__name__icontains=caste_name)
             if varna_name:
@@ -4289,9 +4634,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.gotra.subcaste.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.gotra.subcaste.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj.gotra.subcaste).data,
+                    "subcaste": SubCasteIdNameSerializer(obj.gotra.subcaste).data,
                     "gotra": GotraIdNameSerializer(obj.gotra).data,
-                    "sub_gotra": SubGotraIdNameSerializer(obj).data,
+                    "subgotra": SubGotraIdNameSerializer(obj).data,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4304,12 +4649,12 @@ class PersonalSearchView(APIView):
             qs = Kul.objects.all()
             if kul_name:
                 qs = qs.filter(name__icontains=kul_name)
-            if sub_gotra_name:
-                qs = qs.filter(subgotra__name__icontains=sub_gotra_name) 
+            if subgotra_name:
+                qs = qs.filter(subgotra__name__icontains=subgotra_name) 
             if gotra_name:
                 qs = qs.filter(subgotra__gotra__name__icontains=gotra_name)
-            if sub_caste_name:
-                qs = qs.filter(subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(subgotra__gotra__subcaste__name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(subgotra__gotra__subcaste__caste__name__icontains=caste_name)
             if varna_name:
@@ -4329,9 +4674,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.subgotra.gotra.subcaste.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj.subgotra.gotra.subcaste).data,
+                    "subcaste": SubCasteIdNameSerializer(obj.subgotra.gotra.subcaste).data,
                     "gotra": GotraIdNameSerializer(obj.subgotra.gotra).data,
-                    "sub_gotra": SubGotraIdNameSerializer(obj.subgotra).data,
+                    "subgotra": SubGotraIdNameSerializer(obj.subgotra).data,
                     "kul": KulIdNameSerializer(obj).data,
                     "vansh": None,
                     "family": None,
@@ -4346,12 +4691,12 @@ class PersonalSearchView(APIView):
                 qs = qs.filter(name__icontains=vansh_name)
             if kul_name:
                 qs = qs.filter(kul__name__icontains=kul_name)
-            if sub_gotra_name:  
-                qs = qs.filter(kul__subgotra__name__icontains=sub_gotra_name)                  
+            if subgotra_name:  
+                qs = qs.filter(kul__subgotra__name__icontains=subgotra_name)                  
             if gotra_name:  
                 qs = qs.filter(kul__subgotra__gotra__name__icontains=gotra_name)
-            if sub_caste_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
             if varna_name:
@@ -4371,9 +4716,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste).data,
+                    "subcaste": SubCasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste).data,
                     "gotra": GotraIdNameSerializer(obj.kul.subgotra.gotra).data,
-                    "sub_gotra": SubGotraIdNameSerializer(obj.kul.subgotra).data,
+                    "subgotra": SubGotraIdNameSerializer(obj.kul.subgotra).data,
                     "kul": KulIdNameSerializer(obj.kul).data,
                     "vansh": VanshIdNameSerializer(obj).data,
                     "family": None,
@@ -4390,12 +4735,12 @@ class PersonalSearchView(APIView):
                 qs = qs.filter(vansh__name__icontains=vansh_name)
             if kul_name:
                 qs = qs.filter(vansh__kul__name__icontains=kul_name)
-            if sub_gotra_name:  
-                qs = qs.filter(vansh__kul__subgotra__name__icontains=sub_gotra_name)                  
+            if subgotra_name:  
+                qs = qs.filter(vansh__kul__subgotra__name__icontains=subgotra_name)                  
             if gotra_name:  
                 qs = qs.filter(vansh__kul__subgotra__gotra__name__icontains=gotra_name)
-            if sub_caste_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
             if varna_name:
@@ -4415,9 +4760,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste).data,
+                    "subcaste": SubCasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste).data,
                     "gotra": GotraIdNameSerializer(obj.vansh.kul.subgotra.gotra).data,
-                    "sub_gotra": SubGotraIdNameSerializer(obj.vansh.kul.subgotra).data,
+                    "subgotra": SubGotraIdNameSerializer(obj.vansh.kul.subgotra).data,
                     "kul": KulIdNameSerializer(obj.vansh.kul).data,
                     "vansh": VanshIdNameSerializer(obj.vansh).data,
                     "family": FamilyIdNameSerializer(obj).data,
@@ -4437,12 +4782,12 @@ class PersonalSearchView(APIView):
                 qs = qs.filter(family__vansh__name__icontains=vansh_name)
             if kul_name:
                 qs = qs.filter(family__vansh__kul__name__icontains=kul_name)
-            if sub_gotra_name:  
-                qs = qs.filter(family__vansh__kul__subgotra__name__icontains=sub_gotra_name)                  
+            if subgotra_name:  
+                qs = qs.filter(family__vansh__kul__subgotra__name__icontains=subgotra_name)                  
             if gotra_name:  
                 qs = qs.filter(family__vansh__kul__subgotra__gotra__name__icontains=gotra_name)
-            if sub_caste_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__name__icontains=sub_caste_name)
+            if subcaste_name:
+                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
             if caste_name:
                 qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
             if varna_name:
@@ -4462,9 +4807,9 @@ class PersonalSearchView(APIView):
                     "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
                     "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
-                    "sub_caste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
+                    "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
                     "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
-                    "sub_gotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
+                    "subgotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
                     "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
                     "vansh": VanshIdNameSerializer(obj.family.vansh).data,
                     "family": FamilyIdNameSerializer(obj.family).data,
@@ -4483,9 +4828,9 @@ class PersonalSearchView(APIView):
                     "panth": None,
                     "varna": None,
                     "caste": None,
-                    "sub_caste": None,
+                    "subcaste": None,
                     "gotra": None,
-                    "sub_gotra": None,
+                    "subgotra": None,
                     "kul": None,
                     "vansh": None,
                     "family": None,
@@ -4510,16 +4855,16 @@ class ProfessionalSearchView(APIView):
         data = serializer.validated_data
         search_key = data.get("search_key")  
         section_name = data.get("section")
-        prof_class_name = data.get("prof_class")
-        prof_category_name = data.get("prof_category")
-        prof_sub_category_name = data.get("prof_sub_category")
+        profclass_name = data.get("profclass")
+        category_name = data.get("category")
+        subcategory_name = data.get("subcategory")
         sector_name = data.get("sector")
-        sub_sector_name = data.get("sub_sector")
+        subsector_name = data.get("subsector")
         department_name = data.get("department")
-        sub_department_name = data.get("sub_department")
+        subdepartment_name = data.get("subdepartment")
         type_name = data.get("type")
         brand_name = data.get("brand")
-        post_model_name = data.get("post_model")
+        postmodel_name = data.get("postmodel")
         
         if search_key == "section":
             qs = Section.objects.all()
@@ -4530,24 +4875,24 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj).data,
-                    "prof_class": None,
-                    "prof_category": None,
-                    "prof_sub_category": None,
+                    "profclass": None,
+                    "category": None,
+                    "subcategory": None,
                     "sector": None,
-                    "sub_sector": None,
+                    "subsector": None,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }                
                 for obj in qs
             ]
         
-        elif search_key == "prof_class":
+        elif search_key == "profclass":
             qs = Class.objects.all()
-            if prof_class_name:
-                qs = qs.filter(name__icontains=prof_class_name)
+            if profclass_name:
+                qs = qs.filter(name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(section__name__icontains=section_name)
             qs = qs[:10]
@@ -4555,26 +4900,26 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.section).data,
-                    "prof_class": ClassIdNameSerializer(obj).data,
-                    "prof_category": None,
-                    "prof_sub_category": None,
+                    "profclass": ClassIdNameSerializer(obj).data,
+                    "category": None,
+                    "subcategory": None,
                     "sector": None,
-                    "sub_sector": None,
+                    "subsector": None,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
         
-        elif search_key == "prof_category":
+        elif search_key == "category":
             qs = ProfCategory.objects.all()
-            if prof_category_name:
-                qs = qs.filter(name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(profclass__name__icontains=prof_class_name)
+            if category_name:
+                qs = qs.filter(name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4582,28 +4927,28 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj).data,
-                    "prof_sub_category": None,
+                    "profclass": ClassIdNameSerializer(obj.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj).data,
+                    "subcategory": None,
                     "sector": None,
-                    "sub_sector": None,
+                    "subsector": None,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
         
-        elif search_key == "prof_sub_category":
+        elif search_key == "subcategory":
             qs = ProfSubCategory.objects.all()
-            if prof_sub_category_name:
-                qs = qs.filter(name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4611,16 +4956,16 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj).data,
+                    "profclass": ClassIdNameSerializer(obj.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj).data,
                     "sector": None,
-                    "sub_sector": None,
+                    "subsector": None,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4629,12 +4974,12 @@ class ProfessionalSearchView(APIView):
             qs = Sector.objects.all()
             if sector_name:
                 qs = qs.filter(name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4642,32 +4987,32 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.subcategory).data,
                     "sector": SectorIdNameSerializer(obj).data,
-                    "sub_sector": None,
+                    "subsector": None,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
         
-        elif search_key == "sub_sector":
+        elif search_key == "subsector":
             qs = SubSector.objects.all()
-            if sub_sector_name:
-                qs = qs.filter(name__icontains=sub_sector_name)
+            if subsector_name:
+                qs = qs.filter(name__icontains=subsector_name)
             if sector_name:
                 qs = qs.filter(sector__name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(sector__subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(sector__subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(sector__subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(sector__subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(sector__subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(sector__subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4675,16 +5020,16 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.sector.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.sector.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.sector.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.sector.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.sector.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.sector.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.sector.subcategory).data,
                     "sector": SectorIdNameSerializer(obj.sector).data,
-                    "sub_sector": SubSectorIdNameSerializer(obj).data,
+                    "subsector": SubSectorIdNameSerializer(obj).data,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4693,16 +5038,16 @@ class ProfessionalSearchView(APIView):
             qs = Department.objects.all()
             if department_name:
                 qs = qs.filter(name__icontains=department_name)
-            if sub_sector_name:
-                qs = qs.filter(subsector__name__icontains=sub_sector_name)
+            if subsector_name:
+                qs = qs.filter(subsector__name__icontains=subsector_name)
             if sector_name:
                 qs = qs.filter(subsector__sector__name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(subsector__sector__subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(subsector__sector__subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(subsector__sector__subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(subsector__sector__subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4710,36 +5055,36 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.subsector.sector.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.subsector.sector.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.subsector.sector.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.subsector.sector.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.subsector.sector.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.subsector.sector.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.subsector.sector.subcategory).data,
                     "sector": SectorIdNameSerializer(obj.subsector.sector).data,
-                    "sub_sector": SubSectorIdNameSerializer(obj.subsector).data,
+                    "subsector": SubSectorIdNameSerializer(obj.subsector).data,
                     "department": DepartmentIdNameSerializer(obj).data,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
         
-        elif search_key == "sub_department":
+        elif search_key == "subdepartment":
             qs = SubDepartment.objects.all()
-            if sub_department_name:
-                qs = qs.filter(name__icontains=sub_department_name)
+            if subdepartment_name:
+                qs = qs.filter(name__icontains=subdepartment_name)
             if department_name:
                 qs = qs.filter(department__name__icontains=department_name)
-            if sub_sector_name:
-                qs = qs.filter(department__subsector__name__icontains=sub_sector_name)
+            if subsector_name:
+                qs = qs.filter(department__subsector__name__icontains=subsector_name)
             if sector_name:
                 qs = qs.filter(department__subsector__sector__name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(department__subsector__sector__subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(department__subsector__sector__subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4747,16 +5092,16 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.department.subsector.sector.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.department.subsector.sector.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.department.subsector.sector.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.department.subsector.sector.subcategory).data,
                     "sector": SectorIdNameSerializer(obj.department.subsector.sector).data,
-                    "sub_sector": SubSectorIdNameSerializer(obj.department.subsector).data,
+                    "subsector": SubSectorIdNameSerializer(obj.department.subsector).data,
                     "department": DepartmentIdNameSerializer(obj.department).data,
-                    "sub_department": SubDepartmentIdNameSerializer(obj).data,
+                    "subdepartment": SubDepartmentIdNameSerializer(obj).data,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4765,20 +5110,20 @@ class ProfessionalSearchView(APIView):
             qs = Type.objects.all()
             if type_name:
                 qs = qs.filter(name__icontains=type_name)
-            if sub_department_name:
-                qs = qs.filter(subdepartment__name__icontains=sub_department_name)
+            if subdepartment_name:
+                qs = qs.filter(subdepartment__name__icontains=subdepartment_name)
             if department_name:
                 qs = qs.filter(subdepartment__department__name__icontains=department_name)
-            if sub_sector_name:
-                qs = qs.filter(subdepartment__department__subsector__name__icontains=sub_sector_name)
+            if subsector_name:
+                qs = qs.filter(subdepartment__department__subsector__name__icontains=subsector_name)
             if sector_name:
                 qs = qs.filter(subdepartment__department__subsector__sector__name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4786,16 +5131,16 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory).data,
                     "sector": SectorIdNameSerializer(obj.subdepartment.department.subsector.sector).data,
-                    "sub_sector": SubSectorIdNameSerializer(obj.subdepartment.department.subsector).data,
+                    "subsector": SubSectorIdNameSerializer(obj.subdepartment.department.subsector).data,
                     "department": DepartmentIdNameSerializer(obj.subdepartment.department).data,
-                    "sub_department": SubDepartmentIdNameSerializer(obj.subdepartment).data,
+                    "subdepartment": SubDepartmentIdNameSerializer(obj.subdepartment).data,
                     "type": TypeIdNameSerializer(obj).data,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4806,20 +5151,20 @@ class ProfessionalSearchView(APIView):
                 qs = qs.filter(name__icontains=brand_name)
             if type_name:
                 qs = qs.filter(type__name__icontains=type_name)
-            if sub_department_name:
-                qs = qs.filter(type__subdepartment__name__icontains=sub_department_name)
+            if subdepartment_name:
+                qs = qs.filter(type__subdepartment__name__icontains=subdepartment_name)
             if department_name:
                 qs = qs.filter(type__subdepartment__department__name__icontains=department_name)
-            if sub_sector_name:
-                qs = qs.filter(type__subdepartment__department__subsector__name__icontains=sub_sector_name)
+            if subsector_name:
+                qs = qs.filter(type__subdepartment__department__subsector__name__icontains=subsector_name)
             if sector_name:
                 qs = qs.filter(type__subdepartment__department__subsector__sector__name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4827,42 +5172,42 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory).data,
                     "sector": SectorIdNameSerializer(obj.type.subdepartment.department.subsector.sector).data,
-                    "sub_sector": SubSectorIdNameSerializer(obj.type.subdepartment.department.subsector).data,
+                    "subsector": SubSectorIdNameSerializer(obj.type.subdepartment.department.subsector).data,
                     "department": DepartmentIdNameSerializer(obj.type.subdepartment.department).data,
-                    "sub_department": SubDepartmentIdNameSerializer(obj.type.subdepartment).data,
+                    "subdepartment": SubDepartmentIdNameSerializer(obj.type.subdepartment).data,
                     "type": TypeIdNameSerializer(obj.type).data,
                     "brand": BrandIdNameSerializer(obj).data,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]
         
-        elif search_key == "post_model":
+        elif search_key == "postmodel":
             qs = PostModel.objects.all()
-            if post_model_name:
-                qs = qs.filter(name__icontains=post_model_name)
+            if postmodel_name:
+                qs = qs.filter(name__icontains=postmodel_name)
             if brand_name:
                 qs = qs.filter(brand__name__icontains=brand_name)
             if type_name:
                 qs = qs.filter(brand__type__name__icontains=type_name)
-            if sub_department_name:
-                qs = qs.filter(brand__type__subdepartment__name__icontains=sub_department_name)
+            if subdepartment_name:
+                qs = qs.filter(brand__type__subdepartment__name__icontains=subdepartment_name)
             if department_name:
                 qs = qs.filter(brand__type__subdepartment__department__name__icontains=department_name)
-            if sub_sector_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__name__icontains=sub_sector_name)
+            if subsector_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__name__icontains=subsector_name)
             if sector_name:
                 qs = qs.filter(brand__type__subdepartment__department__subsector__sector__name__icontains=sector_name)
-            if prof_sub_category_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__name__icontains=prof_sub_category_name)
-            if prof_category_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=prof_category_name)
-            if prof_class_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=prof_class_name)
+            if subcategory_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__name__icontains=subcategory_name)
+            if category_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=category_name)
+            if profclass_name:
+                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
             if section_name:
                 qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
             qs = qs[:10]
@@ -4870,16 +5215,16 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "prof_class": ClassIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
-                    "prof_category": ProfCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category).data,
-                    "prof_sub_category": ProfSubCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory).data,
+                    "profclass": ClassIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
+                    "category": ProfCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category).data,
+                    "subcategory": ProfSubCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory).data,
                     "sector": SectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector).data,
-                    "sub_sector": SubSectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector).data,
+                    "subsector": SubSectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector).data,
                     "department": DepartmentIdNameSerializer(obj.brand.type.subdepartment.department).data,
-                    "sub_department": SubDepartmentIdNameSerializer(obj.brand.type.subdepartment).data,
+                    "subdepartment": SubDepartmentIdNameSerializer(obj.brand.type.subdepartment).data,
                     "type": TypeIdNameSerializer(obj.brand.type).data,
                     "brand": BrandIdNameSerializer(obj.brand).data,
-                    "post_model": PostModelIdNameSerializer(obj).data
+                    "postmodel": PostModelIdNameSerializer(obj).data
                 }
                 for obj in qs
             ]
@@ -4891,16 +5236,16 @@ class ProfessionalSearchView(APIView):
             results = [
                 {
                     "section": SectionIdNameSerializer(obj).data,
-                    "prof_class": None,
-                    "prof_category": None,
-                    "prof_sub_category": None,
+                    "profclass": None,
+                    "category": None,
+                    "subcategory": None,
                     "sector": None,
-                    "sub_sector": None,
+                    "subsector": None,
                     "department": None,
-                    "sub_department": None,
+                    "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "post_model": None
+                    "postmodel": None
                 }
                 for obj in qs
             ]

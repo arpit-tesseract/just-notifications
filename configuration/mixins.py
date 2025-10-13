@@ -2,6 +2,8 @@ from django.utils import timezone
 from django.db.models import Q, ForeignKey
 from django.core.exceptions import FieldError
 from rest_framework.exceptions import ValidationError
+from rest_framework import status
+from rest_framework.response import Response
 
 class BaseQueryMixin:
     """
@@ -179,26 +181,19 @@ class FilteredQuerysetMixin(BaseQueryMixin):
 
         if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
             qs = self._model.objects.all()
-            is_hidden = self.request.query_params.get("is_hidden")
-            on_hold = self.request.query_params.get("on_hold")
-
-            # Apply filters if provided
-            if is_hidden is not None:
-                if is_hidden.lower() == 'true':
-                    qs = qs.filter(is_hidden=True)
-                elif is_hidden.lower() == 'false':
-                    qs = qs.filter(is_hidden=False)
-            
-            if on_hold is not None:
-                if on_hold.lower() == 'true':
-                    qs = qs.filter(on_hold=True)
-                elif on_hold.lower() == 'false':
-                    qs = qs.filter(on_hold=False)
             
             for param, field in self.FILTER_FIELDS.items():
                 value = self.request.query_params.get(param)
+                if value in ["true", "True", "1"]:
+                    value = True
+                if value in ["false", "False", "0"]:
+                    value = False
                 if value is not None and value is not '':
-                    qs = qs.filter(**{field: value})
+                    try: 
+                        qs = qs.filter(**{field: value})
+                    except Exception as e:
+                        # if not a valid field, ignore
+                        continue
 
             final_qs = qs
         else:

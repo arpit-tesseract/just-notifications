@@ -16,6 +16,7 @@ class HoldableSaveMixin:
                 self.on_hold = True
             else:
                 self.on_hold = False
+                self.hold_date = None
         else:
             self.on_hold = False
             

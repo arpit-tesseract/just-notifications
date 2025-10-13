@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import *
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 
 class LoginWithEmailPasswordView(APIView):
@@ -49,4 +51,34 @@ class LoginWithEmailPasswordView(APIView):
                 "user": serializer.data
             },
             status=status.HTTP_200_OK)
+
+
+class LogoutView(APIView):
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh")
+            access_token = request.data.get("access")
+
+            # Blacklist refresh token
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+
+            # Blacklist access token
+            if access_token:
+                token = AccessToken(access_token)
+                # Add to blacklist manually
+                outstanding, _ = OutstandingToken.objects.get_or_create(
+                    jti=token["jti"],
+                    defaults={
+                        "token": str(token),
+                        "expires_at": token["exp"],
+                    },
+                )
+                BlacklistedToken.objects.get_or_create(token=outstanding)
+
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_205_RESET_CONTENT)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     

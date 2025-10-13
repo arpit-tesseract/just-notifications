@@ -26,16 +26,16 @@ router.register(r'families_in_details', FamilyViewSet)
 router.register(r'pidhis_in_details', PidhiViewSet)
 
 router.register(r'sections_in_details', SectionViewSet)
-router.register(r'classes_in_details', ClassViewSet)
-router.register(r'profCategories_in_details', ProfCategoryViewSet)
-router.register(r'profSubCategories_in_details', ProfSubCategoryViewSet)
-router.register(r'types_in_details', TypeViewSet)
-router.register(r'brands_in_details', BrandViewSet)
-router.register(r'postmodeles_in_details', PostModelViewSet)
+router.register(r'profclasses_in_details', ClassViewSet)
+router.register(r'categories_in_details', ProfCategoryViewSet)
+router.register(r'subcategories_in_details', ProfSubCategoryViewSet)
 router.register(r'sectors_in_details', SectorViewSet)
 router.register(r'subsectors_in_details', SubSectorViewSet)
 router.register(r'departments_in_details', DepartmentViewSet)
 router.register(r'subdepartments_in_details', SubDepartmentViewSet)
+router.register(r'types_in_details', TypeViewSet)
+router.register(r'brands_in_details', BrandViewSet)
+router.register(r'postmodels_in_details', PostModelViewSet)
 router.register(r'roomflashes', RoomFlashViewSet)
 
 urlpatterns = [
@@ -97,9 +97,9 @@ urlpatterns = [
     path('upload/pidhis/', UploadPidhiView.as_view()),
     
     path('upload/sections/', UploadSectionView.as_view()),
-    path('upload/classes/', UploadClassView.as_view()),
-    path('upload/prof_categories/', UploadProfCategoryView.as_view()),
-    path('upload/prof_sub_categories/', UploadProfSubCategoryView.as_view()),
+    path('upload/profclasses/', UploadClassView.as_view()),
+    path('upload/categories/', UploadProfCategoryView.as_view()),
+    path('upload/subcategories/', UploadProfSubCategoryView.as_view()),
     path('upload/sectors/', UploadSectorView.as_view()),
     path('upload/subsectors/', UploadSubSectorView.as_view()),
     path('upload/departments/', UploadDepartmentView.as_view()),
