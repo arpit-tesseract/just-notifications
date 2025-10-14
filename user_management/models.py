@@ -144,7 +144,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
     date_of_birth = models.DateField("Date of Birth")
     blood_group = models.CharField("Blood Group", max_length=4, null=True, blank=True)
-    is_verified = models.BooleanField(default=False)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
