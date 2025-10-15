@@ -75,8 +75,8 @@ urlpatterns = [
     path('subdepartments/', SubDepartmentListView.as_view()),
     
     path('upload/globs/', UploadGlobsView.as_view()),
-    path('upload/countries/', UploadCountriesView.as_view()),
     path('upload/continents/', UploadContinentsView.as_view()),
+    path('upload/countries/', UploadCountriesView.as_view()),
     path('upload/states/', UploadStatesView.as_view()),
     path('upload/districts/', UploadDistrictsView.as_view()),
     path('upload/talukas/', UploadTalukasView.as_view()),

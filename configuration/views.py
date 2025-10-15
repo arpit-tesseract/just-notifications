@@ -1232,7 +1232,6 @@ class UploadCountriesView(APIView):
                         name=continent, 
                         glob__name=glob
                     )
-                    
                 except Continent.DoesNotExist:
                     invalid_rows.append({"row": idx + 2, "error": f"Continent '{continent}' not found for glob: {glob}"})
                     continue
@@ -1775,6 +1774,7 @@ class ResidentialSearchView(APIView):
         district_name = data.get("district")
         taluka_name = data.get("taluka")
         city_village_name = data.get("city_village")
+        ward_name = data.get("ward")
         
 
         if search_key == "glob":
@@ -1792,6 +1792,7 @@ class ResidentialSearchView(APIView):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]
@@ -1813,6 +1814,7 @@ class ResidentialSearchView(APIView):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]
@@ -1836,6 +1838,7 @@ class ResidentialSearchView(APIView):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]
@@ -1861,6 +1864,7 @@ class ResidentialSearchView(APIView):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]
@@ -1888,6 +1892,7 @@ class ResidentialSearchView(APIView):
                     "district": DistrictIdNameSerializer(obj).data,
                     "taluka": None,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]
@@ -1917,6 +1922,7 @@ class ResidentialSearchView(APIView):
                     "district": DistrictIdNameSerializer(obj.district).data,
                     "taluka": TalukaIdNameSerializer(obj).data,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]
@@ -1948,6 +1954,41 @@ class ResidentialSearchView(APIView):
                     "district": DistrictIdNameSerializer(obj.taluka.district).data,
                     "taluka": TalukaIdNameSerializer(obj.taluka).data,
                     "city_village": CityVillageIdNameSerializer(obj).data,
+                    "ward": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "ward":
+            qs = Ward.objects.all()
+            if ward_name:
+                qs = qs.filter(name__icontains=ward_name)
+            if city_village_name:
+                qs = qs.filter(city_village__name__icontains=city_village_name)
+            if taluka_name:
+                qs = qs.filter(city_village__taluka__name__icontains=taluka_name)
+            if district_name:
+                qs = qs.filter(city_village__taluka__district__name__icontains=district_name)
+            if state_name:
+                qs = qs.filter(city_village__taluka__district__state__name__icontains=state_name)
+            if country_name:
+                qs = qs.filter(city_village__taluka__district__state__country__name__icontains=country_name)
+            if continent_name:
+                qs = qs.filter(city_village__taluka__district__state__country__continent__name__icontains=continent_name)
+            if glob_name:
+                qs = qs.filter(city_village__taluka__district__state__country__continent__glob__name__icontains=glob_name)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.city_village).data,
+                    "ward": WardIdNameSerializer(obj).data
                 }
                 for obj in qs
             ]
@@ -1964,6 +2005,7 @@ class ResidentialSearchView(APIView):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
+                    "ward": None
                 }
                 for obj in qs
             ]

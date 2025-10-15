@@ -650,6 +650,7 @@ class ResidentialSearchInputSerializer(serializers.Serializer):
     district = serializers.CharField(required=False, allow_blank=True)
     taluka = serializers.CharField(required=False, allow_blank=True)
     city_village = serializers.CharField(required=False, allow_blank=True)
+    ward = serializers.CharField(required=False, allow_blank=True)
     search_key = serializers.CharField(required=False, allow_blank=True)
 
 class GlobIdNameSerializer(serializers.ModelSerializer):
@@ -686,6 +687,11 @@ class CityVillageIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = CityVillage
         fields = ["id", "name"]
+
+class WardIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ward
+        fields = ["id", "name"]
     
 # Residential Unified Output Serializer (always same structure)
 class ResidentialOutputSerializer(serializers.Serializer):
@@ -696,6 +702,7 @@ class ResidentialOutputSerializer(serializers.Serializer):
     district = DistrictIdNameSerializer(allow_null=True)
     taluka = TalukaIdNameSerializer(allow_null=True)
     city_village = CityVillageIdNameSerializer(allow_null=True)
+    ward = WardIdNameSerializer(allow_null=True)
 
 class FileUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
