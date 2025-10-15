@@ -263,7 +263,7 @@ class Relation(models.Model):
     relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
-    custom_post_no = models.CharField("Post Number", max_length=10, null=True, blank=True)
+    custom_post_no = models.FloatField("Post Number", null=True, blank=True)
     # to_user_name = models.CharField("Real Name", max_length=50)
     # to_user_pet_name = models.CharField("Pet Name", max_length=50)
     # to_user_father_name = models.CharField("Father Name", max_length=50)
@@ -297,7 +297,7 @@ class Document(models.Model):
 class ProfessionalDetail(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     section = models.ForeignKey(configm.Section, on_delete=models.SET_NULL, null=True, blank=True)
-    classs = models.ForeignKey(configm.Class, on_delete=models.SET_NULL, null=True, blank=True)
+    profclass = models.ForeignKey(configm.Class, on_delete=models.SET_NULL, null=True, blank=True)
     category = models.ForeignKey(configm.ProfCategory, on_delete=models.SET_NULL, null=True, blank=True)
     subcategory = models.ForeignKey(configm.ProfSubCategory, on_delete=models.SET_NULL, null=True, blank=True)
     sector = models.ForeignKey(configm.Sector, on_delete=models.SET_NULL, null=True, blank=True)
@@ -307,7 +307,6 @@ class ProfessionalDetail(models.Model):
     type = models.ForeignKey(configm.Type, on_delete=models.SET_NULL, null=True, blank=True)
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
     postmodel = models.ForeignKey(configm.PostModel, on_delete=models.SET_NULL, null=True, blank=True)
-    designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
     pay_scale = models.CharField("Pay Scale", max_length=20)
     mfg_dt_time = models.DateTimeField("MFG Date & Time")
     mfg_life = models.CharField("MFG Life", max_length=20)
@@ -315,7 +314,7 @@ class ProfessionalDetail(models.Model):
 
     def save(self, *args, **kwargs):
         self.professional_code = f"{self.section.code if self.section else '00'}-" \
-                             f"{self.classs.code if self.classs else '00'}-" \
+                             f"{self.profclass.code if self.profclass else '00'}-" \
                              f"{self.category.code if self.category else '00'}-" \
                              f"{self.subcategory.code if self.subcategory else '00'}-" \
                              f"{self.sector.code if self.sector else '00'}-" \
