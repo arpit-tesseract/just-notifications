@@ -4,8 +4,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from .serializers import *
-
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated
 
 class LoginWithEmailPasswordView(APIView):
     def post(self, request):
@@ -49,4 +51,42 @@ class LoginWithEmailPasswordView(APIView):
                 "user": serializer.data
             },
             status=status.HTTP_200_OK)
-    
+        
+        
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = LogoutInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        refresh_token = serializer.validated_data.get('refresh')
+
+        # Attempt to blacklist the refresh token
+        try:
+            token = RefreshToken(refresh_token)
+        except (TokenError, InvalidToken):
+            # Invalid or malformed token
+            return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify token belongs to requesting user
+        user_id = int(token.payload.get('user_id'))
+        if user_id != request.user.id:
+            return Response(
+                {"error": "You are not authorized to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            token.blacklist()
+            # if blacklist is successful then return success response
+            return Response(
+                {
+                    "message": "Successfully logged out."
+                }, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            # Token already blacklisted or invalid
+            Response(
+                {"error": "Something went wrong", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )

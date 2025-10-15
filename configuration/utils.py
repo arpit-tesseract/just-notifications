@@ -125,10 +125,17 @@ def normalize_bool(val):
     """Safely convert Excel/CSV boolean values to Python bool."""
     if pd.isna(val):
         return False
-    if isinstance(val, bool):
+    elif isinstance(val, bool):
         return val
-    if isinstance(val, (int, float)):
+    elif isinstance(val, str):
+        if val.strip().lower() in ["TRUE", "True", "true", "1", "yes", "y",]:
+            return True
+        elif val.strip().lower() in ["FALSE", "False", "false", "0", "no", "n"]:
+            return False
+        else:
+            raise ValidationError(f"Invalid boolean value: {val}, value must be either True or False.")
+    elif isinstance(val, (int, float)):
         return bool(val)
-    if isinstance(val, str):
-        return val.strip().lower() in ["true", "1", "yes", "y"]
+    else:
+        raise ValidationError(f"Invalid boolean value: {val}, value must be either True or False.")
     return False

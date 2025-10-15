@@ -7,12 +7,31 @@ from django.apps import apps
 from django.db import transaction
 from rest_framework.validators import UniqueTogetherValidator
 
-# Residential ->
-class GlobSerializer(serializers.ModelSerializer):
+class DynamicFieldsModelSerializer(serializers.ModelSerializer):
+    """
+    Base serializer that allows dynamic exclusion of fields
+    via either context={'exclude_fields': [...]} or argument exclude_fields=[...].
+    """
+    def __init__(self, *args, **kwargs):
+        exclude_fields = kwargs.pop('exclude_fields', None)
+        super().__init__(*args, **kwargs)
+
+        if exclude_fields is None:
+            exclude_fields = self.context.get('exclude_fields', [])
+
+        for field in exclude_fields:
+            self.fields.pop(field, None)
+
+
+# =================================================
+# Residential 
+# =================================================
+class GlobSerializer(DynamicFieldsModelSerializer):
     class Meta:
         model = Glob
         fields = '__all__'
         read_only_fields = ['id']
+    
 
 
 class ContinentSerializer(serializers.ModelSerializer):
@@ -29,12 +48,19 @@ class ContinentSerializer(serializers.ModelSerializer):
         ]
 
 
-class ContinentDetailSerializer(serializers.ModelSerializer):
-    glob = GlobSerializer()
+class ContinentDetailSerializer(DynamicFieldsModelSerializer):
+    glob = serializers.SerializerMethodField()
     class Meta:
         model = Continent
         fields = '__all__'
         read_only_fields = ['id']
+    
+    def get_glob(self, obj):
+        serializer = GlobSerializer(
+            obj.glob,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -50,12 +76,19 @@ class CountrySerializer(serializers.ModelSerializer):
             )
         ]
 
-class CountryDetailSerializer(serializers.ModelSerializer):
-    continent = ContinentDetailSerializer()
+class CountryDetailSerializer(DynamicFieldsModelSerializer):
+    continent = serializers.SerializerMethodField()
     class Meta:
         model = Country
         fields = '__all__'
         read_only_fields = [f for f in Country._meta.fields]
+    
+    def get_continent(self, obj):
+        serializer = ContinentDetailSerializer(
+            obj.continent,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class StateSerializer(serializers.ModelSerializer):
@@ -72,12 +105,19 @@ class StateSerializer(serializers.ModelSerializer):
         ]
 
 
-class StateDetailSerializer(serializers.ModelSerializer):
-    country = CountryDetailSerializer()
+class StateDetailSerializer(DynamicFieldsModelSerializer):
+    country = serializers.SerializerMethodField()
     class Meta:
         model = State
         fields = '__all__'
         read_only_fields = [f for f in State._meta.fields]
+    
+    def get_country(self, obj):
+        serializer = CountryDetailSerializer(
+            obj.country,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
     
     
 class DistrictSerializer(serializers.ModelSerializer):
@@ -94,12 +134,19 @@ class DistrictSerializer(serializers.ModelSerializer):
         ]
 
 
-class DistrictDetailSerializer(serializers.ModelSerializer):
-    state = StateDetailSerializer()
+class DistrictDetailSerializer(DynamicFieldsModelSerializer):
+    state = serializers.SerializerMethodField()
     class Meta:
         model = District
         fields = '__all__'
         read_only_fields = [f for f in District._meta.fields]
+    
+    def get_state(self, obj):
+        serializer = StateDetailSerializer(
+            obj.state,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class TalukaSerializer(serializers.ModelSerializer):
@@ -116,12 +163,19 @@ class TalukaSerializer(serializers.ModelSerializer):
         ]
 
 
-class TalukaDetailSerializer(serializers.ModelSerializer):
-    district = DistrictDetailSerializer()
+class TalukaDetailSerializer(DynamicFieldsModelSerializer):
+    district = serializers.SerializerMethodField()
     class Meta:
         model = Taluka
         fields = '__all__'
         read_only_fields = [f for f in Taluka._meta.fields]
+    
+    def get_district(self, obj):
+        serializer = DistrictDetailSerializer(
+            obj.district,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class CityVillageSerializer(serializers.ModelSerializer):
@@ -138,12 +192,19 @@ class CityVillageSerializer(serializers.ModelSerializer):
         ]
 
 
-class CityVillageDetailSerializer(serializers.ModelSerializer):
-    taluka = TalukaDetailSerializer()
+class CityVillageDetailSerializer(DynamicFieldsModelSerializer):
+    taluka = serializers.SerializerMethodField()
     class Meta:
         model = CityVillage
         fields = '__all__'
         read_only_fields = [f for f in CityVillage._meta.fields]
+    
+    def get_taluka(self, obj):
+        serializer = TalukaDetailSerializer(
+            obj.taluka,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
     
 class WardSerializer(serializers.ModelSerializer):
@@ -160,16 +221,31 @@ class WardSerializer(serializers.ModelSerializer):
         ]
 
 
-class WardDetailSerializer(serializers.ModelSerializer):
-    city_village = CityVillageDetailSerializer()
+class WardDetailSerializer(DynamicFieldsModelSerializer):
+    city_village = serializers.SerializerMethodField()
     class Meta:
         model = Ward
         fields = '__all__'
         read_only_fields = [f for f in Ward._meta.fields]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure our method field overrides model FK field
+        self.fields['city_village'] = serializers.SerializerMethodField()
+    
+    def get_city_village(self, obj):
+        if not obj.city_village:
+            return None
+        serializer = CityVillageDetailSerializer(
+            obj.city_village,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
-
-# Personal ->
-class ReligionSerializer(serializers.ModelSerializer):
+# ======================================================
+# Personal 
+# ======================================================
+class ReligionSerializer(DynamicFieldsModelSerializer):
     class Meta:
         model = Religion
         fields = '__all__'
@@ -182,12 +258,19 @@ class SampradaySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class SampradayDetailSerializer(serializers.ModelSerializer):
-    religion = ReligionSerializer()
+class SampradayDetailSerializer(DynamicFieldsModelSerializer):
+    religion = serializers.SerializerMethodField()
     class Meta:
         model = Sampraday
         fields = '__all__'
         read_only_fields = [f for f in Sampraday._meta.fields]
+    
+    def get_religion(self, obj):
+        serializer = ReligionSerializer(
+            obj.religion,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class PanthSerializer(serializers.ModelSerializer):
@@ -196,12 +279,19 @@ class PanthSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
         
-class PanthDetailSerializer(serializers.ModelSerializer):
-    sampraday = SampradayDetailSerializer()
+class PanthDetailSerializer(DynamicFieldsModelSerializer):
+    sampraday = serializers.SerializerMethodField()
     class Meta:
         model = Panth
         fields = '__all__'
         read_only_fields = [f for f in Panth._meta.fields]
+    
+    def get_sampraday(self, obj):
+        serializer = SampradayDetailSerializer(
+            obj.sampraday,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class VarnaSerializer(serializers.ModelSerializer):
@@ -210,12 +300,19 @@ class VarnaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class VarnaDetailSerializer(serializers.ModelSerializer):
-    panth = PanthDetailSerializer()
+class VarnaDetailSerializer(DynamicFieldsModelSerializer):
+    panth = serializers.SerializerMethodField()
     class Meta:
         model = Varna
         fields = '__all__'
         read_only_fields = [f for f in Varna._meta.fields]
+    
+    def get_panth(self, obj):
+        serializer = PanthDetailSerializer(
+            obj.panth,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class CasteSerializer(serializers.ModelSerializer):
@@ -224,12 +321,19 @@ class CasteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class CasteDetailSerializer(serializers.ModelSerializer):
-    varna = VarnaDetailSerializer()
+class CasteDetailSerializer(DynamicFieldsModelSerializer):
+    varna = serializers.SerializerMethodField()
     class Meta:
         model = Caste
         fields = '__all__'
         read_only_fields = [f for f in Caste._meta.fields]
+    
+    def get_varna(self, obj):
+        serializer = VarnaDetailSerializer(
+            obj.varna,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class SubCasteSerializer(serializers.ModelSerializer):
@@ -238,12 +342,19 @@ class SubCasteSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class SubCasteDetailSerializer(serializers.ModelSerializer):
-    caste = CasteDetailSerializer()
+class SubCasteDetailSerializer(DynamicFieldsModelSerializer):
+    caste = serializers.SerializerMethodField()
     class Meta:
         model = SubCaste
         fields = '__all__'
         read_only_fields = [f for f in SubCaste._meta.fields]
+    
+    def get_caste(self, obj):
+        serializer = CasteDetailSerializer(
+            obj.caste,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
     
     
 class GotraSerializer(serializers.ModelSerializer):
@@ -252,12 +363,19 @@ class GotraSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class GotraDetailSerializer(serializers.ModelSerializer):
-    subcaste = SubCasteDetailSerializer()
+class GotraDetailSerializer(DynamicFieldsModelSerializer):
+    subcaste = serializers.SerializerMethodField()
     class Meta:
         model = Gotra
         fields = '__all__'
         read_only_fields = [f for f in Gotra._meta.fields]
+    
+    def get_subcaste(self, obj):
+        serializer = SubCasteDetailSerializer(
+            obj.subcaste,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class SubGotraSerializer(serializers.ModelSerializer):
@@ -266,12 +384,19 @@ class SubGotraSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class SubGotraDetailSerializer(serializers.ModelSerializer):
-    gotra = GotraDetailSerializer()
+class SubGotraDetailSerializer(DynamicFieldsModelSerializer):
+    gotra = serializers.SerializerMethodField()
     class Meta:
         model = SubGotra
         fields = '__all__'
         read_only_fields = [f for f in SubGotra._meta.fields]
+    
+    def get_gotra(self, obj):
+        serializer = GotraDetailSerializer(
+            obj.gotra,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class KulSerializer(serializers.ModelSerializer):
@@ -280,12 +405,19 @@ class KulSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class KulDetailSerializer(serializers.ModelSerializer):
-    subgotra = SubGotraDetailSerializer()
+class KulDetailSerializer(DynamicFieldsModelSerializer):
+    subgotra = serializers.SerializerMethodField()
     class Meta:
         model = Kul
         fields = '__all__'
         read_only_fields = [f for f in Kul._meta.fields]
+    
+    def get_subgotra(self, obj):
+        serializer = SubGotraDetailSerializer(
+            obj.subgotra,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
         
 
 class VanshSerializer(serializers.ModelSerializer):
@@ -294,12 +426,19 @@ class VanshSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class VanshDetailSerializer(serializers.ModelSerializer):
-    kul = KulDetailSerializer()
+class VanshDetailSerializer(DynamicFieldsModelSerializer):
+    kul = serializers.SerializerMethodField()
     class Meta:
         model = Vansh
         fields = '__all__'
         read_only_fields = [f for f in Vansh._meta.fields]
+    
+    def get_kul(self, obj):
+        serializer = KulDetailSerializer(
+            obj.kul,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
         
 
 class FamilySerializer(serializers.ModelSerializer):
@@ -308,12 +447,19 @@ class FamilySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class FamilyDetailSerializer(serializers.ModelSerializer):
-    vansh = VanshDetailSerializer()
+class FamilyDetailSerializer(DynamicFieldsModelSerializer):
+    vansh = serializers.SerializerMethodField()
     class Meta:
         model = Family
         fields = '__all__'
         read_only_fields = [f for f in Family._meta.fields]
+    
+    def get_vansh(self, obj):
+        serializer = VanshDetailSerializer(
+            obj.vansh,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class PidhiSerializer(serializers.ModelSerializer):
@@ -322,16 +468,24 @@ class PidhiSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class PidhiDetailSerializer(serializers.ModelSerializer):
-    family = FamilyDetailSerializer()
+class PidhiDetailSerializer(DynamicFieldsModelSerializer):
+    family = serializers.SerializerMethodField()
     class Meta:
         model = Pidhi
         fields = '__all__'
         read_only_fields = [f for f in Pidhi._meta.fields]
+    
+    def get_family(self, obj):
+        serializer = FamilyDetailSerializer(
+            obj.family,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
-
-# Professional ->
-class SectionSerializer(serializers.ModelSerializer):
+# ===================================================
+# Professional 
+# ===================================================
+class SectionSerializer(DynamicFieldsModelSerializer):
     class Meta:
         model = Section
         fields = '__all__'
@@ -344,12 +498,19 @@ class ClassSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class ClassDetailSerializer(serializers.ModelSerializer):
-    section = SectionSerializer()
+class ClassDetailSerializer(DynamicFieldsModelSerializer):
+    section = serializers.SerializerMethodField()
     class Meta:
         model = Class
         fields = '__all__'
         read_only_fields = [f for f in Class._meta.fields]
+    
+    def get_section(self, obj):
+        serializer = SectionSerializer(
+            obj.section,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class ProfCategorySerializer(serializers.ModelSerializer):
@@ -358,12 +519,19 @@ class ProfCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class ProfCategoryDetailSerializer(serializers.ModelSerializer):
-    profclass = ClassDetailSerializer()
+class ProfCategoryDetailSerializer(DynamicFieldsModelSerializer):
+    profclass = serializers.SerializerMethodField()
     class Meta:
         model = ProfCategory
         fields = '__all__'
         read_only_fields = [f for f in ProfCategory._meta.fields]
+    
+    def get_profclass(self, obj):
+        serializer = ClassDetailSerializer(
+            obj.profclass,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
         
 
 
@@ -373,13 +541,20 @@ class ProfSubCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class ProfSubCategoryDetailSerializer(serializers.ModelSerializer):
-    category = ProfCategoryDetailSerializer()
+class ProfSubCategoryDetailSerializer(DynamicFieldsModelSerializer):
+    category = serializers.SerializerMethodField()
     class Meta:
         model = ProfSubCategory
         fields = '__all__'
         read_only_fields = [f for f in ProfSubCategory._meta.fields]
-
+    
+    def get_category(self, obj):
+        serializer = ProfCategoryDetailSerializer(
+            obj.category,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+    
     
 class SectorSerializer(serializers.ModelSerializer):
     class Meta:
@@ -387,12 +562,19 @@ class SectorSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class SectorDetailSerializer(serializers.ModelSerializer):
-    subcategory = ProfSubCategoryDetailSerializer()
+class SectorDetailSerializer(DynamicFieldsModelSerializer):
+    subcategory = serializers.SerializerMethodField()
     class Meta:
         model = Sector
         fields = '__all__'
         read_only_fields = [f for f in Sector._meta.fields]
+    
+    def get_subcategory(self, obj):
+        serializer = ProfSubCategoryDetailSerializer(
+            obj.subcategory,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class SubSectorSerializer(serializers.ModelSerializer):
@@ -401,12 +583,19 @@ class SubSectorSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class SubSectorDetailSerializer(serializers.ModelSerializer):
-    sector = SectorDetailSerializer()
+class SubSectorDetailSerializer(DynamicFieldsModelSerializer):
+    sector = serializers.SerializerMethodField()
     class Meta:
         model = SubSector
         fields = '__all__'
         read_only_fields = [f for f in SubSector._meta.fields]
+    
+    def get_sector(self, obj):
+        serializer = SectorDetailSerializer(
+            obj.sector,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -415,12 +604,19 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class DepartmentDetailSerializer(serializers.ModelSerializer):
-    subsector = SubSectorDetailSerializer()
+class DepartmentDetailSerializer(DynamicFieldsModelSerializer):
+    subsector = serializers.SerializerMethodField()
     class Meta:
         model = Department
         fields = '__all__'
         read_only_fields = [f for f in Department._meta.fields]
+    
+    def get_subsector(self, obj):
+        serializer = SubSectorDetailSerializer(
+            obj.subsector,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class SubDepartmentSerializer(serializers.ModelSerializer):
@@ -429,12 +625,19 @@ class SubDepartmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class SubDepartmentDetailSerializer(serializers.ModelSerializer):
-    department = DepartmentDetailSerializer()
+class SubDepartmentDetailSerializer(DynamicFieldsModelSerializer):
+    department = serializers.SerializerMethodField()
     class Meta:
         model = SubDepartment
         fields = '__all__'
         read_only_fields = [f for f in SubDepartment._meta.fields]
+    
+    def get_department(self, obj):
+        serializer = DepartmentDetailSerializer(
+            obj.department,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class TypeSerializer(serializers.ModelSerializer):
@@ -443,12 +646,19 @@ class TypeSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class TypeDetailSerializer(serializers.ModelSerializer):
-    subdepartment = SubDepartmentDetailSerializer()
+class TypeDetailSerializer(DynamicFieldsModelSerializer):
+    subdepartment = serializers.SerializerMethodField()
     class Meta:
         model = Type
         fields = '__all__'
         read_only_fields = [f for f in Type._meta.fields]
+    
+    def get_subdepartment(self, obj):
+        serializer = SubDepartmentDetailSerializer(
+            obj.subdepartment,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class BrandSerializer(serializers.ModelSerializer):
@@ -457,12 +667,19 @@ class BrandSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class BrandDetailSerializer(serializers.ModelSerializer):
-    type = TypeDetailSerializer()
+class BrandDetailSerializer(DynamicFieldsModelSerializer):
+    type = serializers.SerializerMethodField()
     class Meta:
         model = Brand
         fields = '__all__'
         read_only_fields = [f for f in Brand._meta.fields]
+    
+    def get_type(self, obj):
+        serializer = TypeDetailSerializer(
+            obj.type,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class PostModelSerializer(serializers.ModelSerializer):
@@ -471,12 +688,19 @@ class PostModelSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
-class PostModelDetailSerializer(serializers.ModelSerializer):
-    brand = BrandDetailSerializer()
+class PostModelDetailSerializer(DynamicFieldsModelSerializer):
+    brand = serializers.SerializerMethodField()
     class Meta:
         model = PostModel
         fields = '__all__'
-        read_only_fields = [f for f in PostModel._meta.fields]
+        read_only_fields = [f.name for f in PostModel._meta.fields]
+    
+    def get_brand(self, obj):
+        serializer = BrandDetailSerializer(
+            obj.brand,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
 
 
 class RoomFlashSerializer(serializers.ModelSerializer):
@@ -486,9 +710,7 @@ class RoomFlashSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
-
 class ModelNameSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = ModelName
         fields = ['id', 'model', 'technical_name']
@@ -621,7 +843,6 @@ class ModelAndRecordRuleAccessOutputSerializer(serializers.Serializer):
         result = []
 
         for model_access in model_accesses:
-            print(user_obj, model_access)
             try:
                 record_rule = RecordRule.objects.get(
                     user=user_obj, model=model_access.model
@@ -706,3 +927,176 @@ class ResidentialOutputSerializer(serializers.Serializer):
 
 class FileUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
+    
+
+class ReligionIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Religion
+        fields = ["id", "name"]
+
+class SampradayIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sampraday
+        fields = ["id", "name"]
+
+class PanthIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Panth
+        fields = ["id", "name"]
+
+class VarnaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Varna
+        fields = ["id", "name"]
+
+class CasteIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Caste
+        fields = ["id", "name"]
+
+class SubCasteIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubCaste
+        fields = ["id", "name"]
+
+class GotraIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gotra
+        fields = ["id", "name"]
+
+class SubGotraIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubGotra
+        fields = ["id", "name"]
+
+class KulIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Kul
+        fields = ["id", "name"]
+
+class VanshIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vansh
+        fields = ["id", "name"]
+
+class FamilyIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Family
+        fields = ["id", "name"]
+
+class PidhiIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pidhi
+        fields = ["id", "name"]
+
+class PersonalInputSerializer(serializers.Serializer):
+    religion = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sampraday = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    panth = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    varna = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    caste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    subcaste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    gotra = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    subgotra = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    kul = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    vansh = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    family = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    pidhi = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+class PersonalOutputSerializer(serializers.Serializer):
+    religion = ReligionIdNameSerializer(allow_null=True)
+    sampraday = SampradayIdNameSerializer(allow_null=True)
+    panth = PanthIdNameSerializer(allow_null=True)
+    varna = VarnaIdNameSerializer(allow_null=True)
+    caste = CasteIdNameSerializer(allow_null=True)
+    subcaste = SubCasteIdNameSerializer(allow_null=True)
+    gotra = GotraIdNameSerializer(allow_null=True)
+    subgotra = SubGotraIdNameSerializer(allow_null=True)
+    kul = KulIdNameSerializer(allow_null=True)
+    vansh = VanshIdNameSerializer(allow_null=True)
+    family = FamilyIdNameSerializer(allow_null=True)
+    pidhi = PidhiIdNameSerializer(allow_null=True)
+
+
+class SectionIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Section
+        fields = ["id", "name"]
+
+class ClassIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Class
+        fields = ["id", "name"]
+
+class ProfCategoryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfCategory
+        fields = ["id", "name"]
+
+class ProfSubCategoryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfSubCategory
+        fields = ["id", "name"]
+
+class SectorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sector
+        fields = ["id", "name"]
+
+class SubSectorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubSector
+        fields = ["id", "name"]
+
+class DepartmentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ["id", "name"]
+
+class SubDepartmentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubDepartment
+        fields = ["id", "name"]
+
+class TypeIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Type
+        fields = ["id", "name"]
+
+class BrandIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ["id", "name"]
+
+class PostModelIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PostModel
+        fields = ["id", "name"]
+
+class ProfessionalInputSerializer(serializers.Serializer):
+    section = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    profclass = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    category = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    subcategory = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    sector = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    subsector = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    department = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    subdepartment = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    type = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    brand = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    postmodel = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+class ProfessionalOutputSerializer(serializers.Serializer):
+    section = SectionIdNameSerializer(allow_null=True)
+    profclass = ClassIdNameSerializer(allow_null=True)
+    category = ProfCategoryIdNameSerializer(allow_null=True)
+    subcategory = ProfSubCategoryIdNameSerializer(allow_null=True)
+    sector = SectorIdNameSerializer(allow_null=True)
+    subsector = SubSectorIdNameSerializer(allow_null=True)
+    department = DepartmentIdNameSerializer(allow_null=True)
+    subdepartment = SubDepartmentIdNameSerializer(allow_null=True)
+    type = TypeIdNameSerializer(allow_null=True)
+    brand = BrandIdNameSerializer(allow_null=True)
+    postmodel = PostModelIdNameSerializer(allow_null=True)

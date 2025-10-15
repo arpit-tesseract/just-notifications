@@ -21,5 +21,19 @@ class CustomUserBasicDetailsOutputSerializer(serializers.ModelSerializer):
     # designation = DesignationSerializer(many=False)
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'user_role', 'is_super_admin',]
-        read_only_fields = ['id', 'email', 'user_role', 'is_super_admin']
+        fields = [
+            'id',
+            'email',
+            'contact_no',
+            'full_name',
+            'pet_name',
+            'father_name',
+            'photo',
+            'date_of_birth',
+            'blood_group',
+            'user_role',
+        ]
+
+class LogoutInputSerializer(serializers.Serializer):
+    # access = serializers.CharField(write_only=True)
+    refresh = serializers.CharField(write_only=True)
