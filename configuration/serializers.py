@@ -1107,3 +1107,8 @@ class DesignationSerializer(serializers.ModelSerializer):
         model = Designation
         fields = "__all__"
         read_only_fields = ["id"]
+
+class DesignationIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = ["id", "display_name"]

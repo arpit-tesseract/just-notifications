@@ -42,39 +42,6 @@ router.register(r'designations', DesignationViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('globs/', GlobListView.as_view()),
-    path('continents/', ContinentListView.as_view()),
-    path('countries/', CountryListView.as_view()),
-    path('states/', StateListView.as_view()),
-    path('districts/', DistrictListView.as_view()),
-    path('talukas/', TalukaListView.as_view()),
-    path('cityvillages/', CityVillageListView.as_view()),
-    path('wards/', WardListView.as_view()),
-    
-    path('religions/', ReligionListView.as_view()),
-    path('sampradays/', SampradayListView.as_view()),
-    path('panths/', PanthListView.as_view()),
-    path('varnas/', VarnaListView.as_view()),
-    path('castes/', CasteListView.as_view()),
-    path('subcastes/', SubCasteListView.as_view()),
-    path('gotras/', GotraListView.as_view()),
-    path('subgotras/', SubGotraListView.as_view()),
-    path('kuls/', KulListView.as_view()),
-    path('vanshes/', VanshListView.as_view()),
-    path('families/', FamilyListView.as_view()),
-    path('pidhis/', PidhiListView.as_view()),
-    
-    path('sections/', SectionListView.as_view()),
-    path('classes/', ClassListView.as_view()),
-    path('profCategories/', ProfCategoryListView.as_view()),
-    path('profSubCategories/', ProfSubCategoryListView.as_view()),
-    path('types/', TypeListView.as_view()),
-    path('brands/', BrandListView.as_view()),
-    path('postmodeles/', PostModelListView.as_view()),
-    path('sectors/', SectorListView.as_view()),
-    path('subsectors/', SubSectorListView.as_view()),
-    path('departments/', DepartmentListView.as_view()),
-    path('subdepartments/', SubDepartmentListView.as_view()),
     
     path('upload/globs/', UploadGlobsView.as_view()),
     path('upload/continents/', UploadContinentsView.as_view()),
@@ -119,4 +86,5 @@ urlpatterns = [
     path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
     
+    path("designation_lst/", DesignationListView.as_view(), name="designation_lst"),
 ]

@@ -1,26 +1,18 @@
 from django.shortcuts import render, get_object_or_404
-import pandas as pd
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from .models import *
-from configuration.serializers import *
-
-from shashan.utils.validators import get_related_queryset
-from rest_framework.decorators import api_view, permission_classes
-
+from rest_framework.permissions import IsAuthenticated
 from .permissions import HasModelAccessPermission
-from .mixins import FilteredQuerysetMixin, RecordRuleMixin, SearchMixin
-from django.utils import timezone
-from django.db.models import Q
+from .utils import read_file, normalize_bool, get_regular_query, calculate_hidden_hold
+from .mixins import FilteredQuerysetMixin, RecordRuleMixin
+from configuration.serializers import *
+from .models import *
+import pandas as pd
 
-from rest_framework.decorators import action
-
-from .utils import read_file, normalize_bool
 # CRUD Views
 # ========================================
 # Residential 
@@ -34,23 +26,18 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-
-class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Glob.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
+        return get_regular_query(self.model)
+
+# class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     def get_base_queryset(self):
+#         return get_regular_query(Glob)
     
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = GlobSerializer(queryset, many=True)
-        return Response(serializer.data)
+#     def get(self, request):
+#         queryset = self.get_result_queryset()   # search applied automatically
+#         serializer = GlobIdNameSerializer(queryset, many=True)
+#         return Response(serializer.data)
 # GlobListView
 #  ├── SearchMixin
 #  │    └── super().get_queryset()
@@ -74,29 +61,14 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return ContinentSerializer   # For POST, PUT, PATCH
         return ContinentDetailSerializer
-
-class ContinentListView(SearchMixin,APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Continent.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
     
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = ContinentSerializer(queryset, many=True)
-        return Response(serializer.data)
-
 
 class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Country
@@ -109,28 +81,13 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return CountrySerializer   # For POST, PUT, PATCH
         return CountryDetailSerializer
-
-class CountryListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Country.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = CountrySerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -145,29 +102,14 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return StateSerializer   # For POST, PUT, PATCH
         print(True)
         return StateDetailSerializer
-
-class StateListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return State.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = StateSerializer(queryset, many=True)
-        return Response(serializer.data)
    
    
 class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -183,28 +125,13 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return DistrictSerializer   # For POST, PUT, PATCH
         return DistrictDetailSerializer
-
-class DistrictListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return District.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = DistrictSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -221,28 +148,13 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return TalukaSerializer   # For POST, PUT, PATCH
         return TalukaDetailSerializer
-
-class TalukaListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Taluka.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = TalukaSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -260,28 +172,13 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return CityVillageSerializer   # For POST, PUT, PATCH
         return CityVillageDetailSerializer
-
-class CityVillageListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return CityVillage.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = CityVillageSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -300,28 +197,13 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return WardSerializer   # For POST, PUT, PATCH
         return WardDetailSerializer
-
-class WardListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Ward.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = WardSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 
@@ -337,24 +219,9 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    
-class ReligionListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     def get_base_queryset(self):
-        today = timezone.now().date()
+        return get_regular_query(self.model)
         
-        return Religion.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = ReligionSerializer(queryset, many=True)
-        return Response(serializer.data)
-    
     
 class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Sampraday
@@ -365,29 +232,14 @@ class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'religion': 'religion__id',
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
-    } 
+    }
+    def get_base_queryset(self):
+        return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SampradaySerializer   # For POST, PUT, PATCH
         return SampradayDetailSerializer 
-
-class SampradayListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Sampraday.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )     
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SampradaySerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -401,28 +253,13 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return PanthSerializer   # For POST, PUT, PATCH
         return PanthDetailSerializer
-
-class PanthListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Panth.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = PanthSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -437,28 +274,13 @@ class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return VarnaSerializer   # For POST, PUT, PATCH
         return VarnaDetailSerializer
-
-class VarnaListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Varna.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = VarnaSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -474,28 +296,13 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return CasteSerializer   # For POST, PUT, PATCH
         return CasteDetailSerializer
-
-class CasteListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Caste.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = CasteSerializer(queryset, many=True)
-        return Response(serializer.data)
     
     
 class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -512,28 +319,13 @@ class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SubCasteSerializer   # For POST, PUT, PATCH
         return SubCasteDetailSerializer
-
-class SubCasteListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return SubCaste.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SubCasteSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -551,28 +343,13 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return GotraSerializer   # For POST, PUT, PATCH
         return GotraDetailSerializer
-
-class GotraListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Gotra.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = GotraSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -591,28 +368,13 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     } 
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SubGotraSerializer   # For POST, PUT, PATCH
         return SubGotraDetailSerializer 
-
-class SubGotraListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return SubGotra.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SubGotraSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -632,28 +394,13 @@ class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return KulSerializer   # For POST, PUT, PATCH
         return KulDetailSerializer
-
-class KulListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Kul.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = KulSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -674,28 +421,14 @@ class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return VanshSerializer   # For POST, PUT, PATCH
         return VanshDetailSerializer
 
-class VanshListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Vansh.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = VanshSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Family
@@ -716,28 +449,13 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return FamilySerializer   # For POST, PUT, PATCH
         return FamilyDetailSerializer
-
-class FamilyListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Family.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = FamilySerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -759,28 +477,13 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return PidhiSerializer   # For POST, PUT, PATCH
         return PidhiDetailSerializer
-
-class PidhiListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Pidhi.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = PidhiSerializer(queryset, many=True)
-        return Response(serializer.data)
     
     
 # ========================================
@@ -794,29 +497,14 @@ class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     FILTER_FIELDS = {
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
-    }   
+    } 
+    def get_base_queryset(self):
+        return get_regular_query(self.model)  
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SectionSerializer   # For POST, PUT, PATCH
         return SectionSerializer
-
-class SectionListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Section.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SectionSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -829,28 +517,13 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return ClassSerializer   # For POST, PUT, PATCH
         return ClassDetailSerializer
-
-class ClassListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Class.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = ClassSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -864,28 +537,13 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return ProfCategorySerializer   # For POST, PUT, PATCH
         return ProfCategoryDetailSerializer
-
-class ProfCategoryListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return ProfCategory.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = ProfCategorySerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -900,28 +558,13 @@ class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mo
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold' 
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return ProfSubCategorySerializer   # For POST, PUT, PATCH
         return ProfSubCategoryDetailSerializer
-
-class ProfSubCategoryListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return ProfSubCategory.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = ProfSubCategorySerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -937,27 +580,13 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
+    
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SectorSerializer   # For POST, PUT, PATCH
         return SectorDetailSerializer
-
-class SectorListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Sector.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SectorSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -974,28 +603,13 @@ class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SubSectorSerializer   # For POST, PUT, PATCH
         return SubSectorDetailSerializer
-
-class SubSectorListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return SubSector.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SubSectorSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1013,28 +627,13 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return DepartmentSerializer   # For POST, PUT, PATCH
         return DepartmentDetailSerializer
-
-class DepartmentListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Department.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = DepartmentSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1053,28 +652,13 @@ class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mode
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SubDepartmentSerializer   # For POST, PUT, PATCH
         return SubDepartmentDetailSerializer
-
-class SubDepartmentListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return SubDepartment.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = SubDepartmentSerializer(queryset, many=True)
-        return Response(serializer.data)
     
     
 class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1094,28 +678,13 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return TypeSerializer   # For POST, PUT, PATCH
         return TypeDetailSerializer
-
-class TypeListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Type.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = TypeSerializer(queryset, many=True)
-        return Response(serializer.data)
     
 
 class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1136,27 +705,13 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
+    
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return BrandSerializer   # For POST, PUT, PATCH
         return BrandDetailSerializer
-
-class BrandListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Brand.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = BrandSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1178,27 +733,13 @@ class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
+    
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return PostModelSerializer   # For POST, PUT, PATCH
         return PostModelDetailSerializer
-
-class PostModelListView(SearchMixin, APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return PostModel.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
-    
-    def get(self, request):
-        queryset = self.get_result_queryset()   # search applied automatically
-        serializer = PostModelSerializer(queryset, many=True)
-        return Response(serializer.data)
 
 
 class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1252,7 +793,10 @@ class UploadGlobsView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
-
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 name = clean(row.get("glob") or "")
                 code = clean(row.get("code") or "")
@@ -1330,7 +874,10 @@ class UploadContinentsView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
-
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 glob = clean(row.get("glob"))
                 continent = clean(row.get("continent"))
@@ -1415,6 +962,9 @@ class UploadCountriesView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
 
                 # Clean text safely
                 glob = clean(row.get("glob"))
@@ -1505,6 +1055,9 @@ class UploadStatesView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 glob = clean(row.get("glob"))
@@ -1597,6 +1150,9 @@ class UploadDistrictsView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 glob = clean(row.get("glob"))
@@ -1691,6 +1247,9 @@ class UploadTalukasView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 glob = clean(row.get("glob"))
@@ -1789,6 +1348,9 @@ class UploadCityVillagesView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 glob = clean(row.get("glob"))
                 continent = clean(row.get("continent"))
@@ -1886,6 +1448,9 @@ class UploadWardsView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 glob = clean(row.get("glob"))
@@ -2006,6 +1571,9 @@ class UploadReligionView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 religion = clean(row.get("religion"))
                 code = clean(row.get("code"))
@@ -2082,6 +1650,9 @@ class UploadSampradayView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -2169,6 +1740,9 @@ class UploadPanthView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
@@ -2255,6 +1829,9 @@ class UploadVarnaView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -2347,6 +1924,9 @@ class UploadCasteView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -2442,6 +2022,9 @@ class UploadSubCasteView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
@@ -2536,6 +2119,9 @@ class UploadGotraView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -2636,6 +2222,9 @@ class UploadSubGotraView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
@@ -2734,6 +2323,9 @@ class UploadKulView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -2836,6 +2428,9 @@ class UploadVanshView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
@@ -2934,6 +2529,9 @@ class UploadFamilyView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -3039,6 +2637,9 @@ class UploadPidhiView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
@@ -3150,6 +2751,9 @@ class UploadSectionView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 section = clean(row.get("section"))
                 code = clean(row.get("code"))
@@ -3203,7 +2807,7 @@ class UploadClassView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["section", "profclass", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["section", "class", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3228,9 +2832,12 @@ class UploadClassView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 section = clean(row.get("section"))
-                class_name = clean(row.get("profclass"))
+                class_name = clean(row.get("class"))
                 code = clean(row.get("code"))
                 
                 # Skip invalid rows early
@@ -3314,6 +2921,9 @@ class UploadProfCategoryView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
@@ -3333,7 +2943,7 @@ class UploadProfCategoryView(APIView):
                 
                 objs.append(ProfCategory(
                     profclass = class_obj,
-                    category = category,
+                    name = category,
                     code = code,
                     is_hidden = is_hidden,
                     on_hold = on_hold,
@@ -3400,6 +3010,9 @@ class UploadProfSubCategoryView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
@@ -3420,6 +3033,7 @@ class UploadProfSubCategoryView(APIView):
                 
                 objs.append(ProfSubCategory(
                     category = category_obj,
+                    name = subcategory,
                     code = code,
                     is_hidden = is_hidden,
                     on_hold = on_hold,
@@ -3486,6 +3100,9 @@ class UploadSectorView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 section = clean(row.get("section"))
@@ -3575,6 +3192,9 @@ class UploadSubSectorView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
@@ -3663,6 +3283,9 @@ class UploadDepartmentView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 section = clean(row.get("section"))
@@ -3762,6 +3385,9 @@ class UploadSubDepartmentView(APIView):
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
                 # Clean text safely
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
@@ -3859,6 +3485,9 @@ class UploadTypeView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 section = clean(row.get("section"))
@@ -3959,6 +3588,9 @@ class UploadBrandView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 section = clean(row.get("section"))
@@ -4063,6 +3695,9 @@ class UploadPostModelView(APIView):
                 # Normalize boolean fields
                 is_hidden = normalize_bool(row.get("is_hidden"))
                 on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
                 section = clean(row.get("section"))
@@ -4175,9 +3810,10 @@ class ResidentialSearchView(APIView):
         city_village_name = data.get("city_village")
         ward_name = data.get("ward")
         
+        
 
         if search_key == "glob":
-            qs = Glob.objects.all()
+            qs = get_regular_query(Glob)
             if glob_name:
                 qs = qs.filter(name__icontains=glob_name)
             qs = qs[:10]
@@ -4197,7 +3833,7 @@ class ResidentialSearchView(APIView):
             ]
 
         elif search_key == "continent":
-            qs = Continent.objects.all()
+            qs = get_regular_query(Continent)
             if continent_name:
                 qs = qs.filter(name__icontains=continent_name)
             if glob_name:
@@ -4219,7 +3855,7 @@ class ResidentialSearchView(APIView):
             ]
 
         elif search_key == "country":
-            qs = Country.objects.all()
+            qs = get_regular_query(Country)
             if country_name:
                 qs = qs.filter(name__icontains=country_name)
             if continent_name:
@@ -4243,7 +3879,7 @@ class ResidentialSearchView(APIView):
             ]
 
         elif search_key == "state":
-            qs = State.objects.all()
+            qs = get_regular_query(State)
             if state_name:
                 qs = qs.filter(name__icontains=state_name)
             if country_name:
@@ -4269,7 +3905,7 @@ class ResidentialSearchView(APIView):
             ]
 
         elif search_key == "district":
-            qs = District.objects.all()
+            qs = get_regular_query(District)
             if district_name:
                 qs = qs.filter(name__icontains=district_name)
             if state_name:
@@ -4297,7 +3933,7 @@ class ResidentialSearchView(APIView):
             ]
 
         elif search_key == "taluka":
-            qs = Taluka.objects.all()
+            qs = get_regular_query(Taluka)
             if taluka_name:
                 qs = qs.filter(name__icontains=taluka_name)
             if district_name:
@@ -4327,7 +3963,7 @@ class ResidentialSearchView(APIView):
             ]
 
         elif search_key == "city_village":
-            qs = CityVillage.objects.all()
+            qs = get_regular_query(CityVillage)
             if city_village_name:
                 qs = qs.filter(name__icontains=city_village_name)
             if taluka_name:
@@ -4359,7 +3995,7 @@ class ResidentialSearchView(APIView):
             ]
         
         elif search_key == "ward":
-            qs = Ward.objects.all()
+            qs = get_regular_query(Ward)
             if ward_name:
                 qs = qs.filter(name__icontains=ward_name)
             if city_village_name:
@@ -4394,7 +4030,7 @@ class ResidentialSearchView(APIView):
 
         else:
             # fallback → default globs
-            qs = Glob.objects.all()[:10]
+            qs = get_regular_query(Glob)
             results = [
                 {
                     "glob": GlobIdNameSerializer(obj).data,
@@ -4412,8 +4048,7 @@ class ResidentialSearchView(APIView):
         # Return unified response structure
         output = ResidentialOutputSerializer(results, many=True)
         return Response(output.data) 
-
-
+       
 class PersonalSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -4436,8 +4071,10 @@ class PersonalSearchView(APIView):
         family_name = data.get('family')
         pidhi_name = data.get('pidhi')
         
+        
+        
         if search_key == "religion":
-            qs = Religion.objects.all()
+            qs = get_regular_query(Religion)
             if religion_name:
                 qs = qs.filter(name__icontains=religion_name)
             qs = qs[:10]
@@ -4460,7 +4097,7 @@ class PersonalSearchView(APIView):
             ]
 
         elif search_key == "sampraday":
-            qs = Sampraday.objects.all()
+            qs = get_regular_query(Sampraday)
             if sampraday_name:
                 qs = qs.filter(name__icontains=sampraday_name)
             if religion_name:
@@ -4486,7 +4123,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "panth":
-            qs = Panth.objects.all()
+            qs = get_regular_query(Panth)
             if panth_name:
                 qs = qs.filter(name__icontains=panth_name)
             if sampraday_name:
@@ -4514,7 +4151,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "varna":
-            qs = Varna.objects.all()
+            qs = get_regular_query(Varna)
             if varna_name:
                 qs = qs.filter(name__icontains=varna_name)
             if panth_name:
@@ -4545,7 +4182,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "caste":
-            qs = Caste.objects.all()
+            qs = get_regular_query(Caste)
             if caste_name:
                 qs = qs.filter(name__icontains=caste_name)
             if varna_name:
@@ -4578,7 +4215,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "subcaste":
-            qs = SubCaste.objects.all()
+            qs = get_regular_query(SubCaste)
             if subcaste_name:
                 qs = qs.filter(name__icontains=subcaste_name)
             if caste_name:
@@ -4613,7 +4250,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "gotra":
-            qs = Gotra.objects.all()
+            qs = get_regular_query(Gotra)
             if gotra_name:
                 qs = qs.filter(name__icontains=gotra_name)
             if subcaste_name:
@@ -4650,7 +4287,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "subgotra":
-            qs = SubGotra.objects.all()
+            qs = get_regular_query(SubGotra)
             if subgotra_name:
                 qs = qs.filter(name__icontains=subgotra_name)
             if gotra_name:
@@ -4688,7 +4325,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "kul":
-            qs = Kul.objects.all()
+            qs = get_regular_query(Kul)
             if kul_name:
                 qs = qs.filter(name__icontains=kul_name)
             if subgotra_name:
@@ -4728,7 +4365,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "vansh":
-            qs = Vansh.objects.all()
+            qs = get_regular_query(Vansh)
             if vansh_name:
                 qs = qs.filter(name__icontains=vansh_name)
             if kul_name:
@@ -4770,7 +4407,7 @@ class PersonalSearchView(APIView):
             ]  
             
         elif search_key == "family":
-            qs = Family.objects.all()
+            qs = get_regular_query(Family)
             if family_name:
                 qs = qs.filter(name__icontains=family_name)
             if vansh_name:    
@@ -4815,7 +4452,7 @@ class PersonalSearchView(APIView):
 
         
         elif search_key == "pidhi":
-            qs = Pidhi.objects.all()
+            qs = get_regular_query(Pidhi)
             if pidhi_name:
                 qs = qs.filter(name__icontains=pidhi_name)
             if family_name:
@@ -4862,7 +4499,7 @@ class PersonalSearchView(APIView):
         
         else:
             # fallback - default religions
-            qs = Religion.objects.all()[:10]
+            qs = get_regular_query(Religion)
             results = [
                 {
                     "religion": ReligionIdNameSerializer(obj).data,
@@ -4908,8 +4545,9 @@ class ProfessionalSearchView(APIView):
         brand_name = data.get("brand")
         postmodel_name = data.get("postmodel")
         
+        
         if search_key == "section":
-            qs = Section.objects.all()
+            qs = get_regular_query(Section)
             if section_name:
                 qs = qs.filter(name__icontains=section_name)
             qs = qs[:10]
@@ -4932,7 +4570,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "profclass":
-            qs = Class.objects.all()
+            qs = get_regular_query(Class)
             if profclass_name:
                 qs = qs.filter(name__icontains=profclass_name)
             if section_name:
@@ -4957,7 +4595,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "category":
-            qs = ProfCategory.objects.all()
+            qs = get_regular_query(ProfCategory)
             if category_name:
                 qs = qs.filter(name__icontains=category_name)
             if profclass_name:
@@ -4984,7 +4622,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subcategory":
-            qs = ProfSubCategory.objects.all()
+            qs = get_regular_query(ProfSubCategory)
             if subcategory_name:
                 qs = qs.filter(name__icontains=subcategory_name)
             if category_name:
@@ -5013,7 +4651,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "sector":
-            qs = Sector.objects.all()
+            qs = get_regular_query(Sector)
             if sector_name:
                 qs = qs.filter(name__icontains=sector_name)
             if subcategory_name:
@@ -5044,7 +4682,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subsector":
-            qs = SubSector.objects.all()
+            qs = get_regular_query(SubSector)
             if subsector_name:
                 qs = qs.filter(name__icontains=subsector_name)
             if sector_name:
@@ -5077,7 +4715,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "department":
-            qs = Department.objects.all()
+            qs = get_regular_query(Department)
             if department_name:
                 qs = qs.filter(name__icontains=department_name)
             if subsector_name:
@@ -5112,7 +4750,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subdepartment":
-            qs = SubDepartment.objects.all()
+            qs = get_regular_query(SubDepartment)
             if subdepartment_name:
                 qs = qs.filter(name__icontains=subdepartment_name)
             if department_name:
@@ -5149,7 +4787,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "type":
-            qs = Type.objects.all()
+            qs = get_regular_query(Type)
             if type_name:
                 qs = qs.filter(name__icontains=type_name)
             if subdepartment_name:
@@ -5188,7 +4826,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "brand":
-            qs = Brand.objects.all()
+            qs = get_regular_query(Brand)
             if brand_name:
                 qs = qs.filter(name__icontains=brand_name)
             if type_name:
@@ -5229,7 +4867,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "postmodel":
-            qs = PostModel.objects.all()
+            qs = get_regular_query(PostModel)
             if postmodel_name:
                 qs = qs.filter(name__icontains=postmodel_name)
             if brand_name:
@@ -5273,8 +4911,7 @@ class ProfessionalSearchView(APIView):
         
         else:
             # fallback - default sections
-            qs = Section.objects.all()
-            qs = qs[:10]
+            qs = get_regular_query(Section)
             results = [
                 {
                     "section": SectionIdNameSerializer(obj).data,
@@ -5349,21 +4986,27 @@ class ProfessionalSearchView(APIView):
 #         return Response({"message": "Successfully deleted"}, status=status.HTTP_200_OK)
     
 class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Designation
     queryset = Designation.objects.all()
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     serializer_class = DesignationSerializer
     FILTER_FIELDS = {
-        'relation_category': 'relation_category'
+        'category': 'category',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold'
     }
-    
+
+class DesignationListView(RecordRuleMixin, APIView):
+    model = Designation
+    permission_classes = [IsAuthenticated]
     def get_base_queryset(self):
-        today = timezone.now().date()
-        
-        return Designation.objects.filter(
-            is_hidden=False,
-            on_hold=False
-        ).filter(
-            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-        )
+        return get_regular_query(self.model)
     
+    def get(self, request):
+        qs = self.get_base_queryset()
+        category = request.query_params.get('category', None)
+        if category and category != '':
+            qs = qs.filter(category=category)
+        output = DesignationIdNameSerializer(qs, many=True)
+        return Response(output.data, status=status.HTTP_200_OK)
     

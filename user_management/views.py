@@ -8,6 +8,9 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from .serializers import *
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
+from configuration.mixins import RecordRuleMixin
+from configuration.permissions import HasModelAccessPermission
 
 class LoginWithEmailPasswordView(APIView):
     def post(self, request):
@@ -90,3 +93,95 @@ class LogoutView(APIView):
                 {"error": "Something went wrong", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class RegisterationView(RecordRuleMixin, APIView):
+    model = CustomUser
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    @transaction.atomic
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        validated_data = serializer.validated_data
+        relation_category = validated_data.get('relation_category')
+        from_user_details = validated_data.get('from_user_details', None)
+        existing_from_user_id = validated_data.get("existing_from_user_id", None)
+        posts = validated_data.get('posts', None)
+        
+        # create from/main user
+        if from_user_details is not None:
+            from_user_role_obj = from_user_details.pop("user_role_obj", None)
+            from_user_documents = from_user_details.pop("documents", None)
+            from_user_residential_details = from_user_details.pop("residential_details", None)
+            from_user_personal_details = from_user_details.pop("personal_details", None)
+            
+            # create from user
+            from_user_obj = CustomUser.objects.create_user(**from_user_details)
+            from_user_obj.user_role.add(from_user_role_obj)
+            from_user = from_user_obj
+            
+            # create documents
+            if from_user_documents is not None:
+                for document in from_user_documents:
+                    Document.objects.create(user=from_user, **document)
+            
+            # create residential details
+            if from_user_residential_details is not None:
+                ResidentialDetail.objects.create(user=from_user, **from_user_residential_details)
+            
+            # create personal details 
+            if from_user_personal_details is not None:   
+                PersonalDetail.objects.create(user=from_user, **from_user_personal_details)
+                    
+        if existing_from_user_id is not None:
+            from_user = existing_from_user_id
+        
+        for post in posts:
+            to_user_details = post.pop("to_user_details", None)
+            existing_to_user_id = post.pop("existing_to_user_id", None)
+            
+            if to_user_details is not None:
+                to_user_role_obj = to_user_details.pop("user_role_obj", None)
+                to_user_documents = to_user_details.pop("documents", None)
+                to_user_residential_details = to_user_details.pop("residential_details", None)
+                to_user_personal_details = to_user_details.pop("personal_details", None)
+                to_user_custom_post_no = to_user_details.pop("custom_post_no", None)
+                # create to user
+                to_user_obj = CustomUser.objects.create_user(**to_user_details)
+                to_user_obj.user_role.add(to_user_role_obj)
+                to_user = to_user_obj
+                
+                # create documents
+                if to_user_documents is not None:
+                    for document in to_user_documents:
+                        Document.objects.create(user=to_user, **document)
+                
+                # create residential details
+                if to_user_residential_details is not None:
+                    ResidentialDetail.objects.create(user=to_user, **to_user_residential_details)
+                
+                # create personal details 
+                if to_user_personal_details is not None:   
+                    PersonalDetail.objects.create(user=to_user, **to_user_personal_details)
+            
+            if existing_to_user_id is not None:
+                to_user = existing_to_user_id
+            
+            designation = post.pop("designation")
+            relation_obj = Relation.objects.create(
+                from_user=from_user, 
+                relation_category=relation_category, 
+                designation=designation, 
+                to_user=to_user,
+                custom_post_no = to_user_custom_post_no
+            )
+        
+        user_data = CustomUserBasicDetailsOutputSerializer(from_user).data
+        return Response(
+            {
+                "from_user": user_data
+            }, status=status.HTTP_201_CREATED
+        )

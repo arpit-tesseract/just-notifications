@@ -302,7 +302,7 @@ class RecordRule(models.Model):
 # Personal ->
 # -------------------------------------------------------------------------------------------------
 class Religion(HoldableSaveMixin, models.Model):
-    name = models.CharField("Religion", max_length=200, db_index=True)
+    name = models.CharField("Religion", max_length=200, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -479,6 +479,7 @@ class Designation(HoldableSaveMixin, models.Model):
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
     def __str__(self):
         return f"{self.name} (Level {self.post_no})"
     
@@ -492,7 +493,7 @@ class Designation(HoldableSaveMixin, models.Model):
 # Professional ->
 # ----------------------------------------------------------------------------------------------
 class Section(HoldableSaveMixin, models.Model):
-    name = models.CharField("Section", max_length=200, db_index=True)
+    name = models.CharField("Section", max_length=200, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
