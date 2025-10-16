@@ -38,6 +38,8 @@ router.register(r'brands_in_details', BrandViewSet)
 router.register(r'postmodels_in_details', PostModelViewSet)
 router.register(r'roomflashes', RoomFlashViewSet)
 
+router.register(r'designations', DesignationViewSet)
+
 urlpatterns = [
     path('', include(router.urls)),
     path('globs/', GlobListView.as_view()),
@@ -116,4 +118,5 @@ urlpatterns = [
     path("residential_search/", ResidentialSearchView.as_view(), name="search_residential"),
     path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
+    
 ]

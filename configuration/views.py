@@ -5296,5 +5296,74 @@ class ProfessionalSearchView(APIView):
         return Response(output.data, status=status.HTTP_200_OK)
             
                     
-            
-                            
+# class DesignationView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     FILTER_FIELDS = {
+#         'relation_category': 'relation_category'
+#     }
+    
+#     def get_base_queryset(self):
+#         today = timezone.now().date()
+        
+#         return Designation.objects.filter(
+#             is_hidden=False,
+#             on_hold=False
+#         ).filter(
+#             Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+#         )
+    
+#     def get(self, request):
+#         qs = self.get_result_queryset()
+#         output = DesignationSerializer(qs, many=True)
+#         return Response(output.data, status=status.HTTP_200_OK)
+    
+#     def post(self, request):
+#         serializer = DesignationSerializer(data=request.data)
+        
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)                       
+#         serializer.save()
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+#     def put(self, request, pk):
+#         try:
+#             designation_obj = Designation.objects.get(pk=pk)
+#         except Designation.DoesNotExist:
+#             return Response({"error": "Designation does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         serializer = DesignationSerializer(designation_obj, data=request.data)
+        
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+#         serializer.save()
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+
+#     def delete(self, request, pk):
+#         try:
+#             designation_obj = Designation.objects.get(pk=pk)
+#         except Designation.DoesNotExist:
+#             return Response({"error": "Designation does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         designation_obj.delete()
+#         return Response({"message": "Successfully deleted"}, status=status.HTTP_200_OK)
+    
+class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    queryset = Designation.objects.all()
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    serializer_class = DesignationSerializer
+    FILTER_FIELDS = {
+        'relation_category': 'relation_category'
+    }
+    
+    def get_base_queryset(self):
+        today = timezone.now().date()
+        
+        return Designation.objects.filter(
+            is_hidden=False,
+            on_hold=False
+        ).filter(
+            Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+        )
+    
+    
