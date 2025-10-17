@@ -192,4 +192,6 @@ class UserRegistrationSerializer(serializers.Serializer):
             
         return attrs
 
-        
+class UserRegistrationOutPutSerializer(serializers.Serializer):
+    existing_from_user_id = serializers.CharField()
+    posts = serializers.ListField()       
