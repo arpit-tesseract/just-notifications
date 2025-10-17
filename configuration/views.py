@@ -1755,7 +1755,7 @@ class UploadPanthView(APIView):
                     continue
                     
                 try:
-                    sampraday_obj = Sampraday.objects.get(name=religion, sampraday__name=sampraday, sampraday__religion__name=religion)
+                    sampraday_obj = Sampraday.objects.get(name=sampraday, religion__name=religion)
                 except Sampraday.DoesNotExist:
                     invalid_rows.append({"row": idx + 2, "error": f"Sampraday '{sampraday}' not found for religion: {religion}"})
                     continue    
@@ -2662,7 +2662,7 @@ class UploadPidhiView(APIView):
                 
                 try:
                     family_obj = Family.objects.get(
-                        family = family,
+                        name = family,
                         vansh__name = vansh,
                         vansh__kul__name = kul,
                         vansh__kul__subgotra__name = subgotra,
