@@ -139,6 +139,8 @@ class RegisterationView(RecordRuleMixin, APIView):
         if existing_from_user_id is not None:
             from_user = existing_from_user_id
         
+        existing_from_user_id = from_user.id
+        post_lst = []
         for post in posts:
             to_user_details = post.pop("to_user_details", None)
             existing_to_user_id = post.pop("existing_to_user_id", None)
@@ -170,6 +172,7 @@ class RegisterationView(RecordRuleMixin, APIView):
             if existing_to_user_id is not None:
                 to_user = existing_to_user_id
             
+            post_lst.append(to_user.id)
             designation = post.pop("designation")
             relation_obj = Relation.objects.create(
                 from_user=from_user, 
@@ -178,10 +181,13 @@ class RegisterationView(RecordRuleMixin, APIView):
                 to_user=to_user,
                 custom_post_no = to_user_custom_post_no
             )
-        
-        user_data = CustomUserBasicDetailsOutputSerializer(from_user).data
+        data = {
+            "existing_from_user_id": existing_from_user_id,
+            "posts": post_lst
+        }
+        user_data = UserRegistrationOutPutSerializer(data)
         return Response(
             {
-                "from_user": user_data
+                "data":user_data.data
             }, status=status.HTTP_201_CREATED
         )
