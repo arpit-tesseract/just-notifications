@@ -14,10 +14,10 @@ class BaseQueryMixin:
     def get_queryset(self):
         # Use self.queryset if defined
         # Use model if defined
-        if hasattr(self, "model") and self.model is not None:
-            return self.model.objects.all()
         if hasattr(self, "get_base_queryset") and self.get_base_queryset is not None:
             return self.get_base_queryset()
+        if hasattr(self, "model") and self.model is not None:
+            return self.model.objects.all()
         if hasattr(self, "queryset") and self.queryset is not None:
             return self.queryset
         
@@ -177,42 +177,34 @@ class FilteredQuerysetMixin(BaseQueryMixin):
     def get_queryset(self):
         user = self.request.user
         # basw_qs = self.get_safe_queryset()
-        base_qs = super().get_queryset()
-
         if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
-            qs = self._model.objects.all()
-            
-            for param, field in self.FILTER_FIELDS.items():
-                value = self.request.query_params.get(param)
-                if value in ["true", "True", "1"]:
-                    value = True
-                if value in ["false", "False", "0"]:
-                    value = False
-                if value is not None and value is not '':
-                    try: 
-                        qs = qs.filter(**{field: value})
-                    except Exception as e:
-                        # if not a valid field, ignore
-                        continue
-
-            final_qs = qs
+            base_qs = self._model.objects.all()
         else:
-            final_qs = base_qs
+            base_qs = super().get_queryset()
+
+        # if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
+        #     base_qs = self._model.objects.all()
+            
+        for param, field in self.FILTER_FIELDS.items():
+            
+            value = self.request.query_params.get(param)
+            if value in ["true", "True", "1"]:
+                value = True
+            if value in ["false", "False", "0"]:
+                value = False
+                
+            if isinstance(value, bool):
+                if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
+                    base_qs = base_qs.filter(**{field: value})
+                    
+            elif value is not None and value is not '':
+                try: 
+                    base_qs = base_qs.filter(**{field: value})
+                except Exception as e:
+                    # if not a valid field, ignore
+                    continue
         
         # Apply record rules if RecordRuleMixin is used
         # if hasattr(self, "apply_record_rules"):
         #     return self.apply_record_rules(final_qs)
-        return final_qs  
-
-
-class SearchMixin(BaseQueryMixin):
-    search_param = "search"
-    search_limit = 10          # configurable limit
-
-    def get_result_queryset(self):
-        qs = super().get_queryset()
-        search_value = self.request.query_params.get(self.search_param)
-        if search_value:
-            qs = qs.filter(name__icontains=search_value)[: self.search_limit]
-        return qs
-
+        return base_qs  

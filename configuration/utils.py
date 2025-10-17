@@ -1,6 +1,7 @@
 from rest_framework.exceptions import ValidationError
 from configuration.models import ModelAccess, ModelName
 from django.db.models import Q, ForeignKey
+from django.utils import timezone
 
 def check_id_exists(model, id):
     try:
@@ -139,3 +140,27 @@ def normalize_bool(val):
     else:
         raise ValidationError(f"Invalid boolean value: {val}, value must be either True or False.")
     return False
+
+
+def get_regular_query(model):
+    today = timezone.now().date()
+    return model.objects.filter(
+        is_hidden=False,
+        on_hold=False
+    ).filter(
+        Q(hold_date__lte=today) | Q(hold_date__isnull=True)
+    )
+
+def calculate_hidden_hold(is_hidden, on_hold, hold_date):
+    if on_hold == False:
+        hold_date = None
+             
+    if hold_date:
+        if hold_date >= timezone.now().date():
+            on_hold = True
+        else:
+            on_hold = False
+            hold_date = None
+    else:
+        on_hold = False
+    return is_hidden, on_hold, hold_date

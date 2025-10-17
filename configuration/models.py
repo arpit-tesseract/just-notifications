@@ -302,7 +302,7 @@ class RecordRule(models.Model):
 # Personal ->
 # -------------------------------------------------------------------------------------------------
 class Religion(HoldableSaveMixin, models.Model):
-    name = models.CharField("Religion", max_length=200, db_index=True)
+    name = models.CharField("Religion", max_length=200, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -458,7 +458,7 @@ class Pidhi(HoldableSaveMixin, models.Model):
 
 
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
-class Designation(models.Model):
+class Designation(HoldableSaveMixin, models.Model):
     category_choices = [
         ('personal', 'Personal'),
         ('professional', 'Professional'),
@@ -475,14 +475,17 @@ class Designation(models.Model):
         on_delete=models.SET_NULL,
         help_text="Parent designation for hierarchy"
     )
-    designation_no = models.PositiveIntegerField(default=0, help_text="Hierarchy level, 0=top") # Designation number / level / post no
-    
+    post_no = models.PositiveIntegerField(default=0, help_text="Hierarchy level, 0=top") # Designation number / level / post no
+    is_hidden = models.BooleanField("Hidden", default=False)
+    on_hold = models.BooleanField("On Hold", default=False)
+    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
     def __str__(self):
-        return f"{self.name} (Level {self.designation_no})"
+        return f"{self.name} (Level {self.post_no})"
     
     def save(self, *args, **kwargs):
         # Auto-set hierarchy level based on parent
-        self.level = self.reporting_designation.designation_no + 1 if self.reporting_designation else 0
+        self.level = self.reporting_designation.post_no + 1 if self.reporting_designation else 0
         super().save(*args, **kwargs)
 
 
@@ -490,7 +493,7 @@ class Designation(models.Model):
 # Professional ->
 # ----------------------------------------------------------------------------------------------
 class Section(HoldableSaveMixin, models.Model):
-    name = models.CharField("Section", max_length=200, db_index=True)
+    name = models.CharField("Section", max_length=200, unique=True)
     code = models.CharField("Code", max_length=5, unique=True)
     is_hidden = models.BooleanField("Hidden", default=False)
     on_hold = models.BooleanField("On Hold", default=False)
@@ -614,7 +617,7 @@ class PostModel(HoldableSaveMixin, models.Model):
         return self.name
 
 # Current / Owner / Permanent / Native / InLaws(Girl / Boy) / Maternal / Business
-class RelationTypes(models.Model):
+class RelationType(models.Model):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=5, unique=True)
