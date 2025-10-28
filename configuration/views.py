@@ -3041,7 +3041,6 @@ class UploadProfSubCategoryView(APIView):
                 ))
             
             except Exception as e:
-                print(e)
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
