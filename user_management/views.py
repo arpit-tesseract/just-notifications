@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from configuration.mixins import RecordRuleMixin
 from configuration.permissions import HasModelAccessPermission
+from .utils import verify_shashan_brand_by_id, get_role_obj_by_name, assign_system_admin_role_if_brand_is_shashan
 
 class LoginWithEmailPasswordView(APIView):
     def post(self, request):
@@ -95,9 +96,9 @@ class LogoutView(APIView):
             )
 
 
-class RegisterationView(RecordRuleMixin, APIView):
-    model = CustomUser
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+class RegisterationView(APIView):
+    # model = CustomUser
+    # permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
     @transaction.atomic
     def post(self, request):
@@ -117,7 +118,7 @@ class RegisterationView(RecordRuleMixin, APIView):
             from_user_documents = from_user_details.pop("documents", None)
             from_user_residential_details = from_user_details.pop("residential_details", None)
             from_user_personal_details = from_user_details.pop("personal_details", None)
-            
+            from_user_professional_details = from_user_details.pop("professional_details", None)
             # create from user
             from_user_obj = CustomUser.objects.create_user(**from_user_details)
             from_user_obj.user_role.add(from_user_role_obj)
@@ -135,6 +136,15 @@ class RegisterationView(RecordRuleMixin, APIView):
             # create personal details 
             if from_user_personal_details is not None:   
                 PersonalDetail.objects.create(user=from_user, **from_user_personal_details)
+            
+            # create professional details
+            if from_user_professional_details is not None:
+                ProfessionalDetail.objects.create(user=from_user, **from_user_professional_details)
+            
+            brand_id = from_user_professional_details.get("brand", None)
+            val = assign_system_admin_role_if_brand_is_shashan(from_user, brand_id)
+            if isinstance(val, Response):
+                return val
                     
         if existing_from_user_id is not None:
             from_user = existing_from_user_id
@@ -150,6 +160,7 @@ class RegisterationView(RecordRuleMixin, APIView):
                 to_user_documents = to_user_details.pop("documents", None)
                 to_user_residential_details = to_user_details.pop("residential_details", None)
                 to_user_personal_details = to_user_details.pop("personal_details", None)
+                to_user_professional_details = to_user_details.pop("professional_details", None)
                 to_user_custom_post_no = to_user_details.pop("custom_post_no", None)
                 # create to user
                 to_user_obj = CustomUser.objects.create_user(**to_user_details)
@@ -168,6 +179,15 @@ class RegisterationView(RecordRuleMixin, APIView):
                 # create personal details 
                 if to_user_personal_details is not None:   
                     PersonalDetail.objects.create(user=to_user, **to_user_personal_details)
+                
+                # create professional details
+                if to_user_professional_details is not None:
+                    ProfessionalDetail.objects.create(user=to_user, **to_user_professional_details)
+                
+                brand_id = to_user_professional_details.get("brand", None)
+                val = assign_system_admin_role_if_brand_is_shashan(to_user, brand_id)
+                if isinstance(val, Response):
+                    return val
             
             if existing_to_user_id is not None:
                 to_user = existing_to_user_id

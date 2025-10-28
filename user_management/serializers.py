@@ -1,7 +1,7 @@
 # serializers.py
+from .utils import verify_user_relation_category, get_role_obj_by_name, get_obj_by_modle_and_id, check_email_exists, check_contact_no_exists
 from rest_framework import serializers
 from .models import *
-from .utils import verify_user_relation_category, get_role_obj_by_name, get_obj_by_modle_and_id, check_email_exists, check_contact_no_exists
 from .validators import *        
 class LoginEmailPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -53,6 +53,12 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
         fields = ['category_of_user', 'glob', 'continent', 'country', 'state', 'district', 'city_village', 'ward', 'society', 'block', 'floor', 'house_no', 'no_of_rooms']
         read_only_fields = ['id','user', 'residential_code']
 
+class ProfessionalDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfessionalDetail
+        fields = "__all__"
+        read_only_fields = ['id','user', 'professional_code']
+
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -66,14 +72,15 @@ class UserSerializerForPost(serializers.ModelSerializer):
     father_name = serializers.CharField(validators=[validate_full_name])
     blood_group = serializers.CharField(validators=[validate_blood_group])
     date_of_birth = serializers.DateField(validators=[validate_dob])
-    documents = DocumentSerializer(many=True)
+    documents = DocumentSerializer(many=False, required=False, allow_null=True)
     user_role_name = serializers.CharField()
     user_role = UserRoleSerializer(many=False, read_only=True)
     residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
+    professional_details = ProfessionalDetailSerializer(many=False, required=False, allow_null=True)
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'photo', 'date_of_birth', 'blood_group', 'documents', 'is_verified', 'residential_details', 'personal_details']
+        fields = ['id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'photo', 'date_of_birth', 'blood_group', 'documents', 'is_verified', 'residential_details', 'personal_details', 'professional_details']
         read_only_fields = ['id']
       
 
