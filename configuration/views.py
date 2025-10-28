@@ -3026,7 +3026,7 @@ class UploadProfSubCategoryView(APIView):
                     continue
                 
                 try:
-                    category_obj = ProfCategory(name=category, profclass__name=class_name, profclass__section__name=section)
+                    category_obj = ProfCategory.objects.get(name=category, profclass__name=class_name, profclass__section__name=section)
                 except ProfCategory.DoesNotExist:
                     invalid_rows.append({"row": idx + 2, "error": f"Category: '{category}' not found for class: {class_name}, section: {section}"})
                     continue
@@ -3118,7 +3118,7 @@ class UploadSectorView(APIView):
                     continue
                 
                 try:
-                    subcategory_obj = ProfSubCategory(name=subcategory, category__name=category, category__profclass__name=class_name, category__profclass__section__name=section)
+                    subcategory_obj = ProfSubCategory.objects.get(name=subcategory, category__name=category, category__profclass__name=class_name, category__profclass__section__name=section)
                 except ProfSubCategory.DoesNotExist:
                     invalid_rows.append({"row": idx + 2, "error": f"SubCategory: '{subcategory}' not found for category: {category}, class: {class_name}, section: {section}"})
                     continue
@@ -3210,7 +3210,7 @@ class UploadSubSectorView(APIView):
                     continue
                 
                 try:
-                    sector_obj = Sector(name=sector, subcategory__name=subcategory, subcategory__category__name=category, subcategory__category__profclass__name=class_name, subcategory__category__profclass__section__name=section)
+                    sector_obj = Sector.objects.get(name=sector, subcategory__name=subcategory, subcategory__category__name=category, subcategory__category__profclass__name=class_name, subcategory__category__profclass__section__name=section)
                 except Sector.DoesNotExist:
                     invalid_rows.append({"row": idx + 2, "error": f"Sector: '{sector}' not found for subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
@@ -3415,7 +3415,7 @@ class UploadSubDepartmentView(APIView):
                         subsector__sector__subcategory__category__profclass__section__name=section 
                         )
                 except Department.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(SubDepartment(
