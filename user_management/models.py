@@ -141,7 +141,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField("Real Name", max_length=50)
     pet_name = models.CharField("Pet Name", max_length=50, null=True, blank=True)
     father_name = models.CharField("Father Name", max_length=50)
-    photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
+    photo = models.ImageField("Photo", upload_to='users/photo/', blank=True, null=True)
     date_of_birth = models.DateField("Date of Birth")
     blood_group = models.CharField("Blood Group", max_length=4, null=True, blank=True)
     
@@ -271,15 +271,15 @@ class Relation(models.Model):
 class Document(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     adhar_card_no = models.CharField("Adhar Card Number", max_length=12, unique=True, blank=True, null=True)
-    adhar_card_file = models.FileField("Adhar Card", upload_to='post/adharCard/', blank=True, null=True)
+    adhar_card_file = models.FileField("Adhar Card", upload_to='users/documents/adharCard/', blank=True, null=True)
     pan_card_no = models.CharField("Pan Card Number", max_length=10, unique=True, blank=True, null=True)
-    pan_card_file = models.FileField("Pan Card", upload_to='post/panCard/', blank=True, null=True)
+    pan_card_file = models.FileField("Pan Card", upload_to='users/documents/panCard/', blank=True, null=True)
     voter_card_no = models.CharField("Voter Card Number", max_length=10, unique=True, blank=True, null=True)
-    voter_card_file = models.FileField("Voter Card", upload_to='post/voterCard/', blank=True, null=True)
+    voter_card_file = models.FileField("Voter Card", upload_to='users/documents/voterCard/', blank=True, null=True)
     driving_licence_no = models.CharField("Driving Licence Number", max_length=20, unique=True, blank=True, null=True)
-    driving_licence_file = models.FileField("Driving Licence", upload_to='post/drivingLicence/', blank=True, null=True)
+    driving_licence_file = models.FileField("Driving Licence", upload_to='users/documents/drivingLicence/', blank=True, null=True)
     ration_card_no = models.CharField("Ration Card Number", max_length=20, blank=True, null=True)
-    ration_card_file = models.FileField("Ration Card", upload_to='post/rationCard/', blank=True, null=True)
+    ration_card_file = models.FileField("Ration Card", upload_to='users/documents/rationCard/', blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     
     def __str__(self):

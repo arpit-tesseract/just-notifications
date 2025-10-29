@@ -1,4 +1,5 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
+import json
 from .models import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -11,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from configuration.mixins import RecordRuleMixin
 from configuration.permissions import HasModelAccessPermission
+from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
 from .utils import verify_shashan_brand_by_id, get_role_obj_by_name, assign_system_admin_role_if_brand_is_shashan
 
 class LoginWithEmailPasswordView(APIView):
@@ -99,7 +101,7 @@ class LogoutView(APIView):
 class RegisterationView(APIView):
     # model = CustomUser
     # permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
+    parser_classes = [MultiPartParser, JSONParser, FormParser]
     @transaction.atomic
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
@@ -115,7 +117,6 @@ class RegisterationView(APIView):
         # create from/main user
         if from_user_details is not None:
             from_user_role_obj = from_user_details.pop("user_role_obj", None)
-            from_user_documents = from_user_details.pop("documents", None)
             from_user_residential_details = from_user_details.pop("residential_details", None)
             from_user_personal_details = from_user_details.pop("personal_details", None)
             from_user_professional_details = from_user_details.pop("professional_details", None)
@@ -123,11 +124,6 @@ class RegisterationView(APIView):
             from_user_obj = CustomUser.objects.create_user(**from_user_details)
             from_user_obj.user_role.add(from_user_role_obj)
             from_user = from_user_obj
-            
-            # create documents
-            if from_user_documents is not None:
-                for document in from_user_documents:
-                    Document.objects.create(user=from_user, **document)
             
             # create residential details
             if from_user_residential_details is not None:
@@ -157,7 +153,6 @@ class RegisterationView(APIView):
             
             if to_user_details is not None:
                 to_user_role_obj = to_user_details.pop("user_role_obj", None)
-                to_user_documents = to_user_details.pop("documents", None)
                 to_user_residential_details = to_user_details.pop("residential_details", None)
                 to_user_personal_details = to_user_details.pop("personal_details", None)
                 to_user_professional_details = to_user_details.pop("professional_details", None)
@@ -166,11 +161,6 @@ class RegisterationView(APIView):
                 to_user_obj = CustomUser.objects.create_user(**to_user_details)
                 to_user_obj.user_role.add(to_user_role_obj)
                 to_user = to_user_obj
-                
-                # create documents
-                if to_user_documents is not None:
-                    for document in to_user_documents:
-                        Document.objects.create(user=to_user, **document)
                 
                 # create residential details
                 if to_user_residential_details is not None:
@@ -211,3 +201,38 @@ class RegisterationView(APIView):
                 "data":user_data.data
             }, status=status.HTTP_201_CREATED
         )
+
+
+class UserPhotoUploadView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def patch(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        serializer = UserPhotoUploadSerializer(
+            instance=user, 
+            data=request.data, 
+            partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserDocumentUploadView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    def patch(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        # Get or create the document record for this user
+        document, created = Document.objects.get_or_create(user=user)
+        
+        serializer = UserDocumentUploadSerializer(
+            instance=document, 
+            data=request.data, 
+            partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

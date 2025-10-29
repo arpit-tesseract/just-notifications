@@ -30,3 +30,8 @@ venv/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Ignore media files
+/media/
+*/media/
+**/media/
