@@ -74,7 +74,7 @@ class ProfessionalDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfessionalDetail
         fields = "__all__"
-        read_only_fields = ['id','user', 'professional_code']
+        read_only_fields = ['id','user', 'professional_code', 'residential_details']
     
     def validate(self, attrs):
         text_fields = [
@@ -88,8 +88,21 @@ class ProfessionalDetailSerializer(serializers.ModelSerializer):
                 except:
                     temp = None
                 attrs[field] = temp
+        
+        # verify designation category is professional
+        designation = attrs.get("designation")
+        if designation is None:
+            raise serializers.ValidationError({"designation": "Designation is Required."})
+        
+        if designation.category != "professional":
+            raise serializers.ValidationError({"designation": "Invalid designation."})
+        
         return attrs
 
+
+class BussinessDetailSerializer(serializers.Serializer):
+    professional_details = ProfessionalDetailSerializer(many=False)
+    professional_residential_details = ResidentialDetailSerializer(many=False)
 
 
 class UserSerializerForPost(serializers.ModelSerializer):
@@ -101,10 +114,10 @@ class UserSerializerForPost(serializers.ModelSerializer):
     user_role = UserRoleSerializer(many=False, read_only=True)
     residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
-    professional_details = ProfessionalDetailSerializer(many=False, required=False, allow_null=True)
+    bussiness_details = BussinessDetailSerializer(many=True, required=False, allow_null=True)
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'date_of_birth', 'blood_group', 'is_verified', 'residential_details', 'personal_details', 'professional_details']
+        fields = ['id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'date_of_birth', 'blood_group', 'is_verified', 'residential_details', 'personal_details', 'bussiness_details']
         read_only_fields = ['id']
       
 
@@ -221,7 +234,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                     raise serializers.ValidationError({"existing_to_user_id": f"Post: {index+1}, Invalid to user id."})
                 attrs['existing_to_user_id'] = to_user_obj
             
-        return attrs
+        return attrs 
 
 class UserPhotoUploadSerializer(serializers.ModelSerializer):
     photo = serializers.ImageField(validators=[validate_image_file])
