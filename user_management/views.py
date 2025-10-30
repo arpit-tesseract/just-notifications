@@ -98,9 +98,9 @@ class LogoutView(APIView):
             )
 
 
-class RegisterationView(APIView):
-    # model = CustomUser
-    # permission_classes = [IsAuthenticated, HasModelAccessPermission]
+class RegisterationView(RecordRuleMixin, APIView):
+    model = CustomUser
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     parser_classes = [MultiPartParser, JSONParser, FormParser]
     @transaction.atomic
     def post(self, request):
@@ -119,7 +119,8 @@ class RegisterationView(APIView):
             from_user_role_obj = from_user_details.pop("user_role_obj", None)
             from_user_residential_details = from_user_details.pop("residential_details", None)
             from_user_personal_details = from_user_details.pop("personal_details", None)
-            from_user_professional_details = from_user_details.pop("professional_details", None)
+            from_user_bussiness_details = from_user_details.pop("bussiness_details", None)
+            
             # create from user
             from_user_obj = CustomUser.objects.create_user(**from_user_details)
             from_user_obj.user_role.add(from_user_role_obj)
@@ -127,22 +128,58 @@ class RegisterationView(APIView):
             
             # create residential details
             if from_user_residential_details is not None:
-                ResidentialDetail.objects.create(user=from_user, **from_user_residential_details)
+                ResidentialDetail.objects.create(user=from_user, residential_type="home", **from_user_residential_details)
             
             # create personal details 
             if from_user_personal_details is not None:   
                 PersonalDetail.objects.create(user=from_user, **from_user_personal_details)
             
             # create professional details
-            if from_user_professional_details is not None:
-                ProfessionalDetail.objects.create(user=from_user, **from_user_professional_details)
-            
-            brand_id = from_user_professional_details.get("brand", None)
-            val = assign_system_admin_role_if_brand_is_shashan(from_user, brand_id)
-            if isinstance(val, Response):
-                return val
+            if from_user_bussiness_details is not None:
+                for bussiness_detail in from_user_bussiness_details:
+                    from_user_professional_details = bussiness_detail.get("professional_details", None)
+                    from_user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
+                    
+                    if from_user_professional_residential_details is not None:
+                        # Try to find if residential details already exists
+                        category_of_user = from_user_professional_residential_details.pop("category_of_user", None)
+                        
+                        try:
+                            residential_obj = ResidentialDetail.objects.get(
+                                residential_type="bussiness",
+                                **from_user_professional_residential_details
+                            )
+                        except ResidentialDetail.DoesNotExist:
+                            # create residential details
+                            residential_obj = ResidentialDetail.objects.create(
+                                residential_type ="bussiness",
+                                **from_user_professional_residential_details
+                            )
+                        except Exception as e:
+                            return Response(
+                                {"error": "Something went wrong", "details": str(e)},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )                                
+                    
+                    if from_user_professional_details is not None:
+                        professional_obj = ProfessionalDetail.objects.create(
+                            user = from_user, 
+                            residential_details = residential_obj, 
+                            **from_user_professional_details
+                        )
+                    
+                    # assign system admin role if brand is shashan
+                    brand_id = from_user_professional_details.get("brand", None)
+                    val = assign_system_admin_role_if_brand_is_shashan(from_user, brand_id)
+                    if isinstance(val, Response):
+                        return val
                     
         if existing_from_user_id is not None:
+            if not isinstance(existing_from_user_id, CustomUser):
+                existing_from_user_id = get_obj_by_modle_and_id(CustomUser, existing_from_user_id)
+                if existing_from_user_id is None:
+                    return Response({"error": "Invalid from user id."}, status=status.HTTP_400_BAD_REQUEST)
+                
             from_user = existing_from_user_id
         
         existing_from_user_id = from_user.id
@@ -151,12 +188,14 @@ class RegisterationView(APIView):
             to_user_details = post.pop("to_user_details", None)
             existing_to_user_id = post.pop("existing_to_user_id", None)
             
+            to_user_custom_post_no = None
             if to_user_details is not None:
                 to_user_role_obj = to_user_details.pop("user_role_obj", None)
                 to_user_residential_details = to_user_details.pop("residential_details", None)
                 to_user_personal_details = to_user_details.pop("personal_details", None)
-                to_user_professional_details = to_user_details.pop("professional_details", None)
+                to_user_bussiness_details = to_user_details.pop("bussiness_details", None)
                 to_user_custom_post_no = to_user_details.pop("custom_post_no", None)
+                
                 # create to user
                 to_user_obj = CustomUser.objects.create_user(**to_user_details)
                 to_user_obj.user_role.add(to_user_role_obj)
@@ -164,30 +203,69 @@ class RegisterationView(APIView):
                 
                 # create residential details
                 if to_user_residential_details is not None:
-                    ResidentialDetail.objects.create(user=to_user, **to_user_residential_details)
+                    ResidentialDetail.objects.create(user=to_user, residential_type="home", **to_user_residential_details)
                 
                 # create personal details 
                 if to_user_personal_details is not None:   
                     PersonalDetail.objects.create(user=to_user, **to_user_personal_details)
                 
                 # create professional details
-                if to_user_professional_details is not None:
-                    ProfessionalDetail.objects.create(user=to_user, **to_user_professional_details)
-                
-                brand_id = to_user_professional_details.get("brand", None)
-                val = assign_system_admin_role_if_brand_is_shashan(to_user, brand_id)
-                if isinstance(val, Response):
-                    return val
-            
+                if to_user_bussiness_details is not None:
+                    for bussiness_detail in to_user_bussiness_details:
+                        to_user_professional_details = bussiness_detail.get("professional_details", None)
+                        to_user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
+                        
+                        if to_user_professional_residential_details is not None:
+                            # Try to find if residential details already exists
+                            category_of_user = to_user_professional_residential_details.pop("category_of_user", None)
+                            
+                            try:
+                                residential_obj = ResidentialDetail.objects.get(
+                                    residential_type="bussiness",
+                                    **to_user_professional_residential_details
+                                )
+                            except ResidentialDetail.DoesNotExist:
+                                # create residential details
+                                residential_obj = ResidentialDetail.objects.create(
+                                    residential_type ="bussiness",
+                                    **to_user_professional_residential_details
+                                )
+                            except Exception as e:
+                                return Response(
+                                    {"error": "Something went wrong", "details": str(e)},
+                                    status=status.HTTP_400_BAD_REQUEST
+                                )                                
+                        
+                        if to_user_professional_details is not None:
+                            professional_obj = ProfessionalDetail.objects.create(
+                                user = from_user, 
+                                residential_details = residential_obj, 
+                                **to_user_professional_details
+                            )
+                        
+                        # assign system admin role if brand is shashan
+                        brand_id = to_user_professional_details.get("brand", None)
+                        val = assign_system_admin_role_if_brand_is_shashan(from_user, brand_id)
+                        if isinstance(val, Response):
+                            return 
+                        
             if existing_to_user_id is not None:
+                if not isinstance(existing_to_user_id, CustomUser):
+                    existing_to_user_id = get_obj_by_modle_and_id(CustomUser, existing_to_user_id)
+                    if existing_to_user_id is None:
+                        return Response(
+                            {"error": "User not found"},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    to_user = existing_to_user_id
                 to_user = existing_to_user_id
             
             post_lst.append(to_user.id)
-            designation = post.pop("designation")
+            to_user_designation = post.pop("designation")
             relation_obj = Relation.objects.create(
                 from_user=from_user, 
                 relation_category=relation_category, 
-                designation=designation, 
+                designation=to_user_designation, 
                 to_user=to_user,
                 custom_post_no = to_user_custom_post_no
             )
@@ -203,9 +281,10 @@ class RegisterationView(APIView):
         )
 
 
-class UserPhotoUploadView(APIView):
+class UserPhotoUploadView(RecordRuleMixin, APIView):
+    model = CustomUser
     parser_classes = [MultiPartParser, FormParser]
-    
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     def patch(self, request, user_id):
         user = get_object_or_404(CustomUser, id=user_id)
         serializer = UserPhotoUploadSerializer(
@@ -219,9 +298,10 @@ class UserPhotoUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserDocumentUploadView(APIView):
+class UserDocumentUploadView(RecordRuleMixin, APIView):
+    model = Document
     parser_classes = [MultiPartParser, FormParser]
-
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     def patch(self, request, user_id):
         user = get_object_or_404(CustomUser, id=user_id)
         # Get or create the document record for this user
