@@ -261,3 +261,17 @@ class UserDocumentUploadSerializer(serializers.ModelSerializer):
 class UserRegistrationOutPutSerializer(serializers.Serializer):
     existing_from_user_id = serializers.CharField()
     posts = serializers.ListField()
+
+
+class UserRoleAssignAndRemoveSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    role_ids = serializers.ListField(
+        child = serializers.IntegerField(),
+        allow_empty = False
+    )
+
+
+class UserRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserRole  
+        fields = "__all__"
