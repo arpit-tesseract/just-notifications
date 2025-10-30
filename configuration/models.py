@@ -481,11 +481,11 @@ class Designation(HoldableSaveMixin, models.Model):
     hold_date = models.DateField("Hold Upto", null=True, blank=True)
 
     def __str__(self):
-        return f"{self.name} (Level {self.post_no})"
+        return f"{self.display_name} (Level {self.post_no})"
     
     def save(self, *args, **kwargs):
         # Auto-set hierarchy level based on parent
-        self.level = self.reporting_designation.post_no + 1 if self.reporting_designation else 0
+        self.post_no = self.reporting_designation.post_no + 1 if self.reporting_designation else 0
         super().save(*args, **kwargs)
 
 

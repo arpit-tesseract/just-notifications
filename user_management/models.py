@@ -141,7 +141,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField("Real Name", max_length=50)
     pet_name = models.CharField("Pet Name", max_length=50, null=True, blank=True)
     father_name = models.CharField("Father Name", max_length=50)
-    photo = models.ImageField("Photo", upload_to='post/photo/', blank=True, null=True)
+    photo = models.ImageField("Photo", upload_to='users/photo/', blank=True, null=True)
     date_of_birth = models.DateField("Date of Birth")
     blood_group = models.CharField("Blood Group", max_length=4, null=True, blank=True)
     
@@ -271,19 +271,73 @@ class Relation(models.Model):
 class Document(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     adhar_card_no = models.CharField("Adhar Card Number", max_length=12, unique=True, blank=True, null=True)
-    adhar_card_file = models.FileField("Adhar Card", upload_to='post/adharCard/', blank=True, null=True)
+    adhar_card_file = models.FileField("Adhar Card", upload_to='users/documents/adharCard/', blank=True, null=True)
     pan_card_no = models.CharField("Pan Card Number", max_length=10, unique=True, blank=True, null=True)
-    pan_card_file = models.FileField("Pan Card", upload_to='post/panCard/', blank=True, null=True)
+    pan_card_file = models.FileField("Pan Card", upload_to='users/documents/panCard/', blank=True, null=True)
     voter_card_no = models.CharField("Voter Card Number", max_length=10, unique=True, blank=True, null=True)
-    voter_card_file = models.FileField("Voter Card", upload_to='post/voterCard/', blank=True, null=True)
+    voter_card_file = models.FileField("Voter Card", upload_to='users/documents/voterCard/', blank=True, null=True)
     driving_licence_no = models.CharField("Driving Licence Number", max_length=20, unique=True, blank=True, null=True)
-    driving_licence_file = models.FileField("Driving Licence", upload_to='post/drivingLicence/', blank=True, null=True)
+    driving_licence_file = models.FileField("Driving Licence", upload_to='users/documents/drivingLicence/', blank=True, null=True)
     ration_card_no = models.CharField("Ration Card Number", max_length=20, blank=True, null=True)
-    ration_card_file = models.FileField("Ration Card", upload_to='post/rationCard/', blank=True, null=True)
+    ration_card_file = models.FileField("Ration Card", upload_to='users/documents/rationCard/', blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     
     def __str__(self):
         return f"{self.user}"
+
+
+class ResidentialDetail(models.Model):
+    residential_type_choice = [
+        ('home','Home'),
+        ('bussiness','Bussiness'),
+    ]
+    user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
+    residential_type = models.CharField("Residential Type", choices=residential_type_choice, max_length=20, null=True, blank=True)
+    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20)
+    glob = models.ForeignKey(configm.Glob, on_delete=models.SET_NULL, null=True, blank=True)
+    continent = models.ForeignKey(configm.Continent, on_delete=models.SET_NULL, null=True, blank=True)
+    country = models.ForeignKey(configm.Country, on_delete=models.SET_NULL, null=True, blank=True)
+    state = models.ForeignKey(configm.State, on_delete=models.SET_NULL, null=True, blank=True)
+    district = models.ForeignKey(configm.District, on_delete=models.SET_NULL, null=True, blank=True)
+    taluka = models.ForeignKey(configm.Taluka, on_delete=models.SET_NULL, null=True, blank=True)
+    city_village = models.ForeignKey(configm.CityVillage, on_delete=models.SET_NULL, null=True, blank=True)
+    ward = models.ForeignKey(configm.Ward, on_delete=models.SET_NULL, null=True, blank=True)
+    society = models.CharField("Society", max_length=255, null=True, blank=True)
+    block = models.CharField("Block", max_length=20, null=True, blank=True)
+    floor = models.CharField("Floor", max_length=20, null=True, blank=True)
+    house_no = models.CharField("House No", max_length=20, null=True, blank=True)
+    no_of_rooms = models.IntegerField("No. of Rooms", default=1)
+    residential_code = models.CharField("Residential ID", max_length=100,blank=True, null=True)
+    is_verified = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        self.residential_code = f"{self.glob.code if self.glob else '00'}-" \
+                            f"{self.continent.code if self.continent else '00'}-" \
+                            f"{self.country.code if self.country else '00'}-" \
+                            f"{self.state.code if self.state else '00'}-" \
+                            f"{self.district.code if self.district else '00'}-" \
+                            f"{self.taluka.code if self.taluka else '00'}-" \
+                            f"{self.city_village.code if self.city_village else '00'}-" \
+                            f"{self.ward.code if self.ward else '00'}-" 
+                            # f"{self.society.code if self.society else '00'}-"
+                            # f"{self.block.name if self.block else '00'}-" \
+                            # f"{self.floor.code if self.floor else '00'}-" \
+                            # f"{self.houses.code if self.houses else '00'}"
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.user} - {self.residential_code}"
+        
+
+class RoomDetail(models.Model):
+    residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.CASCADE)
+    room_flash = models.ForeignKey(configm.RoomFlash, on_delete=models.SET_NULL, null=True)
+    room_no = models.CharField("Room No", max_length=20, null=True, blank=True)
+    room_member_count = models.IntegerField("Total Room Members",null=True,blank=True, default=0)
+
+class RoomMembersDetail(models.Model):
+    room = models.ForeignKey(RoomDetail, on_delete=models.CASCADE)
+    member_name = models.CharField("Member Name", max_length=20, null=True, blank=True)
 
 
 class ProfessionalDetail(models.Model):
@@ -299,6 +353,8 @@ class ProfessionalDetail(models.Model):
     type = models.ForeignKey(configm.Type, on_delete=models.SET_NULL, null=True, blank=True)
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
     postmodel = models.ForeignKey(configm.PostModel, on_delete=models.SET_NULL, null=True, blank=True)
+    designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
+    residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True)
     pay_scale = models.CharField("Pay Scale", max_length=20)
     mfg_dt_time = models.DateTimeField("MFG Date & Time")
     mfg_life = models.CharField("MFG Life", max_length=20)
@@ -345,53 +401,6 @@ class ReportCard(models.Model):
     def __str__(self):
         return f"{self.prof_detail}"
 
-class ResidentialDetail(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20)
-    glob = models.ForeignKey(configm.Glob, on_delete=models.SET_NULL, null=True, blank=True)
-    continent = models.ForeignKey(configm.Continent, on_delete=models.SET_NULL, null=True, blank=True)
-    country = models.ForeignKey(configm.Country, on_delete=models.SET_NULL, null=True, blank=True)
-    state = models.ForeignKey(configm.State, on_delete=models.SET_NULL, null=True, blank=True)
-    district = models.ForeignKey(configm.District, on_delete=models.SET_NULL, null=True, blank=True)
-    taluka = models.ForeignKey(configm.Taluka, on_delete=models.SET_NULL, null=True, blank=True)
-    city_village = models.ForeignKey(configm.CityVillage, on_delete=models.SET_NULL, null=True, blank=True)
-    ward = models.ForeignKey(configm.Ward, on_delete=models.SET_NULL, null=True, blank=True)
-    society = models.CharField("Society", max_length=255, null=True, blank=True)
-    block = models.CharField("Block", max_length=20, null=True, blank=True)
-    floor = models.CharField("Floor", max_length=20, null=True, blank=True)
-    house_no = models.CharField("House No", max_length=20, null=True, blank=True)
-    no_of_rooms = models.IntegerField("No. of Rooms", default=1)
-    residential_code = models.CharField("Residential ID", max_length=100,blank=True, null=True)
-    is_verified = models.BooleanField(default=False)
-
-    def save(self, *args, **kwargs):
-        self.residential_code = f"{self.glob.code if self.glob else '00'}-" \
-                            f"{self.continent.code if self.continent else '00'}-" \
-                            f"{self.country.code if self.country else '00'}-" \
-                            f"{self.state.code if self.state else '00'}-" \
-                            f"{self.district.code if self.district else '00'}-" \
-                            f"{self.taluka.code if self.taluka else '00'}-" \
-                            f"{self.city_village.code if self.city_village else '00'}-" \
-                            f"{self.ward.code if self.ward else '00'}-" 
-                            # f"{self.society.code if self.society else '00'}-"
-                            # f"{self.block.name if self.block else '00'}-" \
-                            # f"{self.floor.code if self.floor else '00'}-" \
-                            # f"{self.houses.code if self.houses else '00'}"
-        super().save(*args, **kwargs)
-    
-    def __str__(self):
-        return f"{self.user} - {self.residential_code}"
-        
-
-class RoomDetail(models.Model):
-    residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.CASCADE)
-    room_flash = models.ForeignKey(configm.RoomFlash, on_delete=models.SET_NULL, null=True)
-    room_no = models.CharField("Room No", max_length=20, null=True, blank=True)
-    room_member_count = models.IntegerField("Total Room Members",null=True,blank=True, default=0)
-
-class RoomMembersDetail(models.Model):
-    room = models.ForeignKey(RoomDetail, on_delete=models.CASCADE)
-    member_name = models.CharField("Member Name", max_length=20, null=True, blank=True)
 
 
 class OTP(models.Model):

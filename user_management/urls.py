@@ -13,4 +13,6 @@ urlpatterns = [
     # path('token/verify/', TokenVerifyView.as_view(), name='token_verify'), # used for verify token
     
     path('register/', views.RegisterationView.as_view(), name='register'),
+    path('upload-photo/<int:user_id>', views.UserPhotoUploadView.as_view(), name='upload_photo'),
+    path('upload-documents/<int:user_id>', views.UserDocumentUploadView.as_view(), name='upload_documents'),
 ]

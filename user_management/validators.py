@@ -1,4 +1,5 @@
 import re
+import os
 from datetime import date
 from django.core.exceptions import ValidationError
 
@@ -65,3 +66,48 @@ def validate_blood_group(value):
 def validate_dob(value):
     if value > date.today():
         raise ValidationError("Date of birth cannot be in the future.")
+
+
+
+def validate_image_or_pdf(file_obj):
+    """
+    Allow only image and PDF files.
+    Checks both file extension and content type.
+    """
+    if not file_obj:
+        return file_obj
+
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.pdf']
+    allowed_content_types = ['image/jpeg', 'image/png', 'application/pdf']
+
+    ext = os.path.splitext(file_obj.name)[1].lower()
+    content_type = getattr(file_obj, 'content_type', None)
+
+    if ext not in allowed_extensions:
+        raise ValidationError(f"Unsupported file extension '{ext}'. Only JPG, PNG, and PDF are allowed.")
+
+    if content_type not in allowed_content_types:
+        raise ValidationError(f"Invalid file type '{content_type}'. Only images and PDF files are allowed.")
+
+    return file_obj
+
+def validate_image_file(file_obj):
+    """
+    Allow only image files (jpg, jpeg, png, gif, webp)
+    """
+    if not file_obj:
+        return file_obj
+
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+    allowed_content_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
+    ext = os.path.splitext(file_obj.name)[1].lower()
+    content_type = getattr(file_obj, 'content_type', None)
+
+    if ext not in allowed_extensions:
+        raise ValidationError(f"Unsupported file extension '{ext}'. Only image files are allowed.")
+
+    if content_type not in allowed_content_types:
+        raise ValidationError(f"Invalid file type '{content_type}'. Only image files are allowed.")
+
+    return file_obj

@@ -1,7 +1,7 @@
 # serializers.py
+from .utils import verify_user_relation_category, get_role_obj_by_name, get_obj_by_modle_and_id, check_email_exists, check_contact_no_exists, clean_str
 from rest_framework import serializers
 from .models import *
-from .utils import verify_user_relation_category, get_role_obj_by_name, get_obj_by_modle_and_id, check_email_exists, check_contact_no_exists
 from .validators import *        
 class LoginEmailPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -50,15 +50,59 @@ class PersonalDetailSerializer(serializers.ModelSerializer):
 class ResidentialDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResidentialDetail
-        fields = ['category_of_user', 'glob', 'continent', 'country', 'state', 'district', 'city_village', 'ward', 'society', 'block', 'floor', 'house_no', 'no_of_rooms']
+        fields = ['category_of_user', 'glob', 'continent', 'country', 'state', 'district', 'taluka', 'city_village', 'ward', 'society', 'block', 'floor', 'house_no', 'no_of_rooms']
         read_only_fields = ['id','user', 'residential_code']
+    
+    def validate(self, attrs):
+        text_fields = [
+            'society',
+            'block',
+            'floor',
+            'house_no',
+            'no_of_rooms'
+        ]
+        for field in text_fields:
+            if field in attrs:
+                try:
+                    temp = clean_str(attrs.get(field))
+                except:
+                    temp = None
+                attrs[field] = temp
+        return attrs
 
-
-class DocumentSerializer(serializers.ModelSerializer):
+class ProfessionalDetailSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Document
+        model = ProfessionalDetail
         fields = "__all__"
-        read_only_fields = ['id', 'user']
+        read_only_fields = ['id','user', 'professional_code', 'residential_details']
+    
+    def validate(self, attrs):
+        text_fields = [
+            'pay_scale',
+            'mfg_life',
+        ]
+        for field in text_fields:
+            if field in attrs:
+                try:
+                    temp = clean_str(attrs.get(field))
+                except:
+                    temp = None
+                attrs[field] = temp
+        
+        # verify designation category is professional
+        designation = attrs.get("designation")
+        if designation is None:
+            raise serializers.ValidationError({"designation": "Designation is Required."})
+        
+        if designation.category != "professional":
+            raise serializers.ValidationError({"designation": "Invalid designation."})
+        
+        return attrs
+
+
+class BussinessDetailSerializer(serializers.Serializer):
+    professional_details = ProfessionalDetailSerializer(many=False)
+    professional_residential_details = ResidentialDetailSerializer(many=False)
 
 
 class UserSerializerForPost(serializers.ModelSerializer):
@@ -66,14 +110,14 @@ class UserSerializerForPost(serializers.ModelSerializer):
     father_name = serializers.CharField(validators=[validate_full_name])
     blood_group = serializers.CharField(validators=[validate_blood_group])
     date_of_birth = serializers.DateField(validators=[validate_dob])
-    documents = DocumentSerializer(many=True)
     user_role_name = serializers.CharField()
     user_role = UserRoleSerializer(many=False, read_only=True)
     residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
+    bussiness_details = BussinessDetailSerializer(many=True, required=False, allow_null=True)
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'photo', 'date_of_birth', 'blood_group', 'documents', 'is_verified', 'residential_details', 'personal_details']
+        fields = ['id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'date_of_birth', 'blood_group', 'is_verified', 'residential_details', 'personal_details', 'bussiness_details']
         read_only_fields = ['id']
       
 
@@ -192,6 +236,41 @@ class UserRegistrationSerializer(serializers.Serializer):
             
         return attrs
 
+class UserPhotoUploadSerializer(serializers.ModelSerializer):
+    photo = serializers.ImageField(validators=[validate_image_file])
+
+    class Meta:
+        model = CustomUser
+        fields = ['photo']
+
+
+class UserDocumentUploadSerializer(serializers.ModelSerializer):
+    adhar_card_file = serializers.FileField(
+        required=False, allow_null=True, validators=[validate_image_or_pdf]
+    )
+    pan_card_file = serializers.FileField(
+        required=False, allow_null=True, validators=[validate_image_or_pdf]
+    )
+    voter_card_file = serializers.FileField(
+        required=False, allow_null=True, validators=[validate_image_or_pdf]
+    )
+    driving_licence_file = serializers.FileField(
+        required=False, allow_null=True, validators=[validate_image_or_pdf]
+    )
+    ration_card_file = serializers.FileField(
+        required=False, allow_null=True, validators=[validate_image_or_pdf]
+    )
+    
+    class Meta:
+        model = Document
+        fields = [
+            'adhar_card_file', 
+            'pan_card_file', 
+            'voter_card_file', 
+            'driving_licence_file', 
+            'ration_card_file'
+        ]
+
 class UserRegistrationOutPutSerializer(serializers.Serializer):
     existing_from_user_id = serializers.CharField()
-    posts = serializers.ListField()       
+    posts = serializers.ListField()
