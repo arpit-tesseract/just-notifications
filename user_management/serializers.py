@@ -234,7 +234,7 @@ class UserRegistrationSerializer(serializers.Serializer):
                     raise serializers.ValidationError({"existing_to_user_id": f"Post: {index+1}, Invalid to user id."})
                 attrs['existing_to_user_id'] = to_user_obj
             
-        return attrs
+        return attrs 
 
 class UserPhotoUploadSerializer(serializers.ModelSerializer):
     photo = serializers.ImageField(validators=[validate_image_file])
@@ -274,3 +274,17 @@ class UserDocumentUploadSerializer(serializers.ModelSerializer):
 class UserRegistrationOutPutSerializer(serializers.Serializer):
     existing_from_user_id = serializers.CharField()
     posts = serializers.ListField()
+
+
+class UserRoleAssignAndRemoveSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    role_ids = serializers.ListField(
+        child = serializers.IntegerField(),
+        allow_empty = False
+    )
+
+
+class UserRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserRole  
+        fields = "__all__"
