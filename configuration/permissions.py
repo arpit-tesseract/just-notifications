@@ -62,7 +62,9 @@ class HasModelAccessPermission(BasePermission):
         # Fetch model access
         try:
             model_access = user.model_access_rule.get(model__technical_name=model_name)
-        except Exception:
+        except ModelAccess.DoesNotExist:
+            return False
+        except Exception as e:
             return False
 
         return getattr(model_access, perm_field, False)

@@ -177,10 +177,10 @@ class FilteredQuerysetMixin(BaseQueryMixin):
     def get_queryset(self):
         user = self.request.user
         # basw_qs = self.get_safe_queryset()
-        if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
-            base_qs = self._model.objects.all()
-        else:
-            base_qs = super().get_queryset()
+        # if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
+        #     base_qs = self._model.objects.all()
+        # else:
+        base_qs = super().get_queryset()
 
         # if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
         #     base_qs = self._model.objects.all()

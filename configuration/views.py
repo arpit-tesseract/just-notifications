@@ -26,8 +26,8 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
 
 # class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
 #     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -61,8 +61,8 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -81,8 +81,8 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -102,8 +102,8 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -125,8 +125,8 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -148,8 +148,8 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -172,8 +172,8 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -197,8 +197,8 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -219,8 +219,8 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
         
     
 class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -233,8 +233,8 @@ class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model) 
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -253,8 +253,8 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -296,8 +296,8 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -319,8 +319,8 @@ class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -343,8 +343,8 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -368,8 +368,8 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     } 
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -394,8 +394,8 @@ class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -421,8 +421,8 @@ class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -449,8 +449,8 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -477,8 +477,8 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -498,8 +498,8 @@ class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     } 
-    def get_base_queryset(self):
-        return get_regular_query(self.model)  
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)   
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -517,8 +517,8 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -537,8 +537,8 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -558,8 +558,8 @@ class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mo
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold' 
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -580,8 +580,8 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -603,8 +603,8 @@ class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -627,8 +627,8 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -652,8 +652,8 @@ class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mode
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -678,8 +678,8 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -705,8 +705,8 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -733,8 +733,8 @@ class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
     }
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
