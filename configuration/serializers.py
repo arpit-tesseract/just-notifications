@@ -682,25 +682,25 @@ class BrandDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
-class PostModelSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PostModel
-        fields = '__all__'
-        read_only_fields = ['id']
+# class PostModelSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = PostModel
+#         fields = '__all__'
+#         read_only_fields = ['id']
 
-class PostModelDetailSerializer(DynamicFieldsModelSerializer):
-    brand = serializers.SerializerMethodField()
-    class Meta:
-        model = PostModel
-        fields = '__all__'
-        read_only_fields = [f.name for f in PostModel._meta.fields]
+# class PostModelDetailSerializer(DynamicFieldsModelSerializer):
+#     brand = serializers.SerializerMethodField()
+#     class Meta:
+#         model = PostModel
+#         fields = '__all__'
+#         read_only_fields = [f.name for f in PostModel._meta.fields]
     
-    def get_brand(self, obj):
-        serializer = BrandDetailSerializer(
-            obj.brand,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
-        )
-        return serializer.data
+#     def get_brand(self, obj):
+#         serializer = BrandDetailSerializer(
+#             obj.brand,
+#             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+#         )
+#         return serializer.data
 
 
 class RoomFlashSerializer(serializers.ModelSerializer):
@@ -1069,10 +1069,10 @@ class BrandIdNameSerializer(serializers.ModelSerializer):
         model = Brand
         fields = ["id", "name"]
 
-class PostModelIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PostModel
-        fields = ["id", "name"]
+# class PostModelIdNameSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = PostModel
+#         fields = ["id", "name"]
 
 class ProfessionalInputSerializer(serializers.Serializer):
     section = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1085,7 +1085,6 @@ class ProfessionalInputSerializer(serializers.Serializer):
     subdepartment = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     type = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     brand = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
-    postmodel = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 class ProfessionalOutputSerializer(serializers.Serializer):
@@ -1099,7 +1098,6 @@ class ProfessionalOutputSerializer(serializers.Serializer):
     subdepartment = SubDepartmentIdNameSerializer(allow_null=True)
     type = TypeIdNameSerializer(allow_null=True)
     brand = BrandIdNameSerializer(allow_null=True)
-    postmodel = PostModelIdNameSerializer(allow_null=True)
 
 
 class DesignationSerializer(serializers.ModelSerializer):

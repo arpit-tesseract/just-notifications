@@ -6,55 +6,75 @@ from django.utils import timezone
 
 from django.utils import timezone
 
-class HoldableSaveMixin:
-    def save(self, *args, **kwargs):
-        if self.on_hold == False:
-            self.hold_date = None
+# class HoldableMixin:
+#     def save(self, *args, **kwargs):
+#         if self.on_hold == False:
+#             self.hold_date = None
         
-        if self.hold_date:
-            if self.hold_date >= timezone.now().date():
-                self.on_hold = True
-            else:
-                self.on_hold = False
-                self.hold_date = None
-        else:
-            self.on_hold = False
+#         if self.hold_date:
+#             if self.hold_date >= timezone.now().date():
+#                 self.on_hold = True
+#             else:
+#                 self.on_hold = False
+#                 self.hold_date = None
+#         else:
+#             self.on_hold = False
             
-        super().save(*args, **kwargs)
+#         super().save(*args, **kwargs)
+
+
+# An abstract model mixin that provides is_hidden, on_hold,
+# and hold_date fields, along with the automated save logic.
+class HoldableMixin(models.Model):
+    # --- Fields to be reused ---
+    is_hidden = models.BooleanField("hidden", default=False)
+    on_hold = models.BooleanField("on hold", default=False)
+    hold_date = models.DateField("hold upto", null=True, blank=True)
+
+    # --- Reusable logic ---
+    def save(self, *args, **kwargs):
+        today = timezone.now().date()
         
+        # This logic is cleaner: the hold_date drives the on_hold status.
+        if self.hold_date and self.hold_date >= today:
+            # Date is set for today or the future, so it MUST be on hold.
+            self.on_hold = True
+        else:
+            # Date is either in the past or not set (None).
+            self.on_hold = False
+            if self.hold_date:
+                # Clear any date that is in the past.
+                self.hold_date = None
+                
+        super().save(*args, **kwargs)
+
+    # --- The most important part! ---
+    class Meta:
+        abstract = True        
 # --------------------------------------------------------------------------------
 # Residential ->
 # --------------------------------------------------------------------------------
-class Glob(HoldableSaveMixin, models.Model):
-    name = models.CharField("Glob Name", max_length=100, unique=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+class Glob(HoldableMixin):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.PositiveIntegerField(unique=True)
         
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Continent(HoldableSaveMixin, models.Model):
+class Continent(HoldableMixin):
     glob = models.ForeignKey(Glob, on_delete=models.CASCADE)
-    name = models.CharField("Continent", max_length=100, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=100, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Country(HoldableSaveMixin, models.Model):
+class Country(HoldableMixin):
     continent = models.ForeignKey(Continent, on_delete=models.CASCADE)
-    name = models.CharField("Country", max_length=100, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=100, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -65,16 +85,13 @@ class Country(HoldableSaveMixin, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.continent.code} - {self.name} - {self.code}"
+        return f"{self.name} - {self.code}"
 
 
-class State(HoldableSaveMixin, models.Model):
+class State(HoldableMixin):
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
-    name = models.CharField("State", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
     
     class Meta:
         constraints = [
@@ -84,17 +101,14 @@ class State(HoldableSaveMixin, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.country.code} - {self.name} - {self.code}"
+        return f"{self.name} - {self.code}"
 
 
-class District(HoldableSaveMixin, models.Model):
+class District(HoldableMixin):
     state = models.ForeignKey(State, on_delete=models.CASCADE)
-    name = models.CharField("District", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-    
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -103,17 +117,14 @@ class District(HoldableSaveMixin, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.state.code} - {self.name} - {self.code}"
+        return f"{self.name} - {self.code}"
     
 
-class Taluka(HoldableSaveMixin, models.Model):
+class Taluka(HoldableMixin):
     district = models.ForeignKey(District, on_delete=models.CASCADE)
-    name = models.CharField("Taluka", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-    
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -122,35 +133,29 @@ class Taluka(HoldableSaveMixin, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.district.code} - {self.name} - {self.code}"
+        return f"{self.name} - {self.code}"
 
 
-class CityVillage(HoldableSaveMixin, models.Model):
+class CityVillage(HoldableMixin):
     taluka = models.ForeignKey(Taluka, on_delete=models.CASCADE)
-    name = models.CharField("City", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-    
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["taluka", "name"], name="unique_city_per_taluka"
+                fields=["taluka", "name"], name="unique_city_village_per_taluka"
             )
         ]
 
     def __str__(self):
-        return f"{self.taluka.code} - {self.name} - {self.code}"
+        return f"{self.name} - {self.code}"
 
 
-class Ward(HoldableSaveMixin, models.Model):
+class Ward(HoldableMixin):
     city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, null=True)
-    name = models.CharField("Ward", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -160,96 +165,13 @@ class Ward(HoldableSaveMixin, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.city_village} - {self.code}"
-    
-"""    
-class Society(models.Model):
-    ward = models.ForeignKey(Ward, on_delete=models.CASCADE)
-    name = models.CharField("Society", max_length=200)
-    code = models.CharField("Code", max_length=10, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["ward", "name"], name="unique_society_per_ward"
-            )
-        ]
-    
+        return f"{self.name} - {self.code}"
     
 
-    def __str__(self):
-        return f"{self.ward} - {self.name} - {self.code}"
 
-
-class Block(models.Model):
-    society = models.ForeignKey(Society, on_delete=models.CASCADE)
-    name = models.CharField("Block", max_length=20)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-    
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["society", "name"], name="unique_block_per_society"
-            )
-        ]
-
-    
-
-    def __str__(self):
-        return f"{self.society} - {self.name}"
-    
-    
-class Floor(models.Model):
-    block = models.ForeignKey(Block, on_delete=models.CASCADE)
-    code = models.CharField("Floor Code", max_length=5)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-    
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["block", "code"], name="unique_floor_per_block"
-            )
-        ]
-
-    
-
-    def __str__(self):
-        return f"{self.block} - {self.name}"
-
-
-class Houses(models.Model):
-    floor = models.ForeignKey(Floor, on_delete=models.CASCADE)
-    code = models.CharField("House Code")
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["floor", "code"], name="unique_house_per_floor"
-            )
-        ]
-    
-    
-
-    def __str__(self):
-        return f"{self.block} - {self.code}"
-"""
-
-class RoomFlash(HoldableSaveMixin, models.Model):
-    name = models.CharField("Room Name", max_length=20)
-    code = models.CharField("Number", max_length=10)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+class RoomFlash(HoldableMixin):
+    name = models.CharField(max_length=20)
+    code = models.CharField(max_length=10)
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -301,164 +223,209 @@ class RecordRule(models.Model):
 # -------------------------------------------------------------------------------------------------
 # Personal ->
 # -------------------------------------------------------------------------------------------------
-class Religion(HoldableSaveMixin, models.Model):
-    name = models.CharField("Religion", max_length=200, unique=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+class Religion(HoldableMixin):
+    name = models.CharField(max_length=200, unique=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class Sampraday(HoldableSaveMixin, models.Model):
+class Sampraday(HoldableMixin):
     religion = models.ForeignKey(Religion, on_delete=models.CASCADE)
-    name = models.CharField("Sampraday", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)   
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class Panth(HoldableSaveMixin, models.Model):
+class Panth(HoldableMixin):
     sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE)
-    name = models.CharField("Panth", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class Varna(HoldableSaveMixin, models.Model):
+class Varna(HoldableMixin):
     panth = models.ForeignKey(Panth, on_delete=models.CASCADE)
-    name = models.CharField("Varna", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class Caste(HoldableSaveMixin, models.Model):
+class Caste(HoldableMixin):
     varna = models.ForeignKey(Varna, on_delete=models.CASCADE)
-    name = models.CharField("Caste", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True) 
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class SubCaste(HoldableSaveMixin, models.Model):
+class SubCaste(HoldableMixin):
     caste = models.ForeignKey(Caste, on_delete=models.CASCADE)
-    name = models.CharField("Sub-Caste", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)  
-
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+  
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class Gotra(HoldableSaveMixin, models.Model):
+class Gotra(HoldableMixin):
     subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE)
-    name = models.CharField("Gotra", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class SubGotra(HoldableSaveMixin, models.Model):
+class SubGotra(HoldableMixin):
     gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE)
-    name = models.CharField("Sub-Gotra", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)  
-
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+  
     def __str__(self):
-        
-        
-        
-        
-        return self.name
+        return f"{self.name} - {self.code}"
 
 
-class Kul(HoldableSaveMixin, models.Model):
+class Kul(HoldableMixin):
     subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE)
-    name = models.CharField("Kul", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
     
 
-class Vansh(HoldableSaveMixin, models.Model):
+class Vansh(HoldableMixin):
     kul = models.ForeignKey(Kul, on_delete=models.CASCADE)
-    name = models.CharField("Vansh", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)  
-
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+  
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
     
 
-class Family(HoldableSaveMixin, models.Model):
+class Family(HoldableMixin):
     vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE)
-    name = models.CharField("Family", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
-class Pidhi(HoldableSaveMixin, models.Model):
+class Pidhi(HoldableMixin):
     family = models.ForeignKey(Family, on_delete=models.CASCADE)
-    name = models.CharField("Pidhi", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)   
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {self.code}"
 
-# Defines a type of relation like Father-1, Mother-2, Son-3, Friend, etc.
-# class RelationType(models.Model): # Use designation model....
-#     name = models.CharField("Relation", max_length=100, unique=True) # e.g. Father, Mother, Friend
-#     display_name = models.CharField("Display Name", max_length=100, unique=True)
-#     post_no = models.IntegerField("Post No")
+
+# ----------------------------------------------------------------------------------------------
+# Professional ->
+# ----------------------------------------------------------------------------------------------
+class Section(HoldableMixin):
+    name = models.CharField(max_length=200, unique=True)
+    code = models.PositiveIntegerField(unique=True)
     
-#     def __str__(self):
-#         return self.name
+    def __str__(self):
+        return f"{self.name} - {self.code}"
 
+
+class Class(HoldableMixin):
+    section = models.ForeignKey(Section, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
+class ProfCategory(HoldableMixin):
+    profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
+class ProfSubCategory(HoldableMixin):
+    category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+    
+class Sector(HoldableMixin):
+    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class SubSector(HoldableMixin):
+    sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class Department(HoldableMixin):
+    subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class SubDepartment(HoldableMixin):
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+  
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
+class Type(HoldableMixin):
+    subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class Brand(HoldableMixin):
+    type = models.ForeignKey(Type, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+# class PostModel(HoldableMixin):
+#     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
+#     name = models.CharField("Post Model", max_length=200, db_index=True)
+#     code = models.PositiveIntegerField(unique=True)
+
+#     def __str__(self):
+#         return f"{self.name} - {self.code}"
 
 
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
-class Designation(HoldableSaveMixin, models.Model):
+class Designation(HoldableMixin):
     category_choices = [
         ('personal', 'Personal'),
         ('professional', 'Professional'),
@@ -466,6 +433,7 @@ class Designation(HoldableSaveMixin, models.Model):
     ]
     category = models.CharField("Designation Category",choices=category_choices, max_length=20)
     name = models.CharField(max_length=100, unique=True)
+    code = models.PositiveIntegerField(unique=True)
     display_name = models.CharField(max_length=100, unique=True)
     reporting_designation = models.ForeignKey(
         "self",
@@ -476,9 +444,7 @@ class Designation(HoldableSaveMixin, models.Model):
         help_text="Parent designation for hierarchy"
     )
     post_no = models.PositiveIntegerField(default=0, help_text="Hierarchy level, 0=top") # Designation number / level / post no
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
+
 
     def __str__(self):
         return f"{self.display_name} (Level {self.post_no})"
@@ -487,140 +453,3 @@ class Designation(HoldableSaveMixin, models.Model):
         # Auto-set hierarchy level based on parent
         self.post_no = self.reporting_designation.post_no + 1 if self.reporting_designation else 0
         super().save(*args, **kwargs)
-
-
-# ----------------------------------------------------------------------------------------------
-# Professional ->
-# ----------------------------------------------------------------------------------------------
-class Section(HoldableSaveMixin, models.Model):
-    name = models.CharField("Section", max_length=200, unique=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)    
-
-    def __str__(self):
-        return self.name
-
-
-class Class(HoldableSaveMixin, models.Model):
-    section = models.ForeignKey(Section, on_delete=models.CASCADE)
-    name = models.CharField("Class", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)    
-
-    def __str__(self):
-        return self.name
-
-
-class ProfCategory(HoldableSaveMixin, models.Model):
-    profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
-    name = models.CharField("Category", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)    
-
-    def __str__(self):
-        return self.name
-
-
-class ProfSubCategory(HoldableSaveMixin, models.Model):
-    category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
-    name = models.CharField("Sub Category", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)    
-
-    def __str__(self):
-        return self.name
-    
-class Sector(HoldableSaveMixin, models.Model):
-    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
-    name = models.CharField("Sector", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)    
-
-    def __str__(self):
-        return self.name
-
-class SubSector(HoldableSaveMixin, models.Model):
-    sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
-    name = models.CharField("Sub Sector", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def __str__(self):
-        return self.name
-
-class Department(HoldableSaveMixin, models.Model):
-    subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
-    name = models.CharField("Department", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def __str__(self):
-        return self.name
-
-class SubDepartment(HoldableSaveMixin, models.Model):
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    name = models.CharField("Sub Department", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)  
-
-    def __str__(self):
-        return self.name
-
-
-class Type(HoldableSaveMixin, models.Model):
-    subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
-    name = models.CharField("Type", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True) 
-
-    def __str__(self):
-        return self.name
-
-class Brand(HoldableSaveMixin, models.Model):
-    type = models.ForeignKey(Type, on_delete=models.CASCADE)
-    name = models.CharField("Brand", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)
-
-    def __str__(self):
-        return self.name
-
-class PostModel(HoldableSaveMixin, models.Model):
-    brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
-    name = models.CharField("Post Model", max_length=200, db_index=True)
-    code = models.CharField("Code", max_length=5, unique=True)
-    is_hidden = models.BooleanField("Hidden", default=False)
-    on_hold = models.BooleanField("On Hold", default=False)
-    hold_date = models.DateField("Hold Upto", null=True, blank=True)   
-
-    def __str__(self):
-        return self.name
-
-# Current / Owner / Permanent / Native / InLaws(Girl / Boy) / Maternal / Business
-class RelationType(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    display_name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=5, unique=True)
-    
-    def __str__(self):
-        return self.display_name

@@ -35,7 +35,6 @@ router.register(r'departments_in_details', DepartmentViewSet)
 router.register(r'subdepartments_in_details', SubDepartmentViewSet)
 router.register(r'types_in_details', TypeViewSet)
 router.register(r'brands_in_details', BrandViewSet)
-router.register(r'postmodels_in_details', PostModelViewSet)
 router.register(r'roomflashes', RoomFlashViewSet)
 
 router.register(r'designations', DesignationViewSet)
@@ -75,7 +74,6 @@ urlpatterns = [
     path('upload/subdepartments/', UploadSubDepartmentView.as_view()),
     path('upload/types/', UploadTypeView.as_view()),
     path('upload/brands/', UploadBrandView.as_view()),
-    path('upload/postmodels/', UploadPostModelView.as_view()),
 
     
     path("models/", ModelNameView.as_view(), name="get_models"),

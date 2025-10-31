@@ -352,7 +352,6 @@ class ProfessionalDetail(models.Model):
     subdepartment = models.ForeignKey(configm.SubDepartment, on_delete=models.SET_NULL, null=True, blank=True)
     type = models.ForeignKey(configm.Type, on_delete=models.SET_NULL, null=True, blank=True)
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
-    postmodel = models.ForeignKey(configm.PostModel, on_delete=models.SET_NULL, null=True, blank=True)
     designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True)
     pay_scale = models.CharField("Pay Scale", max_length=20)

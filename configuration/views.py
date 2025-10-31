@@ -714,32 +714,32 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         return BrandDetailSerializer
 
 
-class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = PostModel
-    queryset = PostModel.objects.all()
-    serializer_class = PostModelSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    FILTER_FIELDS = {
-        'brand': 'brand__id',
-        'type': 'brand__type__id',
-        'subdepartment': 'brand__type__subdepartment__id',
-        'department': 'brand__type__subdepartment__department__id',
-        'subsector': 'brand__type__subdepartment__department__subsector__id',
-        'sector': 'brand__type__subdepartment__department__subsector__sector__id',
-        'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
-        'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
-        'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
-        'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold'
-    }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+# class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+#     model = PostModel
+#     queryset = PostModel.objects.all()
+#     serializer_class = PostModelSerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     FILTER_FIELDS = {
+#         'brand': 'brand__id',
+#         'type': 'brand__type__id',
+#         'subdepartment': 'brand__type__subdepartment__id',
+#         'department': 'brand__type__subdepartment__department__id',
+#         'subsector': 'brand__type__subdepartment__department__subsector__id',
+#         'sector': 'brand__type__subdepartment__department__subsector__sector__id',
+#         'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
+#         'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
+#         'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
+#         'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
+#         'is_hidden': 'is_hidden',
+#         'on_hold': 'on_hold'
+#     }
+#     # def get_base_queryset(self):
+#     #     return get_regular_query(self.model) 
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return PostModelSerializer   # For POST, PUT, PATCH
-        return PostModelDetailSerializer
+#     def get_serializer_class(self):
+#         if self.action in ["create", "update", "partial_update"]:
+#             return PostModelSerializer   # For POST, PUT, PATCH
+#         return PostModelDetailSerializer
 
 
 class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -3660,112 +3660,112 @@ class UploadBrandView(APIView):
         )
 
 
-class UploadPostModelView(APIView):
-    model = PostModel
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+# class UploadPostModelView(APIView):
+#     model = PostModel
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
+#     def post(self, request):
+#         serializer = FileUploadSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         file = serializer.validated_data['file']
 
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "brand", "postmodel", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "brand", "postmodel", "code", "is_hidden", "on_hold", "hold_date"])
+#         except ValidationError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+#         # Check if the DataFrame is empty
+#         if df.empty:
+#             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
-        objs = []
-        invalid_rows = []
+#         objs = []
+#         invalid_rows = []
         
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
+#         for idx, row in df.iterrows():
+#             try:
+#                 hold_date = row.get('hold_date')
+#                 if pd.isna(hold_date):  # check for NaT or NaN
+#                     hold_date = None
+#                 else:
+#                     hold_date = pd.to_datetime(hold_date).date()
                     
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
+#                 # Normalize boolean fields
+#                 is_hidden = normalize_bool(row.get("is_hidden"))
+#                 on_hold = normalize_bool(row.get("on_hold"))
                 
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+#                 # Calculate hidden and on_hold values
+#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                subsector = clean(row.get("subsector"))
-                department = clean(row.get("department"))
-                subdepartment = clean(row.get("subdepartment"))
-                type_name = clean(row.get("type"))
-                brand_name = clean(row.get("brand"))
-                postmodel = clean(row.get("postmodel"))
-                code = clean(row.get("code"))
+#                 # Clean text safely
+#                 section = clean(row.get("section"))
+#                 class_name = clean(row.get("class"))
+#                 category = clean(row.get("category"))
+#                 subcategory = clean(row.get("subcategory"))
+#                 sector = clean(row.get("sector"))
+#                 subsector = clean(row.get("subsector"))
+#                 department = clean(row.get("department"))
+#                 subdepartment = clean(row.get("subdepartment"))
+#                 type_name = clean(row.get("type"))
+#                 brand_name = clean(row.get("brand"))
+#                 postmodel = clean(row.get("postmodel"))
+#                 code = clean(row.get("code"))
                 
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, postmodel, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
+#                 # Skip invalid rows early
+#                 if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, postmodel, code]):
+#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+#                     continue
                 
-                try:
-                    brand_obj = Brand.objects.get(
-                        name=brand_name,
-                        type__name=type_name,
-                        type__subdepartment__name=subdepartment,
-                        type__subdepartment__department__name=department,
-                        type__subdepartment__department__subsector__name=subsector,
-                        type__subdepartment__department__subsector__sector__name=sector,
-                        type__subdepartment__department__subsector__sector__subcategory__name=subcategory,
-                        type__subdepartment__department__subsector__sector__subcategory__category__name=category,
-                        type__subdepartment__department__subsector__sector__subcategory__category__profclass__name=class_name,
-                        type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name=section
-                    )
-                except Brand.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Brand: '{brand_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-                    continue
+#                 try:
+#                     brand_obj = Brand.objects.get(
+#                         name=brand_name,
+#                         type__name=type_name,
+#                         type__subdepartment__name=subdepartment,
+#                         type__subdepartment__department__name=department,
+#                         type__subdepartment__department__subsector__name=subsector,
+#                         type__subdepartment__department__subsector__sector__name=sector,
+#                         type__subdepartment__department__subsector__sector__subcategory__name=subcategory,
+#                         type__subdepartment__department__subsector__sector__subcategory__category__name=category,
+#                         type__subdepartment__department__subsector__sector__subcategory__category__profclass__name=class_name,
+#                         type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name=section
+#                     )
+#                 except Brand.DoesNotExist:
+#                     invalid_rows.append({"row": idx + 2, "error": f"Brand: '{brand_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
+#                     continue
                 
-                objs.append(PostModel(
-                    brand=brand_obj,
-                    name=postmodel,
-                    code=code,
-                    is_hidden=is_hidden,
-                    on_hold=on_hold,
-                    hold_date=hold_date
-                ))
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+#                 objs.append(PostModel(
+#                     brand=brand_obj,
+#                     name=postmodel,
+#                     code=code,
+#                     is_hidden=is_hidden,
+#                     on_hold=on_hold,
+#                     hold_date=hold_date
+#                 ))
+#             except Exception as e:
+#                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
-        if not objs:
-            return Response({"error": "No valid rows found in the file"}, status=status.HTTP_400_BAD_REQUEST)
+#         if not objs:
+#             return Response({"error": "No valid rows found in the file"}, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            with transaction.atomic():
-                PostModel.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e: 
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
+#         try:
+#             with transaction.atomic():
+#                 PostModel.objects.bulk_create(
+#                     objs,
+#                     update_conflicts=True,
+#                     unique_fields=["code"],
+#                     update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+#                 )
+#         except Exception as e: 
+#             return Response({"error": f"Failed to create records: {e}"}, status=400)
         
-        return Response(
-            {
-                "message": f"{len(objs)} PostModel uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
+#         return Response(
+#             {
+#                 "message": f"{len(objs)} PostModel uploaded successfully.",
+#                 "invalid_rows": invalid_rows
+#             }, status=status.HTTP_201_CREATED
+#         )
                    
                                                     
 
@@ -4543,7 +4543,6 @@ class ProfessionalSearchView(APIView):
         subdepartment_name = data.get("subdepartment")
         type_name = data.get("type")
         brand_name = data.get("brand")
-        postmodel_name = data.get("postmodel")
         
         
         if search_key == "section":
@@ -4564,7 +4563,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }                
                 for obj in qs
             ]
@@ -4589,7 +4587,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4616,7 +4613,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4645,7 +4641,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4676,7 +4671,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4709,7 +4703,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4744,7 +4737,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4781,7 +4773,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": SubDepartmentIdNameSerializer(obj).data,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4820,7 +4811,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": SubDepartmentIdNameSerializer(obj.subdepartment).data,
                     "type": TypeIdNameSerializer(obj).data,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
@@ -4861,53 +4851,10 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": SubDepartmentIdNameSerializer(obj.type.subdepartment).data,
                     "type": TypeIdNameSerializer(obj.type).data,
                     "brand": BrandIdNameSerializer(obj).data,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
-        
-        elif search_key == "postmodel":
-            qs = get_regular_query(PostModel)
-            if postmodel_name:
-                qs = qs.filter(name__icontains=postmodel_name)
-            if brand_name:
-                qs = qs.filter(brand__name__icontains=brand_name)
-            if type_name:
-                qs = qs.filter(brand__type__name__icontains=type_name)
-            if subdepartment_name:
-                qs = qs.filter(brand__type__subdepartment__name__icontains=subdepartment_name)
-            if department_name:
-                qs = qs.filter(brand__type__subdepartment__department__name__icontains=department_name)
-            if subsector_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__name__icontains=subsector_name)
-            if sector_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
             
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector).data,
-                    "subsector": SubSectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector).data,
-                    "department": DepartmentIdNameSerializer(obj.brand.type.subdepartment.department).data,
-                    "subdepartment": SubDepartmentIdNameSerializer(obj.brand.type.subdepartment).data,
-                    "type": TypeIdNameSerializer(obj.brand.type).data,
-                    "brand": BrandIdNameSerializer(obj.brand).data,
-                    "postmodel": PostModelIdNameSerializer(obj).data
-                }
-                for obj in qs
-            ]
         
         else:
             # fallback - default sections
@@ -4924,7 +4871,6 @@ class ProfessionalSearchView(APIView):
                     "subdepartment": None,
                     "type": None,
                     "brand": None,
-                    "postmodel": None
                 }
                 for obj in qs
             ]
