@@ -681,7 +681,14 @@ class BrandDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
+class DesignationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = '__all__'
+        read_only_fields = ['id']
 
+
+        
 # class PostModelSerializer(serializers.ModelSerializer):
 #     class Meta:
 #         model = PostModel
@@ -1105,8 +1112,40 @@ class DesignationSerializer(serializers.ModelSerializer):
         model = Designation
         fields = "__all__"
         read_only_fields = ["id"]
+        extra_kwargs = {
+            'post_no': {'required': False}
+        }
+    
+    def validate(self, attrs):
+        # Use .get() to safely check if 'post_no' was in the request data
+        if check_designation_name(attrs.get('name')) == False:
+            raise serializers.ValidationError({"name": "Invalid name format.", "format": "name must be in lower case and without special characters except '_' "})
+        
+        post_no = attrs.get('post_no')
+        reporting_designation = attrs.get('reporting_designation')
+
+        if post_no is not None:
+            # Case 1: User *provided* a post_no.
+            # We just need to validate it.
+            if post_no == 0:
+                if attrs.get('name') != 'self':
+                    raise serializers.ValidationError({"post_no": "Invalid post no. Cannot be 0."})
+            # The provided post_no is fine, so we'll use it.
+            attrs['post_no'] = post_no
+        
+        else:
+            # Case 2: User did *not* provide a post_no.
+            # We will set it based on your logic.
+            if reporting_designation:
+                # Set post_no = parent's post_no + 1
+                attrs['post_no'] = reporting_designation.post_no + 1
+            else:
+                # Set post_no = 1 (for top-level designations)
+                attrs['post_no'] = 1
+
+        return attrs
 
 class DesignationIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
-        fields = ["id", "display_name"]
+        fields = ["id", "display_name", "post_no"]

@@ -2,6 +2,7 @@ from rest_framework.exceptions import ValidationError
 from configuration.models import ModelAccess, ModelName
 from django.db.models import Q, ForeignKey
 from django.utils import timezone
+import re
 
 def check_id_exists(model, id):
     try:
@@ -164,3 +165,19 @@ def calculate_hidden_hold(is_hidden, on_hold, hold_date):
     else:
         on_hold = False
     return is_hidden, on_hold, hold_date
+
+
+def check_designation_category(category):
+    if category in ['personal', 'professional', 'residential']:
+        return True
+    else:
+        return False
+
+def check_designation_name(name):
+    pattern = re.compile(r'^[a-z_]+$')
+    
+    # re.fullmatch() checks if the *entire* string matches the pattern
+    if re.fullmatch(pattern, name):
+        return True
+    else:
+        return False

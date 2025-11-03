@@ -1,26 +1,5 @@
 from django.db import models
-# from datetime import timezone
 from django.utils import timezone
-# from user_management.models import CustomUser
-# from django.contrib.postgres.fields import JSONField
-
-from django.utils import timezone
-
-# class HoldableMixin:
-#     def save(self, *args, **kwargs):
-#         if self.on_hold == False:
-#             self.hold_date = None
-        
-#         if self.hold_date:
-#             if self.hold_date >= timezone.now().date():
-#                 self.on_hold = True
-#             else:
-#                 self.on_hold = False
-#                 self.hold_date = None
-#         else:
-#             self.on_hold = False
-            
-#         super().save(*args, **kwargs)
 
 
 # An abstract model mixin that provides is_hidden, on_hold,
@@ -33,28 +12,32 @@ class HoldableMixin(models.Model):
 
     # --- Reusable logic ---
     def save(self, *args, **kwargs):
-        today = timezone.now().date()
+        if self.on_hold == False:
+            self.hold_date = None
         
-        # This logic is cleaner: the hold_date drives the on_hold status.
-        if self.hold_date and self.hold_date >= today:
-            # Date is set for today or the future, so it MUST be on hold.
-            self.on_hold = True
-        else:
-            # Date is either in the past or not set (None).
-            self.on_hold = False
-            if self.hold_date:
-                # Clear any date that is in the past.
+        if self.hold_date:
+            if self.hold_date >= timezone.now().date():
+                self.on_hold = True
+            else:
+                self.on_hold = False
                 self.hold_date = None
-                
+        else:
+            self.on_hold = False
+            
         super().save(*args, **kwargs)
 
-    # --- The most important part! ---
     class Meta:
-        abstract = True        
+        abstract = True
+
+class OrderByMixin(models.Model):
+    class Meta:
+        abstract = True
+        ordering = ["name"]      
+          
 # --------------------------------------------------------------------------------
 # Residential ->
 # --------------------------------------------------------------------------------
-class Glob(HoldableMixin):
+class Glob(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=100, unique=True)
     code = models.PositiveIntegerField(unique=True)
         
@@ -62,7 +45,7 @@ class Glob(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Continent(HoldableMixin):
+class Continent(OrderByMixin, HoldableMixin):
     glob = models.ForeignKey(Glob, on_delete=models.CASCADE)
     name = models.CharField(max_length=100, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -71,7 +54,7 @@ class Continent(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Country(HoldableMixin):
+class Country(OrderByMixin, HoldableMixin):
     continent = models.ForeignKey(Continent, on_delete=models.CASCADE)
     name = models.CharField(max_length=100, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -88,7 +71,7 @@ class Country(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class State(HoldableMixin):
+class State(OrderByMixin, HoldableMixin):
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -104,7 +87,7 @@ class State(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class District(HoldableMixin):
+class District(OrderByMixin, HoldableMixin):
     state = models.ForeignKey(State, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -120,7 +103,7 @@ class District(HoldableMixin):
         return f"{self.name} - {self.code}"
     
 
-class Taluka(HoldableMixin):
+class Taluka(OrderByMixin, HoldableMixin):
     district = models.ForeignKey(District, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -136,7 +119,7 @@ class Taluka(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class CityVillage(HoldableMixin):
+class CityVillage(OrderByMixin, HoldableMixin):
     taluka = models.ForeignKey(Taluka, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -152,7 +135,7 @@ class CityVillage(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Ward(HoldableMixin):
+class Ward(OrderByMixin, HoldableMixin):
     city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, null=True)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -169,7 +152,7 @@ class Ward(HoldableMixin):
     
 
 
-class RoomFlash(HoldableMixin):
+class RoomFlash(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=20)
     code = models.CharField(max_length=10)
 
@@ -223,7 +206,7 @@ class RecordRule(models.Model):
 # -------------------------------------------------------------------------------------------------
 # Personal ->
 # -------------------------------------------------------------------------------------------------
-class Religion(HoldableMixin):
+class Religion(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -231,7 +214,7 @@ class Religion(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Sampraday(HoldableMixin):
+class Sampraday(OrderByMixin, HoldableMixin):
     religion = models.ForeignKey(Religion, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -240,7 +223,7 @@ class Sampraday(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Panth(HoldableMixin):
+class Panth(OrderByMixin, HoldableMixin):
     sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -249,7 +232,7 @@ class Panth(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Varna(HoldableMixin):
+class Varna(OrderByMixin, HoldableMixin):
     panth = models.ForeignKey(Panth, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -258,7 +241,7 @@ class Varna(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Caste(HoldableMixin):
+class Caste(OrderByMixin, HoldableMixin):
     varna = models.ForeignKey(Varna, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -267,7 +250,7 @@ class Caste(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class SubCaste(HoldableMixin):
+class SubCaste(OrderByMixin, HoldableMixin):
     caste = models.ForeignKey(Caste, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -276,7 +259,7 @@ class SubCaste(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Gotra(HoldableMixin):
+class Gotra(OrderByMixin, HoldableMixin):
     subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -285,7 +268,7 @@ class Gotra(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class SubGotra(HoldableMixin):
+class SubGotra(OrderByMixin, HoldableMixin):
     gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -294,7 +277,7 @@ class SubGotra(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Kul(HoldableMixin):
+class Kul(OrderByMixin, HoldableMixin):
     subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -303,7 +286,7 @@ class Kul(HoldableMixin):
         return f"{self.name} - {self.code}"
     
 
-class Vansh(HoldableMixin):
+class Vansh(OrderByMixin, HoldableMixin):
     kul = models.ForeignKey(Kul, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -312,7 +295,7 @@ class Vansh(HoldableMixin):
         return f"{self.name} - {self.code}"
     
 
-class Family(HoldableMixin):
+class Family(OrderByMixin, HoldableMixin):
     vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -320,7 +303,7 @@ class Family(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Pidhi(HoldableMixin):
+class Pidhi(OrderByMixin, HoldableMixin):
     family = models.ForeignKey(Family, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -332,7 +315,7 @@ class Pidhi(HoldableMixin):
 # ----------------------------------------------------------------------------------------------
 # Professional ->
 # ----------------------------------------------------------------------------------------------
-class Section(HoldableMixin):
+class Section(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
     
@@ -340,7 +323,7 @@ class Section(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Class(HoldableMixin):
+class Class(OrderByMixin, HoldableMixin):
     section = models.ForeignKey(Section, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -349,7 +332,7 @@ class Class(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class ProfCategory(HoldableMixin):
+class ProfCategory(OrderByMixin, HoldableMixin):
     profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -358,7 +341,7 @@ class ProfCategory(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class ProfSubCategory(HoldableMixin):
+class ProfSubCategory(OrderByMixin, HoldableMixin):
     category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -366,7 +349,7 @@ class ProfSubCategory(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
     
-class Sector(HoldableMixin):
+class Sector(OrderByMixin, HoldableMixin):
     subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -374,7 +357,7 @@ class Sector(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class SubSector(HoldableMixin):
+class SubSector(OrderByMixin, HoldableMixin):
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -382,7 +365,7 @@ class SubSector(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Department(HoldableMixin):
+class Department(OrderByMixin, HoldableMixin):
     subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -390,7 +373,7 @@ class Department(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class SubDepartment(HoldableMixin):
+class SubDepartment(OrderByMixin, HoldableMixin):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -399,7 +382,7 @@ class SubDepartment(HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
-class Type(HoldableMixin):
+class Type(OrderByMixin, HoldableMixin):
     subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -407,7 +390,7 @@ class Type(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Brand(HoldableMixin):
+class Brand(OrderByMixin, HoldableMixin):
     type = models.ForeignKey(Type, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
@@ -415,7 +398,7 @@ class Brand(HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-# class PostModel(HoldableMixin):
+# class PostModel(OrderByMixin, HoldableMixin):
 #     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
 #     name = models.CharField("Post Model", max_length=200, db_index=True)
 #     code = models.PositiveIntegerField(unique=True)
@@ -425,7 +408,7 @@ class Brand(HoldableMixin):
 
 
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
-class Designation(HoldableMixin):
+class Designation(OrderByMixin, HoldableMixin):
     category_choices = [
         ('personal', 'Personal'),
         ('professional', 'Professional'),
@@ -433,7 +416,6 @@ class Designation(HoldableMixin):
     ]
     category = models.CharField("Designation Category",choices=category_choices, max_length=20)
     name = models.CharField(max_length=100, unique=True)
-    code = models.PositiveIntegerField(unique=True)
     display_name = models.CharField(max_length=100, unique=True)
     reporting_designation = models.ForeignKey(
         "self",
@@ -443,13 +425,14 @@ class Designation(HoldableMixin):
         on_delete=models.SET_NULL,
         help_text="Parent designation for hierarchy"
     )
-    post_no = models.PositiveIntegerField(default=0, help_text="Hierarchy level, 0=top") # Designation number / level / post no
+    post_no = models.PositiveIntegerField(default=1, help_text="Hierarchy level, 1=top") # Designation number / level / post no
 
 
     def __str__(self):
         return f"{self.display_name} (Level {self.post_no})"
     
-    def save(self, *args, **kwargs):
-        # Auto-set hierarchy level based on parent
-        self.post_no = self.reporting_designation.post_no + 1 if self.reporting_designation else 0
-        super().save(*args, **kwargs)
+    # def save(self, *args, **kwargs):
+    #     # Auto-set hierarchy level based on parent
+    #     if self.post_no != 0 or self.post_no is None:
+    #         self.post_no = self.reporting_designation.post_no + 1 if self.reporting_designation else 1
+    #     super().save(*args, **kwargs)

@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from .permissions import HasModelAccessPermission
 from .utils import read_file, normalize_bool, get_regular_query, calculate_hidden_hold
 from .mixins import FilteredQuerysetMixin, RecordRuleMixin
+from .pagination import ConfigurationPagination
 from configuration.serializers import *
 from .models import *
 import pandas as pd
@@ -22,6 +23,7 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     model = Glob 
     serializer_class = GlobSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
@@ -56,6 +58,7 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     queryset = Continent.objects.all() 
     serializer_class = ContinentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'glob': 'glob__id',
         'is_hidden': 'is_hidden',
@@ -75,6 +78,7 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'continent': 'continent__id',
         'glob': 'continent__glob__id',
@@ -95,6 +99,7 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = State.objects.all()
     serializer_class = StateSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'country': 'country__id',
         'continent': 'country__continent__id',
@@ -117,6 +122,7 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     queryset = District.objects.all()
     serializer_class = DistrictSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'state': 'state__id',
         'country': 'state__country__id',
@@ -139,6 +145,7 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     queryset = Taluka.objects.all()
     serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'district': 'district__id',
         'state': 'district__state__id',
@@ -162,6 +169,7 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
     queryset = CityVillage.objects.all()
     serializer_class = CityVillageSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'taluka': 'taluka__id',
         'district': 'taluka__district__id',
@@ -186,6 +194,7 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     queryset = Ward.objects.all()
     serializer_class = WardSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'city_village': 'city_village__id',
         'taluka': 'city_village__taluka__id',
@@ -215,6 +224,7 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     queryset = Religion.objects.all()
     serializer_class = ReligionSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
@@ -228,6 +238,7 @@ class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     queryset = Sampraday.objects.all()
     serializer_class = SampradaySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission] 
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'religion': 'religion__id',
         'is_hidden': 'is_hidden',
@@ -247,6 +258,7 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Panth.objects.all()
     serializer_class = PanthSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'sampraday': 'sampraday__id',
         'religion': 'sampraday__religion__id',
@@ -267,6 +279,7 @@ class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Varna.objects.all()
     serializer_class = VarnaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'panth': 'panth__id',
         'sampraday': 'panth__sampraday__id',
@@ -288,6 +301,7 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Caste.objects.all()
     serializer_class = CasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'varna': 'varna__id',
         'panth': 'varna__panth__id',
@@ -309,7 +323,8 @@ class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     model = SubCaste
     queryset = SubCaste.objects.all()
     serializer_class = SubCasteSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
+    permission_classes = [IsAuthenticated, HasModelAccessPermission] 
+    pagination_class = ConfigurationPagination   
     FILTER_FIELDS = {
         'caste': 'caste__id',
         'varna': 'caste__varna__id',
@@ -333,6 +348,7 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Gotra.objects.all()
     serializer_class = GotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'subcaste': 'subcaste__id',
         'caste': 'subcaste__caste__id',
@@ -356,7 +372,8 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     model = SubGotra
     queryset = SubGotra.objects.all()
     serializer_class = SubGotraSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]  
+    permission_classes = [IsAuthenticated, HasModelAccessPermission] 
+    pagination_class = ConfigurationPagination 
     FILTER_FIELDS = {
         'gotra': 'gotra__id',
         'subcaste': 'gotra__subcaste__id',
@@ -382,6 +399,7 @@ class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     queryset = Kul.objects.all()
     serializer_class = KulSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'subgotra': 'subgotra__id',
         'gotra': 'subgotra__gotra__id',
@@ -408,6 +426,7 @@ class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Vansh.objects.all()
     serializer_class = VanshSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'kul': 'kul__id',
         'subgotra': 'kul__subgotra__id',
@@ -435,6 +454,7 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     queryset = Family.objects.all()
     serializer_class = FamilySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'vansh': 'vansh__id',
         'kul': 'vansh__kul__id',
@@ -463,6 +483,7 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Pidhi.objects.all()
     serializer_class = PidhiSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'family': 'family__id',
         'vansh': 'family__vansh__id',
@@ -494,6 +515,7 @@ class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     queryset = Section.objects.all()
     serializer_class = SectionSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold'
@@ -512,6 +534,7 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Class.objects.all()
     serializer_class = ClassSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'section': 'section__id',
         'is_hidden': 'is_hidden',
@@ -531,6 +554,7 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
     queryset = ProfCategory.objects.all()
     serializer_class = ProfCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'profclass': 'profclass__id',
         'section': 'profclass__section__id',
@@ -551,6 +575,7 @@ class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mo
     queryset = ProfSubCategory.objects.all()
     serializer_class = ProfSubCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'category': 'category__id',
         'profclass': 'category__profclass__id',
@@ -572,6 +597,7 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
     queryset = Sector.objects.all()
     serializer_class = SectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'subcategory': 'subcategory__id',
         'category': 'subcategory__category__id',
@@ -594,6 +620,7 @@ class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     queryset = SubSector.objects.all()
     serializer_class = SubSectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'sector': 'sector__id',
         'subcategory': 'sector__subcategory__id',
@@ -617,6 +644,7 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'subsector': 'subsector__id',
         'sector': 'subsector__sector__id',
@@ -641,6 +669,7 @@ class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mode
     queryset = SubDepartment.objects.all()
     serializer_class = SubDepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'department': 'department__id',
         'subsector': 'department__subsector__id',
@@ -666,6 +695,7 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     queryset = Type.objects.all()
     serializer_class = TypeSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'subdepartment': 'subdepartment__id',
         'department': 'subdepartment__department__id',
@@ -692,6 +722,7 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'type': 'type__id',
         'subdepartment': 'type__subdepartment__id',
@@ -747,7 +778,11 @@ class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
     queryset = RoomFlash.objects.all()
     serializer_class = RoomFlashSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        "is_hidden": "is_hidden",
+        "on_hold": "on_hold"
+    }
 
 # ==================
 # Import Features
@@ -755,7 +790,15 @@ class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
 
 
 def clean(value):
-    return str(value).strip() if pd.notnull(value) else None
+    # This handles None, np.nan, and pd.NaT all at once
+    if pd.isna(value):
+        return None
+    
+    # Convert to string and strip whitespace
+    cleaned_value = str(value).strip()
+    
+    # Return the value if it's not an empty string, otherwise return None
+    return cleaned_value if cleaned_value else None
 
 
 class UploadGlobsView(APIView):
@@ -799,7 +842,7 @@ class UploadGlobsView(APIView):
                 
                 # Clean text safely
                 name = clean(row.get("glob") or "")
-                code = clean(row.get("code") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([name, code]):
@@ -819,8 +862,11 @@ class UploadGlobsView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
             with transaction.atomic():
                 Glob.objects.bulk_create(
@@ -859,7 +905,9 @@ class UploadContinentsView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
-                
+        
+        glob_cache = {g.name: g for g in Glob.objects.all()}
+        
         objs = []
         invalid_rows = []
 
@@ -879,23 +927,22 @@ class UploadContinentsView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    glob = Glob.objects.get(name=glob)
-                except Glob.DoesNotExist:
+                glob_obj = glob_cache.get(glob)
+                if not glob_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Glob '{glob}' not found"})
                     continue
                 
                 objs.append(Continent(
-                    glob = glob, 
+                    glob = glob_obj, 
                     name = continent, 
                     code = code, 
                     is_hidden = is_hidden, 
@@ -907,15 +954,18 @@ class UploadContinentsView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-        
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )        
         try:
             with transaction.atomic():
                 Continent.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["glob", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -947,7 +997,12 @@ class UploadCountriesView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
-                
+        
+        continent_cache = {
+            (c.name, c.glob.name): c
+            for c in Continent.objects.select_related('glob').all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -967,27 +1022,23 @@ class UploadCountriesView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                country = clean(row.get("country"))
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, country, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    continent = Continent.objects.get(
-                        name=continent, 
-                        glob__name=glob
-                    )
-                except Continent.DoesNotExist:
+                continent_obj = continent_cache.get((continent, glob))
+                if not continent_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Continent '{continent}' not found for glob: {glob}"})
                     continue
                 
                 objs.append(Country(
-                    continent=continent,
+                    continent=continent_obj,
                     name=country, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -999,15 +1050,18 @@ class UploadCountriesView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
                 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-        
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )        
         try:
             with transaction.atomic():
                 Country.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["continent","name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1040,6 +1094,12 @@ class UploadStatesView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
+        
+        # This runs 1 query that gets EVERYTHING (countries + contient + glob)
+        country_cache = {
+            (c.name, c.continent.name, c.continent.glob.name): c
+            for c in Country.objects.select_related('continent__glob').all()
+        }
                 
         objs = []
         invalid_rows = []
@@ -1060,30 +1120,24 @@ class UploadStatesView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                country = clean(row.get("country"))
-                state = clean(row.get("state"))
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, country, state, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
-                try:
-                    country = Country.objects.get(
-                        name=country, 
-                        continent__name=continent, 
-                        continent__glob__name=glob
-                    )
-                    
-                except Country.DoesNotExist:
+                country_obj = country_cache.get((country, continent, glob))
+                if not country_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Country '{country}' not found for continent: {continent}, glob: {glob}"})
                     continue
                 
                 objs.append(State(
-                    country=country,
+                    country=country_obj,
                     name=state, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -1094,15 +1148,18 @@ class UploadStatesView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})       
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-        
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )        
         try:
             with transaction.atomic():
                 State.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["country", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1135,7 +1192,12 @@ class UploadDistrictsView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
-                
+        
+        state_cache = {
+            (s.name, s.country.name, s.country.continent.name, s.country.continent.glob.name): s
+            for s in State.objects.select_related('country__continent__glob').all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1155,31 +1217,25 @@ class UploadDistrictsView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                country = clean(row.get("country"))
-                state = clean(row.get("state"))
-                district = clean(row.get("district"))
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, country, state, district, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
-                try:
-                    state = State.objects.get(
-                        name=state, 
-                        country__name=country, 
-                        country__continent__name=continent, 
-                        country__continent__glob__name=glob
-                    )
-                except State.DoesNotExist:
+                state_obj = state_cache.get((state, country, continent, glob))
+                if not state_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"State '{state}' not found for country: {country}, continent: {continent}, glob: {glob}"})
                     continue
                     
                 objs.append(District(
-                    state=state,
+                    state=state_obj,
                     name=district, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -1191,15 +1247,18 @@ class UploadDistrictsView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
                     
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-        
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )        
         try:
             with transaction.atomic():
                 District.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["state", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1232,7 +1291,16 @@ class UploadTalukasView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
-                
+        
+        district_cache = {
+            (d.name, 
+             d.state.name, 
+             d.state.country.name, 
+             d.state.country.continent.name, 
+             d.state.country.continent.glob.name): d
+             for d in District.objects.select_related('state__country__continent__glob').all()
+        }
+         
         objs = []
         invalid_rows = []
 
@@ -1252,34 +1320,26 @@ class UploadTalukasView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                country = clean(row.get("country"))
-                state = clean(row.get("state"))
-                district = clean(row.get("district"))
-                taluka = clean(row.get("taluka"))
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, country, state, district, taluka, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    district = District.objects.get(
-                        name=district, 
-                        state__name=state, 
-                        state__country__name=country, 
-                        state__country__continent__name=continent, 
-                        state__country__continent__glob__name=glob
-                    )
-                    
-                except District.DoesNotExist:
+                district_obj = district_cache.get((district, state, country, continent, glob))
+                if not district_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"District '{district}' not found for state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
                     continue
                 
                 objs.append(Taluka(
-                    district=district,
+                    district=district_obj,
                     name=taluka, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -1291,15 +1351,18 @@ class UploadTalukasView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-        
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )        
         try:
             with transaction.atomic():
                 Taluka.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["district", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1332,7 +1395,17 @@ class UploadCityVillagesView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
-                
+        
+        taluka_cache = {
+            (t.name,
+             t.district.name,
+             t.district.state.name,
+             t.district.state.country.name,
+             t.district.state.country.continent.name,
+             t.district.state.country.continent.glob.name): t
+             for t in Taluka.objects.select_related('district__state__country__continent__glob').all()
+        }
+           
         objs = []
         invalid_rows = []
         
@@ -1352,36 +1425,27 @@ class UploadCityVillagesView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                country = clean(row.get("country"))
-                state = clean(row.get("state"))
-                district = clean(row.get("district"))
-                taluka = clean(row.get("taluka"))
-                city_village = clean(row.get("city_village"))    
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")    
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, country, state, district, taluka, city_village, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    taluka = Taluka.objects.get(
-                        name=taluka, 
-                        district__name=district, 
-                        district__state__name=state, 
-                        district__state__country__name=country, 
-                        district__state__country__continent__name=continent, 
-                        district__state__country__continent__glob__name=glob
-                    )
-                    
-                except Taluka.DoesNotExist:
+                taluka_obj = taluka_cache.get((taluka, district, state, country, continent, glob))
+                if not taluka_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Taluka '{taluka}' not found for district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
                     continue
                 
                 objs.append(CityVillage(
-                    taluka=taluka,
+                    taluka=taluka_obj,
                     name=city_village, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -1393,15 +1457,18 @@ class UploadCityVillagesView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-        
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )        
         try:
             with transaction.atomic():
                 CityVillage.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["taluka", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1434,6 +1501,17 @@ class UploadWardsView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
                 
+        city_village_cache = {
+            (cv.name,
+             cv.taluka.name,
+             cv.taluka.district.name,
+             cv.taluka.district.state.name,
+             cv.taluka.district.state.country.name,
+             cv.taluka.district.state.country.continent.name,
+             cv.taluka.district.state.country.continent.glob.name): cv
+             for cv in CityVillage.objects.select_related('taluka__district__state__country__continent__glob').all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1453,37 +1531,28 @@ class UploadWardsView(APIView):
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                glob = clean(row.get("glob"))
-                continent = clean(row.get("continent"))
-                country = clean(row.get("country"))
-                state = clean(row.get("state"))
-                district = clean(row.get("district"))
-                taluka = clean(row.get("taluka"))
-                city_village = clean(row.get("city_village"))
-                ward = clean(row.get("ward"))
-                code = clean(row.get("code"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([glob, continent, country, state, district, taluka, city_village, ward, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    city_village = CityVillage.objects.get(
-                        name=city_village, 
-                        taluka__name=taluka, 
-                        taluka__district__name=district, 
-                        taluka__district__state__name=state, 
-                        taluka__district__state__country__name=country, 
-                        taluka__district__state__country__continent__name=continent, 
-                        taluka__district__state__country__continent__glob__name=glob
-                    )
-                except CityVillage.DoesNotExist:    
+                city_village_obj = city_village_cache.get((city_village, taluka, district, state, country, continent, glob))
+                if not city_village_obj:   
                     invalid_rows.append({"row": idx + 2, "error": f"City/Village '{city_village}' not found for taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
                     continue
                 
                 objs.append(Ward(
-                    city_village=city_village,
+                    city_village=city_village_obj,
                     name=ward, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -1495,15 +1564,18 @@ class UploadWardsView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=400)
-
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
             with transaction.atomic():
                 Ward.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["city_village", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1576,7 +1648,7 @@ class UploadReligionView(APIView):
                 
                 # Clean text safely
                 religion = clean(row.get("religion"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([religion, code]):
@@ -1595,7 +1667,11 @@ class UploadReligionView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -1636,6 +1712,10 @@ class UploadSampradayView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        religion_cache = {
+            r.name : r for r in Religion.objects.all() 
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1657,16 +1737,15 @@ class UploadSampradayView(APIView):
                 # Clean text safely
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([religion, sampraday, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                try:
-                    religion_obj = Religion.objects.get(name=religion)
-                except Religion.DoesNotExist:
+                religion_obj = religion_cache.get(religion)
+                if not religion_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Religion '{religion}' not found"})
                     continue    
                 
@@ -1683,7 +1762,11 @@ class UploadSampradayView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -1691,7 +1774,7 @@ class UploadSampradayView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["religion", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1725,6 +1808,10 @@ class UploadPanthView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        sampraday_cache = {
+            (s.name, s.religion.name) : s for s in Sampraday.objects.select_related("religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1747,16 +1834,15 @@ class UploadPanthView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([sampraday, religion, panth, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                try:
-                    sampraday_obj = Sampraday.objects.get(name=sampraday, religion__name=religion)
-                except Sampraday.DoesNotExist:
+                sampraday_obj = sampraday_cache.get((sampraday, religion))
+                if not sampraday_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Sampraday '{sampraday}' not found for religion: {religion}"})
                     continue    
                 
@@ -1773,7 +1859,11 @@ class UploadPanthView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -1781,7 +1871,7 @@ class UploadPanthView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["sampraday", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1815,6 +1905,13 @@ class UploadVarnaView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        panth_cache = {
+            (p.name, 
+             p.sampraday.name, 
+             p.sampraday.religion.name) : p 
+            for p in Panth.objects.select_related("sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1838,20 +1935,15 @@ class UploadVarnaView(APIView):
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([religion, sampraday, panth, varna, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                try:
-                    panth_obj = Panth.objects.get(
-                        name=panth, 
-                        sampraday__name=sampraday, 
-                        sampraday__religion__name=religion
-                    )
-                except Panth.DoesNotExist:
+                panth_obj = panth_cache.get((panth, sampraday, religion))
+                if not panth_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday} and religion: {religion}"}) 
                     continue    
                 
@@ -1868,7 +1960,11 @@ class UploadVarnaView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -1876,7 +1972,7 @@ class UploadVarnaView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["panth", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1910,6 +2006,14 @@ class UploadCasteView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        varna_cache = {
+            (v.name,
+             v.panth.name,
+             v.panth.sampraday.name,
+             v.panth.sampraday.religion.name) : v
+            for v in Varna.objects.select_related("panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1934,21 +2038,15 @@ class UploadCasteView(APIView):
                 panth = clean(row.get("panth"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([sampraday, religion, panth, varna, caste, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                try:
-                    varna_obj = Varna.objects.get(
-                        name=varna, 
-                        panth__name=panth, 
-                        panth__sampraday__name=sampraday, 
-                        panth__sampraday__religion__name=religion
-                    )
-                except Varna.DoesNotExist:
+                varna_obj = varna_cache.get((varna, panth, sampraday, religion))
+                if not varna_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Varna '{varna}' not found for panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
                     continue    
                 
@@ -1965,7 +2063,11 @@ class UploadCasteView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -1973,7 +2075,7 @@ class UploadCasteView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["varna", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2007,6 +2109,15 @@ class UploadSubCasteView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        caste_cache = {
+            (c.name, 
+             c.varna.name, 
+             c.varna.panth.name, 
+             c.varna.panth.sampraday.name, 
+             c.varna.panth.sampraday.religion.name) : c
+            for c in Caste.objects.select_related("varna__panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2032,22 +2143,15 @@ class UploadSubCasteView(APIView):
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([sampraday, religion, panth, varna, caste, subcaste, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                try:
-                    caste_obj = Caste.objects.get(
-                        name=caste, 
-                        varna__name=varna, 
-                        varna__panth__name=panth, 
-                        varna__panth__sampraday__name=sampraday, 
-                        varna__panth__sampraday__religion__name=religion
-                    )
-                except Caste.DoesNotExist:
+                caste_obj = caste_cache.get((caste, varna, panth, sampraday, religion))
+                if not caste_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Caste '{caste}' not found for varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
                     continue    
                 
@@ -2064,7 +2168,11 @@ class UploadSubCasteView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -2072,7 +2180,7 @@ class UploadSubCasteView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["caste", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2105,6 +2213,16 @@ class UploadGotraView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        subcaste_cache = {
+            (s.name, 
+             s.caste.name, 
+             s.caste.varna.name, 
+             s.caste.varna.panth.name, 
+             s.caste.varna.panth.sampraday.name, 
+             s.caste.varna.panth.sampraday.religion.name) : s
+            for s in SubCaste.objects.select_related("caste__varna__panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2131,7 +2249,7 @@ class UploadGotraView(APIView):
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, code]):
@@ -2139,16 +2257,8 @@ class UploadGotraView(APIView):
                     continue
                  
                     
-                try:
-                    subcaste_obj = SubCaste.objects.get(
-                        name=subcaste, 
-                        caste__name=caste, 
-                        caste__varna__name=varna, 
-                        caste__varna__panth__name=panth, 
-                        caste__varna__panth__sampraday__name=sampraday, 
-                        caste__varna__panth__sampraday__religion__name=religion
-                    )
-                except SubCaste.DoesNotExist:
+                subcaste_obj = subcaste_cache.get((subcaste, caste, varna, panth, sampraday, religion))
+                if not subcaste_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {subcaste} not found for caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
                     continue    
                 
@@ -2165,7 +2275,11 @@ class UploadGotraView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -2173,7 +2287,7 @@ class UploadGotraView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["subcaste", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2207,6 +2321,17 @@ class UploadSubGotraView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        gotra_cache = {
+            (g.name, 
+             g.subcaste.name, 
+             g.subcaste.caste.name, 
+             g.subcaste.caste.varna.name, 
+             g.subcaste.caste.varna.panth.name, 
+             g.subcaste.caste.varna.panth.sampraday.name, 
+             g.subcaste.caste.varna.panth.sampraday.religion.name) : g
+            for g in Gotra.objects.select_related("subcaste__caste__varna__panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2234,23 +2359,15 @@ class UploadSubGotraView(APIView):
                 subcaste = clean(row.get("subcaste"))
                 gotra = clean(row.get("gotra"))
                 subgotra = clean(row.get("subgotra"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([sampraday, religion, panth, varna, caste, subcaste, gotra, subgotra, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                try:
-                    gotra_obj = Gotra.objects.get(
-                        name=gotra, 
-                        subcaste__caste__name=caste, 
-                        subcaste__caste__varna__name=varna, 
-                        subcaste__caste__varna__panth__name=panth, 
-                        subcaste__caste__varna__panth__sampraday__name=sampraday, 
-                        subcaste__caste__varna__panth__sampraday__religion__name=religion
-                    )
-                except Gotra.DoesNotExist:
+                gotra_obj = gotra_cache.get((gotra, subcaste, caste, varna, panth, sampraday, religion))
+                if not gotra_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue    
                 
@@ -2267,7 +2384,11 @@ class UploadSubGotraView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
@@ -2275,7 +2396,7 @@ class UploadSubGotraView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["gotra", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2309,6 +2430,18 @@ class UploadKulView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        subgotra_cache = {
+            (sg.name,
+            sg.gotra.name,
+            sg.gotra.subcaste.name,
+            sg.gotra.subcaste.caste.name,
+            sg.gotra.subcaste.caste.varna.name,
+            sg.gotra.subcaste.caste.varna.panth.name,
+            sg.gotra.subcaste.caste.varna.panth.sampraday.name,
+            sg.gotra.subcaste.caste.varna.panth.sampraday.religion.name): sg
+            for sg in SubGotra.objects.select_related("gotra__subcaste__caste__varna__panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2337,24 +2470,15 @@ class UploadKulView(APIView):
                 gotra = clean(row.get("gotra"))
                 subgotra = clean(row.get("subgotra"))
                 kul = clean(row.get("kul"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
-                try:
-                    subgotra_obj = SubGotra.objects.get(
-                        name=subgotra, 
-                        gotra__name=gotra, 
-                        gotra__subcaste__caste__name=caste, 
-                        gotra__subcaste__caste__varna__name=varna, 
-                        gotra__subcaste__caste__varna__panth__name=panth, 
-                        gotra__subcaste__caste__varna__panth__sampraday__name=sampraday, 
-                        gotra__subcaste__caste__varna__panth__sampraday__religion__name=religion
-                    )
-                except SubGotra.DoesNotExist:
+                subgotra_obj = subgotra_cache.get((subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                if not subgotra_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{subgotra}' not found for gotra: {gotra}, sub caste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
                     continue    
                 
@@ -2371,7 +2495,11 @@ class UploadKulView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
 
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2379,7 +2507,7 @@ class UploadKulView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["subgotra", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2413,6 +2541,19 @@ class UploadVanshView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        kul_cache = {
+            (kul.name,
+            kul.subgotra.name,
+            kul.subgotra.gotra.name,
+            kul.subgotra.gotra.subcaste.name,
+            kul.subgotra.gotra.subcaste.caste.name,
+            kul.subgotra.gotra.subcaste.caste.varna.name,
+            kul.subgotra.gotra.subcaste.caste.varna.panth.name,
+            kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
+            kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): kul
+            for kul in Kul.objects.select_related("subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2442,25 +2583,15 @@ class UploadVanshView(APIView):
                 subgotra = clean(row.get("subgotra"))
                 kul = clean(row.get("kul"))
                 vansh = clean(row.get("vansh"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    kul_obj = Kul.objects.get(
-                        name = kul,
-                        subgotra__name = subgotra,
-                        subgotra__gotra__name = gotra,
-                        subgotra__gotra__subcaste__caste__name = caste,
-                        subgotra__gotra__subcaste__caste__varna__name = varna,
-                        subgotra__gotra__subcaste__caste__varna__panth__name = panth,
-                        subgotra__gotra__subcaste__caste__varna__panth__sampraday__name = sampraday,
-                        subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
-                    )
-                except Kul.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {subgotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                kul_obj = kul_cache.get((kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                if not kul_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Vansh(
@@ -2475,7 +2606,11 @@ class UploadVanshView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid rows found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2483,7 +2618,7 @@ class UploadVanshView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["kul", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:  
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -2515,6 +2650,20 @@ class UploadFamilyView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        vansh_cache = {
+            (v.name,
+             v.kul.name,
+             v.kul.subgotra.name,
+             v.kul.subgotra.gotra.name,
+             v.kul.subgotra.gotra.subcaste.name,
+             v.kul.subgotra.gotra.subcaste.caste.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): v
+            for v in Vansh.objects.select_related("kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2545,27 +2694,15 @@ class UploadFamilyView(APIView):
                 kul = clean(row.get("kul"))
                 vansh = clean(row.get("vansh"))
                 family = clean(row.get("family"))
-                code = clean(row.get("code"))    
+                code = row.get("code")    
                 
                 if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    vansh_obj = Vansh.objects.get(
-                        name = vansh,
-                        kul__name = kul,
-                        kul__subgotra__name = subgotra,
-                        kul__subgotra__gotra__name = gotra,
-                        kul__subgotra__gotra__subcaste__name = subcaste,
-                        kul__subgotra__gotra__subcaste__caste__name = caste,
-                        kul__subgotra__gotra__subcaste__caste__varna__name = varna,
-                        kul__subgotra__gotra__subcaste__caste__varna__panth__name = panth,
-                        kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name = sampraday,
-                        kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
-                    )
-                except Vansh.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                vansh_obj = vansh_cache.get((vansh, kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                if not vansh_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Family(
@@ -2581,7 +2718,11 @@ class UploadFamilyView(APIView):
                 continue
         
         if not objs:
-            return Response({"error": "No valid data found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2589,7 +2730,7 @@ class UploadFamilyView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["vansh", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2623,6 +2764,22 @@ class UploadPidhiView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        family_cache = {
+            (f.name,
+             f.vansh.name,
+             f.vansh.kul.name,
+             f.vansh.kul.subgotra.name,
+             f.vansh.kul.subgotra.gotra.name,
+             f.vansh.kul.subgotra.gotra.subcaste.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): f
+            for f in Family.objects.all()
+        }
+                
+    
         objs = []
         invalid_rows = []
         
@@ -2654,27 +2811,14 @@ class UploadPidhiView(APIView):
                 vansh = clean(row.get("vansh"))
                 family = clean(row.get("family"))
                 pidhi = clean(row.get("pidhi"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    family_obj = Family.objects.get(
-                        name = family,
-                        vansh__name = vansh,
-                        vansh__kul__name = kul,
-                        vansh__kul__subgotra__name = subgotra,
-                        vansh__kul__subgotra__gotra__name = gotra,
-                        vansh__kul__subgotra__gotra__subcaste__name = subcaste,
-                        vansh__kul__subgotra__gotra__subcaste__caste__name = caste,
-                        vansh__kul__subgotra__gotra__subcaste__caste__varna__name = varna,
-                        vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name = panth,
-                        vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name = sampraday,
-                        vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name = religion
-                    )
-                except Exception as e:
+                family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                if not family_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
@@ -2691,7 +2835,11 @@ class UploadPidhiView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2699,7 +2847,7 @@ class UploadPidhiView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["family", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2756,7 +2904,7 @@ class UploadSectionView(APIView):
                 
                 # Clean text safely
                 section = clean(row.get("section"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, code]):
@@ -2775,7 +2923,11 @@ class UploadSectionView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=400)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2817,6 +2969,10 @@ class UploadClassView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        section_cache = {
+            s.name : s for s in Section.objects.all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2838,16 +2994,15 @@ class UploadClassView(APIView):
                 # Clean text safely
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    section_obj = Section.objects.get(name=section)
-                except Section.DoesNotExist:
+                section_obj = section_cache.get(section)
+                if not section_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Section: '{section}' not found."})
                     continue
                 
@@ -2864,7 +3019,11 @@ class UploadClassView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=400)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2872,7 +3031,7 @@ class UploadClassView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["section", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -2906,6 +3065,10 @@ class UploadProfCategoryView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        profclass_cache = {
+            (c.name, c.section.name) : c for c in Class.objects.select_related("section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -2928,16 +3091,15 @@ class UploadProfCategoryView(APIView):
                 section = clean(row.get("section"))
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    class_obj = Class.objects.get(name=class_name, section__name=section)
-                except Class.DoesNotExist:
+                class_obj = profclass_cache.get((class_name, section))
+                if not class_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Class: '{class_name}' not found for section: {section}"})
                     continue
                 
@@ -2954,7 +3116,11 @@ class UploadProfCategoryView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=400)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -2962,7 +3128,7 @@ class UploadProfCategoryView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["profclass", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -2995,6 +3161,13 @@ class UploadProfSubCategoryView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        category_cache = {
+            (p.name, 
+             p.profclass.name,
+             p.profclass.section.name) : p
+            for p in ProfCategory.objects.select_related("profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3018,16 +3191,15 @@ class UploadProfSubCategoryView(APIView):
                 class_name = clean(row.get("class"))
                 category = clean(row.get("category"))
                 subcategory = clean(row.get("subcategory"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    category_obj = ProfCategory.objects.get(name=category, profclass__name=class_name, profclass__section__name=section)
-                except ProfCategory.DoesNotExist:
+                category_obj = category_cache.get((category, class_name, section))
+                if not category_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Category: '{category}' not found for class: {class_name}, section: {section}"})
                     continue
                 
@@ -3044,7 +3216,11 @@ class UploadProfSubCategoryView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3052,7 +3228,7 @@ class UploadProfSubCategoryView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["category", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3086,6 +3262,14 @@ class UploadSectorView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        subcategory_cache = {
+            (sb.name,
+             sb.category.name,
+             sb.category.profclass.name,
+             sb.category.profclass.section.name) : sb
+            for sb in ProfSubCategory.objects.select_related("category__profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3110,16 +3294,15 @@ class UploadSectorView(APIView):
                 category = clean(row.get("category"))
                 subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, sector, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    subcategory_obj = ProfSubCategory.objects.get(name=subcategory, category__name=category, category__profclass__name=class_name, category__profclass__section__name=section)
-                except ProfSubCategory.DoesNotExist:
+                subcategory_obj = subcategory_cache.get((subcategory, category, class_name, section))
+                if not subcategory_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"SubCategory: '{subcategory}' not found for category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
@@ -3135,7 +3318,11 @@ class UploadSectorView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3143,7 +3330,7 @@ class UploadSectorView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["subcategory", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3177,6 +3364,15 @@ class UploadSubSectorView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        sector_cache = {
+            (s.name,
+             s.subcategory.name,
+             s.subcategory.category.name,
+             s.subcategory.category.profclass.name,
+             s.subcategory.category.profclass.section.name) : s
+            for s in Sector.objects.select_related("subcategory__category__profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3202,16 +3398,15 @@ class UploadSubSectorView(APIView):
                 subcategory = clean(row.get("subcategory"))
                 sector = clean(row.get("sector"))
                 subsector = clean(row.get("subsector"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, sector, subsector, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    sector_obj = Sector.objects.get(name=sector, subcategory__name=subcategory, subcategory__category__name=category, subcategory__category__profclass__name=class_name, subcategory__category__profclass__section__name=section)
-                except Sector.DoesNotExist:
+                sector_obj = sector_cache.get((sector, subcategory, category, class_name, section))
+                if not sector_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Sector: '{sector}' not found for subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
@@ -3228,7 +3423,11 @@ class UploadSubSectorView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3236,7 +3435,7 @@ class UploadSubSectorView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["sector", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3269,6 +3468,16 @@ class UploadDepartmentView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        subsector_cache = {
+            (s.name,
+             s.sector.name,
+             s.sector.subcategory.name,
+             s.sector.subcategory.category.name,
+             s.sector.subcategory.category.profclass.name,
+             s.sector.subcategory.category.profclass.section.name) : s
+            for s in SubSector.objects.select_related("sector__subcategory__category__profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3295,23 +3504,15 @@ class UploadDepartmentView(APIView):
                 sector = clean(row.get("sector"))
                 subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, sector, subsector, department, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
-                try:
-                    subsector_obj = SubSector.objects.get(
-                        name=subsector,
-                        sector__name=sector,
-                        sector__subcategory__name=subcategory,
-                        sector__subcategory__category__name=category,
-                        sector__subcategory__category__profclass__name=class_name,
-                        sector__subcategory__category__profclass__section__name=section 
-                    )
-                except SubSector.DoesNotExist:
+                subsector_obj = subsector_cache.get((subsector, sector, subcategory, category, class_name, section))
+                if not subsector_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"SubSector: '{subsector}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
@@ -3328,7 +3529,11 @@ class UploadDepartmentView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3336,7 +3541,7 @@ class UploadDepartmentView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["subsector", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3370,6 +3575,17 @@ class UploadSubDepartmentView(APIView):
         if df.empty:
             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
         
+        department_cache = {
+            (d.name,
+             d.subsector.name,
+             d.subsector.sector.name,
+             d.subsector.sector.subcategory.name,
+             d.subsector.sector.subcategory.category.name,
+             d.subsector.sector.subcategory.category.profclass.name,
+             d.subsector.sector.subcategory.category.profclass.section.name) : d
+            for d in Department.objects.select_related("subsector__sector__subcategory__category__profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3397,24 +3613,15 @@ class UploadSubDepartmentView(APIView):
                 subsector = clean(row.get("subsector"))
                 department = clean(row.get("department"))
                 subdepartment = clean(row.get("subdepartment"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
-                try:
-                    department_obj = Department.objects.get(
-                        name=department,
-                        subsector__name=subsector,
-                        subsector__sector__name=sector,
-                        subsector__sector__subcategory__name=subcategory,
-                        subsector__sector__subcategory__category__name=category,
-                        subsector__sector__subcategory__category__profclass__name=class_name,
-                        subsector__sector__subcategory__category__profclass__section__name=section 
-                        )
-                except Department.DoesNotExist:
+                department_obj = department_cache.get((department, subsector, sector, subcategory, category, class_name, section))
+                if not department_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
@@ -3431,7 +3638,11 @@ class UploadSubDepartmentView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3439,7 +3650,7 @@ class UploadSubDepartmentView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["department", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3471,6 +3682,18 @@ class UploadTypeView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
         
+        subdepartment_cache = {
+            (sb.name,
+             sb.department.name,
+             sb.department.subsector.name,
+             sb.department.subsector.sector.name,
+             sb.department.subsector.sector.subcategory.name,
+             sb.department.subsector.sector.subcategory.category.name,
+             sb.department.subsector.sector.subcategory.category.profclass.name,
+             sb.department.subsector.sector.subcategory.category.profclass.section.name) : sb
+            for sb in SubDepartment.objects.select_related("department__subsector__sector__subcategory__category__profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3499,26 +3722,16 @@ class UploadTypeView(APIView):
                 department = clean(row.get("department"))
                 subdepartment = clean(row.get("subdepartment"))
                 type_name = clean(row.get("type"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    subdepartment_obj = SubDepartment.objects.get(
-                        name = subdepartment,
-                        department__name = department,
-                        department__subsector__name = subsector,
-                        department__subsector__sector__name = sector,
-                        department__subsector__sector__subcategory__name = subcategory,
-                        department__subsector__sector__subcategory__category__name = category,
-                        department__subsector__sector__subcategory__category__profclass__name = class_name,
-                        department__subsector__sector__subcategory__category__profclass__section__name = section 
-                        )
-                except SubDepartment.DoesNotExist:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sub Department: '{subdepartment}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
+                subdepartment_obj = subdepartment_cache.get((subdepartment, department, subsector, sector, subcategory, category, class_name, section))
+                if not subdepartment_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Sub Department: '{subdepartment}' not found for department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
                 objs.append(Type(
@@ -3534,7 +3747,11 @@ class UploadTypeView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3542,7 +3759,7 @@ class UploadTypeView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["subdepartment", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3574,6 +3791,19 @@ class UploadBrandView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=400)
         
+        type_cache = {
+            (t.name,
+             t.subdepartment.name,
+             t.subdepartment.department.name,
+             t.subdepartment.department.subsector.name,
+             t.subdepartment.department.subsector.sector.name,
+             t.subdepartment.department.subsector.sector.subcategory.name,
+             t.subdepartment.department.subsector.sector.subcategory.category.name,
+             t.subdepartment.department.subsector.sector.subcategory.category.profclass.name,
+             t.subdepartment.department.subsector.sector.subcategory.category.profclass.section.name) : t
+            for t in Type.objects.select_related("subdepartment__department__subsector__sector__subcategory__category__profclass__section").all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -3603,26 +3833,16 @@ class UploadBrandView(APIView):
                 subdepartment = clean(row.get("subdepartment"))
                 type_name = clean(row.get("type"))
                 brand_name = clean(row.get("brand"))
-                code = clean(row.get("code"))
+                code = row.get("code")
                 
                 # Skip invalid rows early
                 if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                try:
-                    type_obj = Type.objects.get(
-                        name = type_name,
-                        subdepartment__name = subdepartment,
-                        subdepartment__department__name = department,
-                        subdepartment__department__subsector__name = subsector,
-                        subdepartment__department__subsector__sector__name = sector,
-                        subdepartment__department__subsector__sector__subcategory__name = subcategory,
-                        subdepartment__department__subsector__sector__subcategory__category__name = category,
-                        subdepartment__department__subsector__sector__subcategory__category__profclass__name = class_name,
-                        subdepartment__department__subsector__sector__subcategory__category__profclass__section__name = section 
-                        )
-                except Type.DoesNotExist:
+                type_obj = type_cache.get((type_name, subdepartment, department, subsector, sector, subcategory, category, class_name, section))
+                
+                if not type_obj:
                     invalid_rows.append({"row": idx + 2, "error": f"Type: '{type_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
                     continue
                 
@@ -3639,7 +3859,11 @@ class UploadBrandView(APIView):
                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
         if not objs:
-            return Response({"error": "No valid records found in the file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             with transaction.atomic():
@@ -3647,7 +3871,7 @@ class UploadBrandView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["type", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3660,6 +3884,122 @@ class UploadBrandView(APIView):
         )
 
 
+class UploadDesignationView(APIView):
+    model = Designation
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        category = request.query_params.get('category')
+        if check_designation_category(category) == False:
+            return Response({"error": "Invalid category."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["name","display_name", "code", "reporting_designation", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+         
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # We map the designation 'name' to the actual object
+        designation_cache = {
+            d.name: d for d in Designation.objects.filter(category=category)
+        }
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                name = clean(row.get("name") or "")
+                display_name = clean(row.get("display_name") or "")
+                code = row.get("code")
+                reporting_designation_name = clean(row.get("reporting_designation") or "")
+                
+                if not all([name, display_name, code, reporting_designation_name]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required field(s)"})
+                    continue
+                
+                if check_designation_name(name) == False:
+                    invalid_rows.append({"row": idx + 2, "error": "Invalid name format"})
+                    continue
+                
+                reporting_designation_obj = None
+                calculated_post_no = 0
+                
+                if reporting_designation_name:
+                    if check_designation_name(reporting_designation_name) == False:
+                         invalid_rows.append({"row": idx + 2, "error": "Invalid reporting designation format"})
+                         continue
+                
+                    # get the actual object from designation_cache
+                    reporting_designation_obj = designation_cache.get(reporting_designation_name)
+                    if not reporting_designation_obj:
+                        invalid_rows.append({"row": idx + 2, "error": f"Designation: '{reporting_designation_name}' not found for category: {category}"})
+                        continue
+                        
+                    calculated_post_no = reporting_designation_obj.post_no + 1
+                
+                objs.append(Designation(
+                    reporting_designation = reporting_designation_obj,
+                    name = name,
+                    display_name = display_name,
+                    code = code,
+                    post_no = calculated_post_no,
+                    category = category,
+                    is_hidden = is_hidden,
+                    on_hold = on_hold,
+                    hold_date = hold_date
+                ))
+            
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": f"An unexpected error occurred: {str(e)}"})
+        
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                Designation.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "display_name", "post_no", "reporting_designation", "category", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Designation uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+            
 # class UploadPostModelView(APIView):
 #     model = PostModel
 #     parser_classes = [MultiPartParser]
@@ -3711,7 +4051,7 @@ class UploadBrandView(APIView):
 #                 type_name = clean(row.get("type"))
 #                 brand_name = clean(row.get("brand"))
 #                 postmodel = clean(row.get("postmodel"))
-#                 code = clean(row.get("code"))
+#                 code = row.get("code")
                 
 #                 # Skip invalid rows early
 #                 if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, postmodel, code]):
@@ -4934,13 +5274,15 @@ class ProfessionalSearchView(APIView):
 class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Designation
     queryset = Designation.objects.all()
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
     serializer_class = DesignationSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
         'category': 'category',
         'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold'
+        'on_hold': 'on_hold',
     }
+
 
 class DesignationListView(RecordRuleMixin, APIView):
     model = Designation
@@ -4953,6 +5295,7 @@ class DesignationListView(RecordRuleMixin, APIView):
         category = request.query_params.get('category', None)
         if category and category != '':
             qs = qs.filter(category=category)
+        qs = qs.order_by('post_no')
         output = DesignationIdNameSerializer(qs, many=True)
         return Response(output.data, status=status.HTTP_200_OK)
     
