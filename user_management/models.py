@@ -132,18 +132,19 @@ class UserRole(models.Model):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    contact_no = models.CharField(max_length=15)
+    contact_no = models.CharField(max_length=15, unique=True)
     user_role = models.ManyToManyField(UserRole)
     is_super_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     
-    full_name = models.CharField("Real Name", max_length=50)
-    pet_name = models.CharField("Pet Name", max_length=50, null=True, blank=True)
-    father_name = models.CharField("Father Name", max_length=50)
-    photo = models.ImageField("Photo", upload_to='users/photo/', blank=True, null=True)
-    date_of_birth = models.DateField("Date of Birth")
-    blood_group = models.CharField("Blood Group", max_length=4, null=True, blank=True)
+    full_name = models.CharField( max_length=50)
+    pet_name = models.CharField(max_length=50, null=True, blank=True)
+    father_name = models.CharField(max_length=50)
+    photo = models.ImageField(upload_to='users/photo/', blank=True, null=True)
+    date_of_birth = models.DateField()
+    blood_group = models.CharField(max_length=4, null=True, blank=True)
+    is_married = models.BooleanField(default=False)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -231,7 +232,7 @@ class PersonalDetail(models.Model):
     vansh = models.ForeignKey(configm.Vansh, on_delete=models.SET_NULL, null=True, blank=True)
     family = models.ForeignKey(configm.Family, on_delete=models.SET_NULL, null=True, blank=True)
     pidhi = models.ForeignKey(configm.Pidhi, on_delete=models.SET_NULL, null=True, blank=True)
-    personal_code = models.CharField("Personal ID", max_length=100, null=True, blank=True)
+    personal_code = models.CharField(max_length=100, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     
     def save(self, *args, **kwargs):
@@ -260,26 +261,26 @@ class Relation(models.Model):
         ('business','Business')
     ]
     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
-    relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
+    relation_category = models.CharField(choices=relation_category_choices, max_length=20)
     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
-    custom_post_no = models.FloatField("Post Number", null=True, blank=True)
+    custom_post_no = models.FloatField(null=True, blank=True)
     
     def __str__(self):
         return f"{self.from_user} - {self.designation.name} - {self.to_user}"
 
 class Document(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    adhar_card_no = models.CharField("Adhar Card Number", max_length=12, unique=True, blank=True, null=True)
-    adhar_card_file = models.FileField("Adhar Card", upload_to='users/documents/adharCard/', blank=True, null=True)
-    pan_card_no = models.CharField("Pan Card Number", max_length=10, unique=True, blank=True, null=True)
-    pan_card_file = models.FileField("Pan Card", upload_to='users/documents/panCard/', blank=True, null=True)
-    voter_card_no = models.CharField("Voter Card Number", max_length=10, unique=True, blank=True, null=True)
-    voter_card_file = models.FileField("Voter Card", upload_to='users/documents/voterCard/', blank=True, null=True)
-    driving_licence_no = models.CharField("Driving Licence Number", max_length=20, unique=True, blank=True, null=True)
-    driving_licence_file = models.FileField("Driving Licence", upload_to='users/documents/drivingLicence/', blank=True, null=True)
-    ration_card_no = models.CharField("Ration Card Number", max_length=20, blank=True, null=True)
-    ration_card_file = models.FileField("Ration Card", upload_to='users/documents/rationCard/', blank=True, null=True)
+    adhar_card_no = models.CharField(max_length=12, unique=True, blank=True, null=True)
+    adhar_card_file = models.FileField(upload_to='users/documents/adharCard/', blank=True, null=True)
+    pan_card_no = models.CharField(max_length=10, unique=True, blank=True, null=True)
+    pan_card_file = models.FileField(upload_to='users/documents/panCard/', blank=True, null=True)
+    voter_card_no = models.CharField(max_length=10, unique=True, blank=True, null=True)
+    voter_card_file = models.FileField(upload_to='users/documents/voterCard/', blank=True, null=True)
+    driving_licence_no = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    driving_licence_file = models.FileField(upload_to='users/documents/drivingLicence/', blank=True, null=True)
+    ration_card_no = models.CharField(max_length=20, blank=True, null=True)
+    ration_card_file = models.FileField(upload_to='users/documents/rationCard/', blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     
     def __str__(self):
@@ -292,7 +293,7 @@ class ResidentialDetail(models.Model):
         ('bussiness','Bussiness'),
     ]
     user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
-    residential_type = models.CharField("Residential Type", choices=residential_type_choice, max_length=20, null=True, blank=True)
+    residential_type = models.CharField(choices=residential_type_choice, max_length=20, null=True, blank=True)
     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20)
     glob = models.ForeignKey(configm.Glob, on_delete=models.SET_NULL, null=True, blank=True)
     continent = models.ForeignKey(configm.Continent, on_delete=models.SET_NULL, null=True, blank=True)
@@ -302,12 +303,12 @@ class ResidentialDetail(models.Model):
     taluka = models.ForeignKey(configm.Taluka, on_delete=models.SET_NULL, null=True, blank=True)
     city_village = models.ForeignKey(configm.CityVillage, on_delete=models.SET_NULL, null=True, blank=True)
     ward = models.ForeignKey(configm.Ward, on_delete=models.SET_NULL, null=True, blank=True)
-    society = models.CharField("Society", max_length=255, null=True, blank=True)
-    block = models.CharField("Block", max_length=20, null=True, blank=True)
-    floor = models.CharField("Floor", max_length=20, null=True, blank=True)
-    house_no = models.CharField("House No", max_length=20, null=True, blank=True)
-    no_of_rooms = models.IntegerField("No. of Rooms", default=1)
-    residential_code = models.CharField("Residential ID", max_length=100,blank=True, null=True)
+    society = models.CharField(max_length=255, null=True, blank=True)
+    block = models.CharField(max_length=20, null=True, blank=True)
+    floor = models.CharField(max_length=20, null=True, blank=True)
+    house_no = models.CharField(max_length=20, null=True, blank=True)
+    total_no_of_rooms = models.IntegerField(default=1)
+    residential_code = models.CharField(max_length=100,blank=True, null=True)
     is_verified = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
@@ -332,12 +333,13 @@ class ResidentialDetail(models.Model):
 class RoomDetail(models.Model):
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.CASCADE)
     room_flash = models.ForeignKey(configm.RoomFlash, on_delete=models.SET_NULL, null=True)
-    room_no = models.CharField("Room No", max_length=20, null=True, blank=True)
-    room_member_count = models.IntegerField("Total Room Members",null=True,blank=True, default=0)
+    room_no = models.CharField(max_length=20, null=True, blank=True)
+    room_member_count = models.IntegerField(null=True,blank=True)
+
 
 class RoomMembersDetail(models.Model):
     room = models.ForeignKey(RoomDetail, on_delete=models.CASCADE)
-    member_name = models.CharField("Member Name", max_length=20, null=True, blank=True)
+    members = models.ManyToManyField(CustomUser)
 
 
 class ProfessionalDetail(models.Model):
@@ -354,9 +356,9 @@ class ProfessionalDetail(models.Model):
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
     designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True)
-    pay_scale = models.CharField("Pay Scale", max_length=20)
-    mfg_dt_time = models.DateTimeField("MFG Date & Time")
-    mfg_life = models.CharField("MFG Life", max_length=20)
+    pay_scale = models.CharField(max_length=20)
+    mfg_dt_time = models.DateTimeField("MFG date & time")
+    mfg_life = models.CharField("MFG life", max_length=20)
     professional_code = models.CharField("Professional ID", max_length=100, null=True, blank=True)
 
     def save(self, *args, **kwargs):
@@ -369,8 +371,8 @@ class ProfessionalDetail(models.Model):
                              f"{self.department.code if self.department else '00'}-" \
                              f"{self.subdepartment.code if self.subdepartment else '00'}-" \
                              f"{self.type.code if self.type else '00'}-" \
-                             f"{self.brand.code if self.brand else '00'}-" \
-                             f"{self.postmodel.code if self.postmodel else '00'}"
+                             f"{self.brand.code if self.brand else '00'}-"
+                             
         super().save(*args, **kwargs)
     
     def __str__(self):
@@ -378,24 +380,24 @@ class ProfessionalDetail(models.Model):
 
 class ReportCard(models.Model):
     prof_detail = models.ForeignKey(ProfessionalDetail, on_delete=models.CASCADE)
-    input_diet = models.CharField("Input Diet", max_length=20)
-    input_quantity = models.IntegerField("Input Qunatity", default=0)
-    input_rate = models.FloatField("Input Rate")
+    input_diet = models.CharField(max_length=20)
+    input_quantity = models.IntegerField(default=0)
+    input_rate = models.FloatField()
     GENDER_CHOICES = [
         ('female','Female'),
         ('male','Male'),
         ('other','Other'),
     ]
     gender = models.CharField(choices=GENDER_CHOICES, max_length=6)
-    color = models.CharField("Colour", max_length=20)
-    height = models.FloatField("Height")
-    length = models.FloatField("Length")
-    width = models.FloatField("Width")
-    volume = models.FloatField("Volume")
-    used_item = models.CharField("Used Item", max_length=20)
-    used_rate = models.FloatField("Used Rate")
-    used_quantity = models.IntegerField("Used Quantity")
-    capacity = models.FloatField("Capacity/ Strength")
+    color = models.CharField(max_length=20)
+    height = models.FloatField()
+    length = models.FloatField()
+    width = models.FloatField()
+    volume = models.FloatField()
+    used_item = models.CharField(max_length=20)
+    used_rate = models.FloatField()
+    used_quantity = models.IntegerField()
+    capacity = models.FloatField("capacity/strength")
     
     def __str__(self):
         return f"{self.prof_detail}"

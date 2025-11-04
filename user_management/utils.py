@@ -44,14 +44,14 @@ def get_obj_by_modle_and_id(model, id):
     except Exception as e:
         return None
 
-def check_email_exists(email):
+def check_email_exists_in_CustomUser(email):
     try:
         CustomUser.objects.get(email=email)
         return True
     except CustomUser.DoesNotExist:
         return False
 
-def check_contact_no_exists(contact_no):
+def check_contact_no_exists_in_CustomUser(contact_no):
     try:
         CustomUser.objects.get(contact_no=contact_no)
         return True
@@ -102,3 +102,12 @@ def clean_str(value):
         return None
     
     return value
+
+
+def get_higher_designation_user(higher_designation, relations):
+    for relation in relations:
+        if relation.get("designation") == higher_designation:
+            relation_obj = relations.pop(relations.index(relation))
+            print(higher_designation)
+            print(relation_obj)
+            return relation_obj.get("user_obj"), relations
