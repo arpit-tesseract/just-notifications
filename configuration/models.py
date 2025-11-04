@@ -414,9 +414,9 @@ class Designation(OrderByMixin, HoldableMixin):
         ('professional', 'Professional'),
         ('residential', 'Residential'),        
     ]
-    category = models.CharField("Designation Category",choices=category_choices, max_length=20)
-    name = models.CharField(max_length=100, unique=True)
-    display_name = models.CharField(max_length=100, unique=True)
+    category = models.CharField(choices=category_choices, max_length=20)
+    name = models.CharField(max_length=100)
+    code = models.PositiveIntegerField(help_text="Hierarchy level, 1=top", unique=True) # code / Designation number / level / post no 
     reporting_designation = models.ForeignKey(
         "self",
         null=True,
@@ -425,11 +425,17 @@ class Designation(OrderByMixin, HoldableMixin):
         on_delete=models.SET_NULL,
         help_text="Parent designation for hierarchy"
     )
-    post_no = models.PositiveIntegerField(default=1, help_text="Hierarchy level, 1=top") # Designation number / level / post no
 
 
     def __str__(self):
-        return f"{self.display_name} (Level {self.post_no})"
+        return f"{self.name} (Level {self.code})"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["category", "name"], name="unique_name_per_category"
+            )
+        ]
     
     # def save(self, *args, **kwargs):
     #     # Auto-set hierarchy level based on parent
