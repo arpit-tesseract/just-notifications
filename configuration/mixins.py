@@ -199,7 +199,10 @@ class FilteredQuerysetMixin(BaseQueryMixin):
                     
             elif value is not None and value is not '':
                 try: 
-                    base_qs = base_qs.filter(**{field: value})
+                    if param == "search":
+                        base_qs = base_qs.filter(name__icontains=value)
+                    else:
+                        base_qs = base_qs.filter(**{field: value})
                 except Exception as e:
                     # if not a valid field, ignore
                     continue

@@ -1107,45 +1107,79 @@ class ProfessionalOutputSerializer(serializers.Serializer):
     brand = BrandIdNameSerializer(allow_null=True)
 
 
+class DesignationIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = ["id", "name", "code"]
+
+
 class DesignationSerializer(serializers.ModelSerializer):
+    # access id in input...
+    reporting_designation = serializers.PrimaryKeyRelatedField(
+        queryset=Designation.objects.all(),
+        required=False,
+        allow_null=True
+    )
     class Meta:
         model = Designation
         fields = "__all__"
         read_only_fields = ["id"]
-        extra_kwargs = {
-            'post_no': {'required': False}
-        }
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Continent.objects.all(),
+                fields=['category', 'name'],
+                message="A continent with this name already exists in the selected category.",
+            )
+        ]
+        # extra_kwargs = {
+        #     'code': {'required': False}
+        # }
     
-    def validate(self, attrs):
-        # Use .get() to safely check if 'post_no' was in the request data
-        if check_designation_name(attrs.get('name')) == False:
-            raise serializers.ValidationError({"name": "Invalid name format.", "format": "name must be in lower case and without special characters except '_' "})
-        
-        post_no = attrs.get('post_no')
+    def to_representation(self, instance):
+        """
+        Override output representation — show nested reporting_designation.
+        """
+        data = super().to_representation(instance)
+        if instance.reporting_designation:
+            data["reporting_designation"] = {
+                "id": instance.reporting_designation.id,
+                "name": instance.reporting_designation.name,
+            }
+        else:
+            data["reporting_designation"] = None
+        return data
+    
+    def validate_name(self, value):
+        """
+        Validate that name does not contain special characters.
+        Allow only letters, numbers, and spaces.
+        """
+        if not re.match(r'^[A-Za-z ]+$', value):
+            raise serializers.ValidationError(
+                "Name can only contain letters and spaces."
+            )
+        return value
+    
+    def validate(self, attrs):        
+        code = attrs.get('code')
         reporting_designation = attrs.get('reporting_designation')
 
-        if post_no is not None:
-            # Case 1: User *provided* a post_no.
+        if code is not None:
+            # Case 1: User *provided* a code.
             # We just need to validate it.
-            if post_no == 0:
-                if attrs.get('name') != 'self':
-                    raise serializers.ValidationError({"post_no": "Invalid post no. Cannot be 0."})
-            # The provided post_no is fine, so we'll use it.
-            attrs['post_no'] = post_no
+            if code == 0 and (attrs.get('name') != 'self' or attrs.get('name') != 'Self'):
+                    raise serializers.ValidationError({"code": "Invalid post no. Cannot be 0."})
+            # The provided code is fine, so we'll use it.
+            attrs['code'] = code
         
         else:
-            # Case 2: User did *not* provide a post_no.
+            # Case 2: User did *not* provide a code.
             # We will set it based on your logic.
             if reporting_designation:
-                # Set post_no = parent's post_no + 1
-                attrs['post_no'] = reporting_designation.post_no + 1
+                # Set code = parent's code + 1
+                attrs['code'] = reporting_designation.code + 1
             else:
-                # Set post_no = 1 (for top-level designations)
-                attrs['post_no'] = 1
+                # Set code = 1 (for top-level designations)
+                attrs['code'] = 1
 
         return attrs
-
-class DesignationIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Designation
-        fields = ["id", "display_name", "post_no"]
