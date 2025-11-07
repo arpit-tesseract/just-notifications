@@ -85,4 +85,5 @@ urlpatterns = [
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
     
     path("designation_lst/", DesignationListView.as_view(), name="designation_lst"),
+    path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
 ]

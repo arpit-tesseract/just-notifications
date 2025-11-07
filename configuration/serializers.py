@@ -716,6 +716,11 @@ class RoomFlashSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id']
 
+class RoomFlashNameCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomFlash
+        fields = ['name', 'code']
+
 
 class ModelNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1126,7 +1131,7 @@ class DesignationSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
         validators = [
             UniqueTogetherValidator(
-                queryset=Continent.objects.all(),
+                queryset=Designation.objects.all(),
                 fields=['category', 'name'],
                 message="A continent with this name already exists in the selected category.",
             )

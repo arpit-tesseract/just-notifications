@@ -2,7 +2,9 @@
 from .utils import *
 from rest_framework import serializers
 from .models import *
-from .validators import *        
+from .validators import *  
+from configuration.serializers import *
+      
 class LoginEmailPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -43,18 +45,47 @@ class LogoutInputSerializer(serializers.Serializer):
 class PersonalDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = PersonalDetail
-        fields = "__all__"
-        read_only_fields = ['id','user', 'personal_code']
+        fields = [
+            'religion',
+            'sampraday',
+            'panth',
+            'varna',
+            'caste',
+            'subcaste',
+            'gotra',
+            'subgotra',
+            'kul',
+            'vansh',
+            'family',
+            'pidhi',
+        ]
+        # related_name = 'personaldetail_set'
 
 
 class ResidentialDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResidentialDetail
-        fields = ['category_of_user', 'glob', 'continent', 'country', 'state', 'district', 'taluka', 'city_village', 'ward', 'society', 'block', 'floor', 'house_no', 'total_no_of_rooms']
-        read_only_fields = ['id','user', 'residential_code']
-        extra_kwargs = {
-            'category_of_user': {'required': False},
-        }
+        fields = [
+                'glob',
+                'continent',
+                'country',
+                'state',
+                'district',
+                'taluka',
+                'city_village',
+                'ward',
+                'society',
+                'block',
+                'floor',
+                'house_no',
+                'total_no_of_rooms',
+                'room_details',
+            ]
+        # read_only_fields = ['id','user', 'residential_code', 'residential_type']
+        # extra_kwargs = {
+        #     'category_of_user': {'required': False},
+        # } 
+        
     
     def validate(self, attrs):
         text_fields = [
@@ -62,8 +93,9 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
             'block',
             'floor',
             'house_no',
-            'total_no_of_rooms'
+            # 'total_no_of_rooms'
         ]
+        
         for field in text_fields:
             if field in attrs:
                 try:
@@ -76,8 +108,23 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
 class ProfessionalDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfessionalDetail
-        fields = "__all__"
-        read_only_fields = ['id','user', 'professional_code', 'residential_details']
+        fields = [
+            'section',
+            'profclass',
+            'category',
+            'subcategory',
+            'sector',
+            'subsector',
+            'department',
+            'subdepartment',
+            'type',
+            'brand',
+            'designation',
+            'pay_scale',
+            'mfg_dt_time',
+            'mfg_life',
+        ]
+        # read_only_fields = ['id','user', 'professional_code', 'residential_details']
     
     def validate(self, attrs):
         text_fields = [
@@ -118,13 +165,33 @@ class UserSerializerForPost(serializers.ModelSerializer):
     date_of_birth = serializers.DateField(validators=[validate_dob])
     user_role_name = serializers.CharField()
     user_role = UserRoleSerializer(many=False, read_only=True)
-    residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
     bussiness_details = BussinessDetailSerializer(many=True, required=False, allow_null=True)
     class Meta:
         model = CustomUser
-        fields = ['user_id', 'email', 'contact_no', 'user_role', 'user_role_name','full_name', 'pet_name', 'father_name', 'date_of_birth', 'blood_group', 'is_married', 'is_verified', 'residential_details', 'personal_details', 'bussiness_details']
-        # read_only_fields = []
+        fields = [
+            'user_id', 
+            'email', 
+            'contact_no', 
+            'user_role', 
+            'user_role_name',
+            'full_name', 
+            'pet_name', 
+            'father_name',
+            'gender',
+            'date_of_birth',
+            'blood_group', 
+            'marital_status', 
+            'is_verified', 
+            'expired_date',
+            'personal_details',
+            'bussiness_details',
+            'category_of_user',
+        ]
+        # read_only_fields = ['id', 'allocated_rooms']
+    
+    def get_user_role_name(self, obj):
+        return obj.user_role.name
     
 
     def validate(self, attrs):
@@ -136,7 +203,16 @@ class UserSerializerForPost(serializers.ModelSerializer):
         user_role = get_role_obj_by_name(user_role_name)
         if user_role is None:
             raise serializers.ValidationError({"user_role_name": "Invalid user role."})
-    
+        
+        dob = attrs.get('date_of_birth', None)
+        expired_date = attrs.get('expired_date', None)
+        
+        if dob is not None and expired_date is not None:
+            if expired_date < dob:
+                raise serializers.ValidationError({"expired_date": "Expired date cannot be less than date of birth."})
+            if expired_date > timezone.now().date():
+                raise serializers.ValidationError({"expired_date": "Expired date cannot be in the future."})
+                
         # set user role
         attrs.pop('user_role_name')
         attrs['user_role'] = user_role
@@ -174,17 +250,26 @@ class PostSerializer(serializers.ModelSerializer):
     user_details = UserSerializerForPost(many=False)
     class Meta:
         model = Relation
-        fields = ['user_details', 'designation', 'custom_post_no']
+        fields = ['user_details', 'designation', 'post_no']
         read_only_fields = ['id']
 
 
 class UserRegistrationSerializer(serializers.Serializer):
+    residential_details = ResidentialDetailSerializer(many=False)
     relation_category = serializers.CharField()      
     number_of_post = serializers.IntegerField()
     posts = PostSerializer(many=True)
     
     def validate(self, attrs):
+        residential_details = attrs.get('residential_details', None)
+        room_details = residential_details.get('room_details', None)
+        if room_details is None or room_details == {}:
+            raise serializers.ValidationError({"room_details": "Room details is required."})
         
+        for key, val in room_details.items():
+            if val is None or val == "" or val <= 0:
+                raise serializers.ValidationError({"room_details": f"Room details is required."})
+           
         # verify relation category
         relation_category = attrs.get('relation_category')
         if verify_user_relation_category(relation_category) == False:
@@ -300,3 +385,220 @@ class UserRoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserRole  
         fields = "__all__"
+
+
+class UserListSerializer(serializers.ModelSerializer):
+    # user_roles = UserRoleSerializer(many=True, read_only=True, source='user_role')
+    country = serializers.SerializerMethodField()
+    state = serializers.SerializerMethodField()
+    city = serializers.SerializerMethodField()
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id',
+            'photo',
+            'email',
+            'contact_no',
+            'full_name',
+            'date_of_birth',
+            'is_verified',
+            'country',
+            'state',
+            'city'
+        ]
+    
+    def get_country(self, obj):
+        return obj.residential_details.country.name if obj.residential_details and obj.residential_details.country else None
+
+    def get_state(self, obj):
+        return obj.residential_details.state.name if obj.residential_details and obj.residential_details.state else None
+
+    def get_city(self, obj):
+        return obj.residential_details.city_village.name if obj.residential_details and obj.residential_details.city_village else None
+
+
+class ResidentialDetailGetSerializer(serializers.ModelSerializer):
+    glob = GlobIdNameSerializer()
+    continent = ContinentIdNameSerializer()
+    country = CountryIdNameSerializer()
+    state = StateIdNameSerializer()
+    district = DistrictIdNameSerializer()
+    taluka = TalukaIdNameSerializer()
+    city_village = CityVillageIdNameSerializer()
+    ward = WardIdNameSerializer()
+
+    class Meta:
+        model = ResidentialDetail
+        fields = [
+            'glob',
+            'continent',
+            'country',
+            'state',
+            'district',
+            'taluka',
+            'city_village',
+            'ward',
+            'society',
+            'block',
+            'floor',
+            'house_no',
+            'total_no_of_rooms',
+            'room_details',
+        ]    
+
+class PersonalDetailGetSerializer(serializers.ModelSerializer):
+    religion = ReligionIdNameSerializer()
+    sampraday = SampradayIdNameSerializer()
+    panth = PanthIdNameSerializer()
+    varna = VarnaIdNameSerializer()
+    caste = CasteIdNameSerializer()
+    subcaste = SubCasteIdNameSerializer()
+    gotra = GotraIdNameSerializer()
+    subgotra = SubGotraIdNameSerializer()
+    kul = KulIdNameSerializer()
+    vansh = VanshIdNameSerializer()
+    family = FamilyIdNameSerializer()
+    pidhi = PidhiIdNameSerializer()
+    class Meta:
+        model = PersonalDetail
+        fields = [
+            'religion',
+            'sampraday',
+            'panth',
+            'varna',
+            'caste',
+            'subcaste',
+            'gotra',
+            'subgotra',
+            'kul',
+            'vansh',
+            'family',
+            'pidhi',
+        ]
+
+
+class ProfessionalDetailGetSerializer(serializers.ModelSerializer):
+    section = SectionIdNameSerializer()
+    profclass = ClassIdNameSerializer()
+    category = ProfCategoryIdNameSerializer()
+    subcategory = ProfSubCategoryIdNameSerializer()
+    sector = SectorIdNameSerializer()
+    subsector = SubSectorIdNameSerializer()
+    department = DepartmentIdNameSerializer()
+    subdepartment = SubDepartmentIdNameSerializer()
+    type = TypeIdNameSerializer()
+    brand = BrandIdNameSerializer()
+    class Meta:
+        model = ProfessionalDetail
+        fields = [
+            'section',
+            'profclass',
+            'category',
+            'subcategory',
+            'sector',
+            'subsector',
+            'department',
+            'subdepartment',
+            'type',
+            'brand',
+            'designation',
+            'pay_scale',
+            'mfg_dt_time',
+            'mfg_life',
+        ]
+
+
+class DocumentSerializerForGet(serializers.ModelSerializer):
+    class Meta:
+        model = Document
+        fields = [
+            'adhar_card_file',
+            'pan_card_file',
+            'voter_card_file',
+            'driving_licence_file',
+            'ration_card_file',
+        ]
+        
+class UserSerializerForGet(serializers.ModelSerializer):
+    user_id = serializers.SerializerMethodField()
+    # user_role_name = serializers.SerializerMethodField()
+    documents = serializers.SerializerMethodField()
+    personal_details = serializers.SerializerMethodField()
+    bussiness_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            'user_id',
+            'photo',
+            'email',
+            'contact_no',
+            # 'user_role_name',
+            'full_name',
+            'pet_name',
+            'father_name',
+            'gender',
+            'date_of_birth',
+            'blood_group',
+            'marital_status',
+            'is_verified',
+            'expired_date',
+            'allocated_rooms',
+            'documents',
+            'personal_details',
+            'bussiness_details',
+            'category_of_user',
+        ]
+    
+    def get_user_id(self, obj):
+        return obj.id
+
+    def get_documents(self, obj):
+        """
+        'obj' is the CustomUser instance.
+        """
+        try:
+            # Get the single Document object related to this user
+            document_obj = Document.objects.get(user=obj)
+            return DocumentSerializerForGet(document_obj).data
+        except Document.DoesNotExist:
+            # If the user has no documents, return null
+            return None
+        except Exception as e:
+            return None
+
+    # def get_user_role_name(self, obj):
+    #     return obj.user_role.name
+    
+    def get_personal_details(self, obj):
+        try:
+            return PersonalDetailGetSerializer(PersonalDetail.objects.get(user=obj)).data
+        except:
+            return None
+    
+    def get_bussiness_details(self, obj):
+        professional_objs_lst = ProfessionalDetail.objects.filter(user=obj)
+        if not professional_objs_lst:
+            return []
+
+        professional_details_lst = []
+        for professional_detail in professional_objs_lst:
+            
+            # 1. Serialize the professional details
+            prof_data = ProfessionalDetailGetSerializer(professional_detail).data
+            
+            # 2. Serialize the residential details
+            res_data = ResidentialDetailGetSerializer(professional_detail.residential_details).data
+            
+            # 3. Create the new dictionary with the correct structure
+            bussiness_item = {
+                "professional_details": prof_data,
+                "professional_residential_details": res_data
+            }
+            
+            # 4. Append this new dictionary to the final list
+            professional_details_lst.append(bussiness_item)
+            
+        return professional_details_lst
+
+

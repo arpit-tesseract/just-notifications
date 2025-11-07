@@ -816,6 +816,15 @@ class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'search': 'name'
     }
 
+class RoomFlashListView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        room_flashes = RoomFlash.objects.all()
+        room_flashes = room_flashes.order_by('code')
+        serializer = RoomFlashNameCodeSerializer(room_flashes, many=True)
+        return Response(serializer.data)
+
 # ==================
 # Import Features
 # ==================

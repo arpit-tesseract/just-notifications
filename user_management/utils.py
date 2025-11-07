@@ -2,6 +2,8 @@ from .models import UserRole, CustomUser
 from configuration.models import Brand
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.exceptions import ValidationError
+from .models import ResidentialDetail, PersonalDetail, ProfessionalDetail, Relation
 
 def get_obj_by_modle_and_id(model, id_):
     try:
@@ -78,10 +80,7 @@ def assign_system_admin_role_if_brand_is_shashan(user_obj, brand_id):
         if verify_shashan_brand_by_id(brand_id):
             system_admin_role = get_role_obj_by_name("system_admin")
             if system_admin_role is None:
-                return Response(
-                    {"error": "Something went wrong."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                ValidationError("System admin role not found.")
             user_obj.user_role.add(system_admin_role)
 
 def clean_str(value):
@@ -104,10 +103,131 @@ def clean_str(value):
     return value
 
 
-def get_higher_designation_user(higher_designation, relations):
+def get_from_user_and_to_users(higher_designation, relations):
     for relation in relations:
-        if relation.get("designation") == higher_designation:
+        user_obj = relation.get("user_obj")
+        designation = relation.get("designation")
+        
+        print(designation.id, "===", higher_designation.id, "and", user_obj.expired_date)
+        if designation.id == higher_designation.id and user_obj.expired_date is None:
             relation_obj = relations.pop(relations.index(relation))
-            print(higher_designation)
-            print(relation_obj)
-            return relation_obj.get("user_obj"), relations
+            from_user_obj = relation_obj.get("user_obj")
+            # print("Higher designation user:", relation_obj.get("user_obj"), relations)
+    return from_user_obj, relations
+
+
+def get_or_create_residential_details(**residential_details):
+    residential_details_obj, created = ResidentialDetail.objects.get_or_create(
+        **residential_details
+    )
+    return residential_details_obj
+
+
+def allocate_rooms_for_from_user(user_obj):
+    # get residential details
+    residential_obj = user_obj.residential_details
+    print("residential_obj to allocate room", residential_obj)
+    print("room details", residential_obj.room_details)
+    room_details = residential_obj.room_details
+    
+    if user_obj.allocated_rooms is None:
+        print("pending rooms to allocate:",residential_obj.pending_rooms_to_allocate)
+        user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
+        user_obj.save()
+        
+    for room_type, total_rooms in room_details.items():
+        # user_obj.allocated_rooms[room_type] = 1
+        if residential_obj.pending_rooms_to_allocate[room_type] == total_rooms:
+            # residential_obj.pending_rooms_to_allocate[room_type] = total_rooms
+            pass
+        else:
+            residential_obj.pending_rooms_to_allocate[room_type] += 1
+    
+    print("user allocate rooms:", user_obj.allocated_rooms)
+    residential_obj.save()
+
+def allocate_rooms_for_to_user(user_obj):
+    # get residential details
+    residential_obj = user_obj.residential_details
+    pending_rooms = residential_obj.pending_rooms_to_allocate
+    
+    if user_obj.allocated_rooms is None:
+        user_obj.allocated_rooms = {}
+        
+    for room_type, total_rooms in pending_rooms.items():
+        if residential_obj.room_details[room_type] == total_rooms:
+            user_obj.allocated_rooms[room_type] = total_rooms
+        else:
+            user_obj.allocated_rooms[room_type] += 1
+            residential_obj.pending_rooms_to_allocate[room_type] -= 1
+            
+    user_obj.save()
+    residential_obj.save()
+              
+    
+# def allocate_rooms(index, room_details, user_obj):
+#     allocated_room_dict = {}
+    
+#     for room_type, total_rooms in room_details.items():
+#         # If room count not exceeded, assign sequentially
+#         if (index + 1) <= total_rooms:
+#             allocated_room_dict[room_type] = index + 1
+#         else:
+#             # If rooms exhausted, share last one
+#             allocated_room_dict[room_type] = total_rooms
+            
+#     return allocated_room_dict
+
+def get_parent_user_obj(user_obj, relation_category):
+    try:
+        relation_obj = Relation.objects.get(relation_category=relation_category, to_user = user_obj)
+        return relation_obj.from_user
+    except Relation.DoesNotExist:
+        raise ValidationError(f"No parent relation found for user {user_obj.email}.")
+    except Relation.MultipleObjectsReturned:
+        raise ValidationError(f"Multiple parent relations found for user {user_obj.email}.")
+
+def allocate_room_same_as_parent(user_obj, relation_category):
+    try:
+        print("allocate_room_same_as_parent", user_obj.email)
+        parent_user_obj = get_parent_user_obj(user_obj, relation_category)
+        user_obj.allocated_rooms = parent_user_obj.allocated_rooms
+        user_obj.save()
+        
+    except Exception as e:
+        raise ValidationError(f"Room allocation failed for {user_obj.email}: {str(e)}")
+
+
+def mark_as_verify_or_unverify_user(user_obj, relation_category):
+    try:
+        parent_user_obj = get_parent_user_obj(user_obj, relation_category)
+    except ValidationError:
+        # This user has no parent (is a from_user), so just return.
+        # The 'from_user' verification logic is different.
+        # Let's assume the from_user is verified by default if not expired.
+        if user_obj.expired_date is None:
+            user_obj.is_verified = True
+            user_obj.save()
+        else:
+            user_obj.is_verified = False
+            user_obj.save()
+        return
+    
+    if user_obj.expired_date is None:
+        if (user_obj.marital_status == "single" and parent_user_obj.marital_status != "single") or (user_obj.marital_status == "married"):
+            user_obj.is_verified = True
+            user_obj.save()
+        else:
+            user_obj.is_verified = False
+            user_obj.save()
+    else:
+        user_obj.is_verified = False
+        user_obj.save()
+
+
+def is_to_user(user_obj):
+    try:
+        Relation.objects.get(to_user = user_obj)
+        return True
+    except Exception as e:
+        return False
