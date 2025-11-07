@@ -404,13 +404,13 @@ class RegisterationView(RecordRuleMixin, APIView):
             }
             posts_data.append(post)
         
-        first_relation = relation_obj_lst[0]
-        from_user_post = {
-            "user_details": UserSerializerForGet(first_relation.from_user).data,
-            "designation": first_relation.designation.name,
-            "post_no": first_relation.post_no
-        }
-        posts_data.append(from_user_post)
+        # first_relation = relation_obj_lst[0]
+        # from_user_post = {
+        #     "user_details": UserSerializerForGet(first_relation.from_user).data,
+        #     "designation": first_relation.designation.name,
+        #     "post_no": first_relation.post_no
+        # }
+        # posts_data.append(from_user_post)
         
         result = {
             "residential_details": ResidentialDetailGetSerializer(residential_obj).data,
