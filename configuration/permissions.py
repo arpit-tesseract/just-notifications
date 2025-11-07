@@ -22,11 +22,11 @@ class HasModelAccessPermission(BasePermission):
             return True
 
         # Resolve model from queryset or model attr
-        elif hasattr(view, "model") and view.model is not None:
+        if hasattr(view, "model") and view.model is not None:
             model_name = view.model._meta.label
         elif hasattr(view, "get_base_queryset") and view.get_base_queryset is not None:
             model_name = view.get_base_queryset().model._meta.label
-        if hasattr(view, "queryset") and view.queryset is not None:
+        elif hasattr(view, "queryset") and view.queryset is not None:
             model_name = view.queryset.model._meta.label
         else:
             raise AttributeError(

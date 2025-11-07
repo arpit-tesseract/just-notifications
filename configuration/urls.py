@@ -3,39 +3,38 @@ from django.urls import path, include
 from .views import *
 
 router = DefaultRouter()
-router.register(r'globs_in_details', GlobViewSet)
-router.register(r'countries_in_details', CountryViewSet)
-router.register(r'continents_in_details', ContinentViewSet)
-router.register(r'states_in_details', StateViewSet)
-router.register(r'districts_in_details', DistrictViewSet)
-router.register(r'talukas_in_details', TalukaViewSet)
-router.register(r'cityvillages_in_details', CityVillageViewSet)
-router.register(r'wards_in_details', WardViewSet)
+router.register(r'globs', GlobViewSet)
+router.register(r'countries', CountryViewSet)
+router.register(r'continents', ContinentViewSet)
+router.register(r'states', StateViewSet)
+router.register(r'districts', DistrictViewSet)
+router.register(r'talukas', TalukaViewSet)
+router.register(r'cityvillages', CityVillageViewSet)
+router.register(r'wards', WardViewSet)
 
-router.register(r'religions_in_details', ReligionViewSet)
-router.register(r'sampradays_in_details', SampradayViewSet)
-router.register(r'panths_in_details', PanthViewSet)
-router.register(r'varnas_in_details', VarnaViewSet)
-router.register(r'castes_in_details', CasteViewSet)
-router.register(r'subcastes_in_details', SubCasteViewSet)
-router.register(r'gotras_in_details', GotraViewSet)
-router.register(r'subgotras_in_details', SubGotraViewSet)
-router.register(r'kuls_in_details', KulViewSet)
-router.register(r'vanshes_in_details', VanshViewSet)
-router.register(r'families_in_details', FamilyViewSet)
-router.register(r'pidhis_in_details', PidhiViewSet)
+router.register(r'religions', ReligionViewSet)
+router.register(r'sampradays', SampradayViewSet)
+router.register(r'panths', PanthViewSet)
+router.register(r'varnas', VarnaViewSet)
+router.register(r'castes', CasteViewSet)
+router.register(r'subcastes', SubCasteViewSet)
+router.register(r'gotras', GotraViewSet)
+router.register(r'subgotras', SubGotraViewSet)
+router.register(r'kuls', KulViewSet)
+router.register(r'vanshes', VanshViewSet)
+router.register(r'families', FamilyViewSet)
+router.register(r'pidhis', PidhiViewSet)
 
-router.register(r'sections_in_details', SectionViewSet)
-router.register(r'profclasses_in_details', ClassViewSet)
-router.register(r'categories_in_details', ProfCategoryViewSet)
-router.register(r'subcategories_in_details', ProfSubCategoryViewSet)
-router.register(r'sectors_in_details', SectorViewSet)
-router.register(r'subsectors_in_details', SubSectorViewSet)
-router.register(r'departments_in_details', DepartmentViewSet)
-router.register(r'subdepartments_in_details', SubDepartmentViewSet)
-router.register(r'types_in_details', TypeViewSet)
-router.register(r'brands_in_details', BrandViewSet)
-router.register(r'postmodels_in_details', PostModelViewSet)
+router.register(r'sections', SectionViewSet)
+router.register(r'profclasses', ClassViewSet)
+router.register(r'categories', ProfCategoryViewSet)
+router.register(r'subcategories', ProfSubCategoryViewSet)
+router.register(r'sectors', SectorViewSet)
+router.register(r'subsectors', SubSectorViewSet)
+router.register(r'departments', DepartmentViewSet)
+router.register(r'subdepartments', SubDepartmentViewSet)
+router.register(r'types', TypeViewSet)
+router.register(r'brands', BrandViewSet)
 router.register(r'roomflashes', RoomFlashViewSet)
 
 router.register(r'designations', DesignationViewSet)
@@ -75,7 +74,6 @@ urlpatterns = [
     path('upload/subdepartments/', UploadSubDepartmentView.as_view()),
     path('upload/types/', UploadTypeView.as_view()),
     path('upload/brands/', UploadBrandView.as_view()),
-    path('upload/postmodels/', UploadPostModelView.as_view()),
 
     
     path("models/", ModelNameView.as_view(), name="get_models"),
@@ -87,4 +85,5 @@ urlpatterns = [
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
     
     path("designation_lst/", DesignationListView.as_view(), name="designation_lst"),
+    path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
 ]

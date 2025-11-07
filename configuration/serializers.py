@@ -681,26 +681,33 @@ class BrandDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
-
-class PostModelSerializer(serializers.ModelSerializer):
+class DesignationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PostModel
+        model = Designation
         fields = '__all__'
         read_only_fields = ['id']
 
-class PostModelDetailSerializer(DynamicFieldsModelSerializer):
-    brand = serializers.SerializerMethodField()
-    class Meta:
-        model = PostModel
-        fields = '__all__'
-        read_only_fields = [f.name for f in PostModel._meta.fields]
+
+        
+# class PostModelSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = PostModel
+#         fields = '__all__'
+#         read_only_fields = ['id']
+
+# class PostModelDetailSerializer(DynamicFieldsModelSerializer):
+#     brand = serializers.SerializerMethodField()
+#     class Meta:
+#         model = PostModel
+#         fields = '__all__'
+#         read_only_fields = [f.name for f in PostModel._meta.fields]
     
-    def get_brand(self, obj):
-        serializer = BrandDetailSerializer(
-            obj.brand,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
-        )
-        return serializer.data
+#     def get_brand(self, obj):
+#         serializer = BrandDetailSerializer(
+#             obj.brand,
+#             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+#         )
+#         return serializer.data
 
 
 class RoomFlashSerializer(serializers.ModelSerializer):
@@ -708,6 +715,11 @@ class RoomFlashSerializer(serializers.ModelSerializer):
         model = RoomFlash
         fields = '__all__'
         read_only_fields = ['id']
+
+class RoomFlashNameCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomFlash
+        fields = ['name', 'code']
 
 
 class ModelNameSerializer(serializers.ModelSerializer):
@@ -1069,10 +1081,10 @@ class BrandIdNameSerializer(serializers.ModelSerializer):
         model = Brand
         fields = ["id", "name"]
 
-class PostModelIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PostModel
-        fields = ["id", "name"]
+# class PostModelIdNameSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = PostModel
+#         fields = ["id", "name"]
 
 class ProfessionalInputSerializer(serializers.Serializer):
     section = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1085,7 +1097,6 @@ class ProfessionalInputSerializer(serializers.Serializer):
     subdepartment = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     type = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     brand = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
-    postmodel = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 class ProfessionalOutputSerializer(serializers.Serializer):
@@ -1099,16 +1110,81 @@ class ProfessionalOutputSerializer(serializers.Serializer):
     subdepartment = SubDepartmentIdNameSerializer(allow_null=True)
     type = TypeIdNameSerializer(allow_null=True)
     brand = BrandIdNameSerializer(allow_null=True)
-    postmodel = PostModelIdNameSerializer(allow_null=True)
 
-
-class DesignationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Designation
-        fields = "__all__"
-        read_only_fields = ["id"]
 
 class DesignationIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
-        fields = ["id", "display_name"]
+        fields = ["id", "name", "code"]
+
+
+class DesignationSerializer(serializers.ModelSerializer):
+    # access id in input...
+    reporting_designation = serializers.PrimaryKeyRelatedField(
+        queryset=Designation.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    class Meta:
+        model = Designation
+        fields = "__all__"
+        read_only_fields = ["id"]
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Designation.objects.all(),
+                fields=['category', 'name'],
+                message="A continent with this name already exists in the selected category.",
+            )
+        ]
+        # extra_kwargs = {
+        #     'code': {'required': False}
+        # }
+    
+    def to_representation(self, instance):
+        """
+        Override output representation — show nested reporting_designation.
+        """
+        data = super().to_representation(instance)
+        if instance.reporting_designation:
+            data["reporting_designation"] = {
+                "id": instance.reporting_designation.id,
+                "name": instance.reporting_designation.name,
+            }
+        else:
+            data["reporting_designation"] = None
+        return data
+    
+    def validate_name(self, value):
+        """
+        Validate that name does not contain special characters.
+        Allow only letters, numbers, and spaces.
+        """
+        if not re.match(r'^[A-Za-z ]+$', value):
+            raise serializers.ValidationError(
+                "Name can only contain letters and spaces."
+            )
+        return value
+    
+    def validate(self, attrs):        
+        code = attrs.get('code')
+        reporting_designation = attrs.get('reporting_designation')
+
+        if code is not None:
+            # Case 1: User *provided* a code.
+            # We just need to validate it.
+            if code == 0 and (attrs.get('name') != 'self' or attrs.get('name') != 'Self'):
+                    raise serializers.ValidationError({"code": "Invalid post no. Cannot be 0."})
+            # The provided code is fine, so we'll use it.
+            attrs['code'] = code
+        
+        else:
+            # Case 2: User did *not* provide a code.
+            # We will set it based on your logic.
+            if reporting_designation:
+                # Set code = parent's code + 1
+                attrs['code'] = reporting_designation.code + 1
+            else:
+                # Set code = 1 (for top-level designations)
+                attrs['code'] = 1
+
+        return attrs
