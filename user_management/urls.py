@@ -28,4 +28,6 @@ urlpatterns = [
     path('role-lst/', views.UserRoleListView.as_view(), name='user_roles'),
     path('assign-roles/', views.UserRoleAssignView.as_view(), name='assign_roles'),
     path('remove-roles/', views.UserRoleRemoveView.as_view(), name='remove_roles'),
+    
+    path('model-access-rights/<int:user_id>/', views.ModelAccessView.as_view(), name='model_access'),
 ]

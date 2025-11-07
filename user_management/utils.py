@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.exceptions import ValidationError
 from .models import ResidentialDetail, PersonalDetail, ProfessionalDetail, Relation
+from configuration.models import ModelName
 
 def get_obj_by_modle_and_id(model, id_):
     try:
@@ -231,3 +232,39 @@ def is_to_user(user_obj):
         return True
     except Exception as e:
         return False
+    
+
+def get_model_access_rights_of_super_admin():
+    model_access_rights = []
+    model_name_obj_lst = ModelName.objects.all()
+ 
+    for model_name_obj in model_name_obj_lst:
+        model_access_rights.append(
+            {
+                "model": model_name_obj.model,
+                "can_read": True,
+                "can_create": True,
+                "can_update": True,
+                "can_delete": True, 
+            }
+        )
+    return model_access_rights
+
+
+def get_default_model_access_rights():
+    model_access_rights = []
+    model_name_obj_lst = ModelName.objects.all()
+    
+    for model_name_obj in model_name_obj_lst:
+        model_access_rights.append(
+            {
+                "model": model_name_obj.model,
+                "can_read": False,
+                "can_create": False,
+                "can_update": False,
+                "can_delete": False, 
+            }
+        )
+    return model_access_rights
+            
+

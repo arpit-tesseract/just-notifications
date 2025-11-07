@@ -173,8 +173,8 @@ class ModelName(models.Model):
         return self.technical_name
     
 class ModelAccess(models.Model):
-    user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name='model_access_rule')
-    model = models.ForeignKey(ModelName, on_delete=models.CASCADE, related_name='model_access_rule')
+    user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name='model_access_permission')
+    model = models.ForeignKey(ModelName, on_delete=models.CASCADE)
 
     can_read = models.BooleanField(default=False)
     can_create = models.BooleanField(default=False)

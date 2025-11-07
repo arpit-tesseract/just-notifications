@@ -602,3 +602,16 @@ class UserSerializerForGet(serializers.ModelSerializer):
         return professional_details_lst
 
 
+class ModelAccessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModelAccess
+        fields = ['model', 'can_read', 'can_create', 'can_delete', 'user_id']
+    
+# class ModelAccessGetSerializer(serializers.ModelSerializer):
+#     user_id = serializers.SerializerMethodField()
+#     class Meta:
+#         model = ModelAccess
+#         fields = ['model', 'can_read', 'can_write', 'can_delete', 'user_id']
+    
+#     def get_user_id(self, obj):
+#         return obj.user.id

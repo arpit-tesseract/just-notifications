@@ -404,13 +404,13 @@ class RegisterationView(RecordRuleMixin, APIView):
             }
             posts_data.append(post)
         
-        first_relation = relation_obj_lst[0]
-        from_user_post = {
-            "user_details": UserSerializerForGet(first_relation.from_user).data,
-            "designation": first_relation.designation.name,
-            "post_no": first_relation.post_no
-        }
-        posts_data.append(from_user_post)
+        # first_relation = relation_obj_lst[0]
+        # from_user_post = {
+        #     "user_details": UserSerializerForGet(first_relation.from_user).data,
+        #     "designation": first_relation.designation.name,
+        #     "post_no": first_relation.post_no
+        # }
+        # posts_data.append(from_user_post)
         
         result = {
             "residential_details": ResidentialDetailGetSerializer(residential_obj).data,
@@ -629,3 +629,41 @@ class UserListView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
             user_role__name="user")
         serializer = UserListSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ModelAccessView(APIView):
+    model = ModelAccess
+    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
+    
+    def get(self, request, user_id):
+        try:
+            user_obj = get_object_or_404(CustomUser, id=user_id)
+            logged_user = request.user
+            
+            if user_obj.id == logged_user.id:
+                return Response({"error": "You cannot access your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
+            
+            if logged_user.check_is_super_admin():
+                model_access_rights = get_model_access_rights_of_super_admin()
+                return Response(
+                    model_access_rights,
+                    status=status.HTTP_200_OK
+                )
+            
+            model_access_rights_obj_lst = logged_user.model_access_permission.all()
+            if model_access_rights_obj_lst.exists():
+                serializer = ModelAccessSerializer(model_access_rights, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            
+            model_access_rights = get_default_model_access_rights()
+            return Response(
+                model_access_rights,
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            return Response(
+                {
+                    "error":"Something went wrong",
+                    "details": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)

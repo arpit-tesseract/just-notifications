@@ -22,17 +22,19 @@ class HasModelAccessPermission(BasePermission):
             return True
 
         # Resolve model from queryset or model attr
-        elif hasattr(view, "model") and view.model is not None:
+        if hasattr(view, "model") and view.model is not None:
             model_name = view.model._meta.label
         elif hasattr(view, "get_base_queryset") and view.get_base_queryset is not None:
             model_name = view.get_base_queryset().model._meta.label
-        if hasattr(view, "queryset") and view.queryset is not None:
+        elif hasattr(view, "queryset") and view.queryset is not None:
             model_name = view.queryset.model._meta.label
         else:
             raise AttributeError(
                 f"{view.__class__.__name__} must define either `queryset` or `model`"
             )
-
+        print("model_name:", model_name)
+        if model_name == "configuration.ModelAccess":
+            return True
         # Try to get action (ViewSet) or fall back to HTTP method (APIView)
         action = getattr(view, "action", None)
         if not action:  
