@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import *
 from .validators import *  
 from configuration.serializers import *
+from django.apps import apps
       
 class LoginEmailPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -605,13 +606,192 @@ class UserSerializerForGet(serializers.ModelSerializer):
 class ModelAccessSerializer(serializers.ModelSerializer):
     class Meta:
         model = ModelAccess
-        fields = ['model', 'can_read', 'can_create', 'can_delete', 'user_id']
+        fields = ['model', 'can_read', 'can_create', 'can_update', 'can_delete']
+        
+
+
+class RecordRuleListSerializer(serializers.ModelSerializer):
+    model_name = serializers.SerializerMethodField()
+    class Meta:
+        model = RecordRule
+        fields = ['id', 'name', 'model_name']
+        
+    def get_model_name(self, obj):
+        return obj.model.model
+
+class RecordRuleSerializer(serializers.Serializer):
+    model = serializers.CharField()
+    value = serializers.ListField(child = serializers.IntegerField(), allow_empty = False)
+    can_create = serializers.BooleanField()
+    can_read = serializers.BooleanField()
+    can_update = serializers.BooleanField()
+    can_delete = serializers.BooleanField()
+
+    def validate(self, attrs):
+        model_name = attrs.get('model')
+        model = get_ModelName_obj_by_name(model_name)
+        attrs['model'] = model
+        return attrs
+
+
+class ModelIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModelName
+        fields = ['id', 'model']
+        
+class RecordRuleGetSerializer(serializers.ModelSerializer):
+    model = serializers.SerializerMethodField()
+    value = serializers.SerializerMethodField()
+    class Meta:
+        model = RecordRule
+        fields = ['model', 'value', 'can_create', 'can_read', 'can_update', 'can_delete']
     
-# class ModelAccessGetSerializer(serializers.ModelSerializer):
-#     user_id = serializers.SerializerMethodField()
-#     class Meta:
-#         model = ModelAccess
-#         fields = ['model', 'can_read', 'can_write', 'can_delete', 'user_id']
+    def get_model(self, obj):
+        return obj.model.model
     
-#     def get_user_id(self, obj):
-#         return obj.user.id
+    def get_location_hierarchy(self, model_name, id_list):
+        results = []
+        
+        if model_name == "Ward":
+            select_path = (
+                "city_village__taluka__district__state__country__continent__glob"
+            )
+            
+            qs = Ward.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.city_village.taluka.district.state.country.continent.glob).data,
+                "continent": ContinentIdNameSerializer(obj.city_village.taluka.district.state.country.continent).data,
+                "country": CountryIdNameSerializer(obj.city_village.taluka.district.state.country).data,
+                "state": StateIdNameSerializer(obj.city_village.taluka.district.state).data,
+                "district": DistrictIdNameSerializer(obj.city_village.taluka.district).data,
+                "taluka": TalukaIdNameSerializer(obj.city_village.taluka).data,
+                "city_village": CityVillageIdNameSerializer(obj.city_village).data,
+                "ward": WardIdNameSerializer(obj).data
+            }) 
+        
+        
+        elif model_name == "CityVillage":
+            select_path = (
+                "taluka__district__state__country__continent__glob"
+            )
+            
+            qs = CityVillage.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.taluka.district.state.country.continent.glob).data,
+                "continent": ContinentIdNameSerializer(obj.taluka.district.state.country.continent).data,
+                "country": CountryIdNameSerializer(obj.taluka.district.state.country).data,
+                "state": StateIdNameSerializer(obj.taluka.district.state).data,
+                "district": DistrictIdNameSerializer(obj.taluka.district).data,
+                "taluka": TalukaIdNameSerializer(obj.taluka).data,
+                "city_village": CityVillageIdNameSerializer(obj).data
+            })
+        
+        elif model_name == "Taluka":
+            select_path = (
+                "district__state__country__continent__glob"
+            )
+            
+            qs = Taluka.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.district.state.country.continent.glob).data,
+                "continent": ContinentIdNameSerializer(obj.district.state.country.continent).data,
+                "country": CountryIdNameSerializer(obj.district.state.country).data,
+                "state": StateIdNameSerializer(obj.district.state).data,
+                "district": DistrictIdNameSerializer(obj.district).data,
+                "taluka": TalukaIdNameSerializer(obj).data
+            })
+        
+        
+        elif model_name == "District":
+            select_path = (
+                "state__country__continent__glob"
+            )
+            
+            qs = District.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.state.country.continent.glob).data,
+                "continent": ContinentIdNameSerializer(obj.state.country.continent).data,
+                "country": CountryIdNameSerializer(obj.state.country).data,
+                "state": StateIdNameSerializer(obj.state).data,
+                "district": DistrictIdNameSerializer(obj).data
+            })
+        
+        
+        elif model_name == "State":
+            select_path = (
+                "country__continent__glob"
+            )
+            
+            qs = State.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.country.continent.glob).data,
+                "continent": ContinentIdNameSerializer(obj.country.continent).data,
+                "country": CountryIdNameSerializer(obj.country).data,
+                "state": StateIdNameSerializer(obj).data
+            })
+        
+        
+        elif model_name == "Country":
+            select_path = (
+                "continent__glob"
+            )
+            
+            qs = Country.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.continent.glob).data,
+                "continent": ContinentIdNameSerializer(obj.continent).data,
+                "country": CountryIdNameSerializer(obj).data
+            })
+        
+        
+        elif model_name == "Continent":
+            select_path = (
+                "glob"
+            )
+            
+            qs = Continent.objects.filter(id__in=id_list).select_related(select_path)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj.glob).data,
+                "continent": ContinentIdNameSerializer(obj).data
+            })
+        
+        elif model_name == "Glob":
+            qs = Glob.objects.filter(id__in=id_list)
+            print("queryset:", qs)
+            
+            for obj in qs:
+                results.append({
+                "glob": GlobIdNameSerializer(obj).data
+            })
+        
+        else:
+            raise serializers.ValidationError(f"Invalid model name: {model_name}")
+        
+        return results
+         
+    
+    def get_value(self, obj):
+        model_name = obj.model.model
+        result = self.get_location_hierarchy(model_name, obj.domain_filter["id__in"])
+        return result

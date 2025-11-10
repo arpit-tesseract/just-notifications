@@ -29,5 +29,11 @@ urlpatterns = [
     path('assign-roles/', views.UserRoleAssignView.as_view(), name='assign_roles'),
     path('remove-roles/', views.UserRoleRemoveView.as_view(), name='remove_roles'),
     
+    path('model-access-rights/', views.ModelAccessView.as_view(), name='model_access'),
     path('model-access-rights/<int:user_id>/', views.ModelAccessView.as_view(), name='model_access'),
+    
+    path('record-rules/', views.RecordRuleView.as_view(), name='record_rules'),
+    path('record-rule-lst/', views.RecordRuleListView.as_view(), name='record_rules'),
+    
+    
 ]

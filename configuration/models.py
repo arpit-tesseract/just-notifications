@@ -196,7 +196,7 @@ class RecordRule(models.Model):
 
     can_read = models.BooleanField(default=False)
     can_create = models.BooleanField(default=False)
-    can_write = models.BooleanField(default=False)
+    can_update = models.BooleanField(default=False)
     can_delete = models.BooleanField(default=False)
 
     def __str__(self):

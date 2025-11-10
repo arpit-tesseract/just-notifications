@@ -635,31 +635,35 @@ class ModelAccessView(APIView):
     model = ModelAccess
     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
     
-    def get(self, request, user_id):
+    def get(self, request, user_id=None):
         try:
-            user_obj = get_object_or_404(CustomUser, id=user_id)
-            logged_user = request.user
+            if user_id is None:
+                user_obj = request.user
+            else:
+                user_obj = get_object_or_404(CustomUser, id=user_id)
             
-            if user_obj.id == logged_user.id:
-                return Response({"error": "You cannot access your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
+            # if user_obj.id == user_obj.id:
+            #     return Response({"error": "You cannot edit your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
             
-            if logged_user.check_is_super_admin():
+            if user_obj.check_is_super_admin():
                 model_access_rights = get_model_access_rights_of_super_admin()
                 return Response(
                     model_access_rights,
                     status=status.HTTP_200_OK
                 )
             
-            model_access_rights_obj_lst = logged_user.model_access_permission.all()
+            model_access_rights_obj_lst = user_obj.model_access_permission.all()
             if model_access_rights_obj_lst.exists():
-                serializer = ModelAccessSerializer(model_access_rights, many=True)
+                serializer = ModelAccessSerializer(model_access_rights_obj_lst, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response([], status=status.HTTP_200_OK)
             
-            model_access_rights = get_default_model_access_rights()
-            return Response(
-                model_access_rights,
-                status=status.HTTP_200_OK
-            )
+            # model_access_rights = get_default_model_access_rights()
+            # return Response(
+            #     model_access_rights,
+            #     status=status.HTTP_200_OK
+            # )
             
         except Exception as e:
             return Response(
@@ -667,3 +671,181 @@ class ModelAccessView(APIView):
                     "error":"Something went wrong",
                     "details": str(e)
                 }, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def post(self, request, user_id):
+        try:
+            user_obj = get_object_or_404(CustomUser, id=user_id)
+            logged_user = request.user
+            
+            if user_obj.id == logged_user.id:
+                return Response({"error": "You cannot edit your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Expecting a list of model access entries
+            model_access_data = request.data
+            if not isinstance(model_access_data, list) or not model_access_data:
+                return Response(
+                    {"error": "model_access_list must be a non-empty list."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Validate and create/update each record
+            created_or_updated = []
+            for item in model_access_data:
+                model_name = item.get("model")
+                if not model_name:
+                    return Response(
+                        {"error": "Each record must contain 'model'."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                model_obj = get_ModelName_obj_by_name(model_name)
+                
+                access_obj, created = ModelAccess.objects.update_or_create(
+                    user=user_obj,
+                    model=model_obj,
+                    defaults={
+                        "can_read": item.get("can_read", False),
+                        "can_create": item.get("can_create", False),
+                        "can_update": item.get("can_update", False),
+                        "can_delete": item.get("can_delete", False),
+                    }
+                )
+                created_or_updated.append(access_obj)
+            serializer = ModelAccessSerializer(created_or_updated, many=True)
+            return Response(
+                {
+                    "message": "Model access rights successfully updated.",
+                    "data": serializer.data,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": "Something went wrong", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class RecordRuleListView(APIView):
+    model = RecordRule
+    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
+
+    def get(self, request):
+        user_id_str = request.query_params.get("user_id", None)
+        
+        if user_id_str is None:
+            user_obj = request.user
+        else:
+            try:
+                user_id = int(user_id_str)
+                user_obj = get_object_or_404(CustomUser, id=user_id)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid user_id format."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+        record_rules = RecordRule.objects.filter(user=user_obj)
+        serializer = RecordRuleListSerializer(record_rules, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
+class RecordRuleView(APIView):
+    model = RecordRule
+    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
+
+    def get(self, request):
+        record_rule_id_str = request.query_params.get("record_rule_id", None)
+        if not record_rule_id_str:
+            return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            record_rule_id = int(record_rule_id_str)
+            record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+        except ValueError:
+            return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
+        except RecordRule.DoesNotExist:
+            return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = RecordRuleGetSerializer(record_rule_obj)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        user_id_str = request.query_params.get("user_id", None)
+        if not user_id_str:
+            return Response({"error": "User id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user_id = int(user_id_str)
+        except ValueError:
+            return Response({"error": "Invalid user_id format."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_obj = request.user
+        if user_obj.id == user_id:
+            return Response({"error": "You cannot set record rules for yourself."}, status=status.HTTP_403_FORBIDDEN)
+        
+        user_obj = get_object_or_404(CustomUser, id=user_id)
+        serializer = RecordRuleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        value = validated_data.get('value')
+    
+        domain_filter = {
+            "id__in": value
+        }
+        
+        model_obj = validated_data.get('model')
+        can_read = validated_data.get('can_read')
+        can_create = validated_data.get('can_create')
+        can_update = validated_data.get('can_update')
+        can_delete = validated_data.get('can_delete')
+        
+        
+        defaults = {
+            "domain_filter": domain_filter,
+            "name": f"{model_obj.model} Allocation",
+            "can_read": validated_data.get('can_read', False),
+            "can_create": validated_data.get('can_create', False),
+            "can_update": validated_data.get('can_update', False),
+            "can_delete": validated_data.get('can_delete', False),
+        }
+        
+        print("defaults:", defaults)
+        record_rule, created = RecordRule.objects.update_or_create(
+            model=model_obj,
+            user=user_obj,
+            defaults=defaults
+        )
+        # record_rule.save()
+        
+        return Response(
+            {
+                "message": f"Record rule {'created' if created else 'updated'} successfully.",
+                # "record_rule": RecordRuleSerializer(record_rule).data
+            },
+            status= status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+    
+    def delete(self, request):
+        record_rule_id_str = request.query_params.get("record_rule_id", None)
+        if not record_rule_id_str:
+            return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            record_rule_id = int(record_rule_id_str)
+            record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+        except ValueError:
+            return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
+        except RecordRule.DoesNotExist:
+            return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        record_rule_obj.delete()
+        return Response(
+            {
+                "message": "Record rule deleted successfully."
+            },
+            status=status.HTTP_200_OK
+        )
