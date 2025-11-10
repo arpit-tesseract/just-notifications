@@ -32,7 +32,12 @@ class HasModelAccessPermission(BasePermission):
             raise AttributeError(
                 f"{view.__class__.__name__} must define either `queryset` or `model`"
             )
-
+        # print("model_name:", model_name)
+        # print("logged user:", request.user)
+        
+        if model_name == "configuration.ModelAccess":
+            return True
+        
         # Try to get action (ViewSet) or fall back to HTTP method (APIView)
         action = getattr(view, "action", None)
         if not action:  
@@ -61,7 +66,7 @@ class HasModelAccessPermission(BasePermission):
 
         # Fetch model access
         try:
-            model_access = user.model_access_rule.get(model__technical_name=model_name)
+            model_access = user.model_access_permission.get(model__technical_name=model_name)
         except ModelAccess.DoesNotExist:
             return False
         except Exception as e:

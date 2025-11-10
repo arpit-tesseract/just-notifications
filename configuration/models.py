@@ -173,8 +173,8 @@ class ModelName(models.Model):
         return self.technical_name
     
 class ModelAccess(models.Model):
-    user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name='model_access_rule')
-    model = models.ForeignKey(ModelName, on_delete=models.CASCADE, related_name='model_access_rule')
+    user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name='model_access_permission')
+    model = models.ForeignKey(ModelName, on_delete=models.CASCADE)
 
     can_read = models.BooleanField(default=False)
     can_create = models.BooleanField(default=False)
@@ -196,7 +196,7 @@ class RecordRule(models.Model):
 
     can_read = models.BooleanField(default=False)
     can_create = models.BooleanField(default=False)
-    can_write = models.BooleanField(default=False)
+    can_update = models.BooleanField(default=False)
     can_delete = models.BooleanField(default=False)
 
     def __str__(self):
