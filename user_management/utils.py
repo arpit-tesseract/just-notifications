@@ -105,7 +105,7 @@ def clean_str(value):
 
 
 def get_from_user_and_to_users(higher_designation, relations):
-    for relation in relations:
+    for index, relation in enumerate(relations):
         user_obj = relation.get("user_obj")
         designation = relation.get("designation")
         
@@ -113,8 +113,9 @@ def get_from_user_and_to_users(higher_designation, relations):
         if designation.id == higher_designation.id and user_obj.expired_date is None:
             relation_obj = relations.pop(relations.index(relation))
             from_user_obj = relation_obj.get("user_obj")
+            from_user_designation = designation
             # print("Higher designation user:", relation_obj.get("user_obj"), relations)
-    return from_user_obj, relations
+    return from_user_obj, from_user_designation, relations
 
 
 def get_or_create_residential_details(**residential_details):

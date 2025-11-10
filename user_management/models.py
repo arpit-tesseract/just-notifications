@@ -391,12 +391,13 @@ class Relation(models.Model):
     ]
     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
     relation_category = models.CharField(choices=relation_category_choices, max_length=20)
+    from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (Father, mother)
     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
     post_no = models.FloatField(null=True, blank=True)
     
     def __str__(self):
-        return f"{self.from_user} - {self.designation.name} - {self.to_user}"
+        return f"{self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
 
 class Document(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)

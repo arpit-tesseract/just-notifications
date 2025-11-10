@@ -248,7 +248,7 @@ class RegisterationView(RecordRuleMixin, APIView):
                         }
                     )
                 
-                from_user, to_users = get_from_user_and_to_users(higher_designation, relations)
+                from_user, from_user_designation, to_users = get_from_user_and_to_users(higher_designation, relations)
                 relation_obj_lst = []
                 for to_user in to_users:
                     
@@ -256,6 +256,7 @@ class RegisterationView(RecordRuleMixin, APIView):
                         relation_obj = Relation.objects.get(
                             from_user = from_user, 
                             relation_category = to_user.get('relation_category'), 
+                            from_user_designation = from_user_designation,
                             designation = to_user.get('designation'), 
                             to_user = to_user.get('user_obj'),
                             post_no = to_user.get('post_no')
@@ -264,6 +265,7 @@ class RegisterationView(RecordRuleMixin, APIView):
                         relation_obj = Relation.objects.create(
                             from_user = from_user, 
                             relation_category = to_user.get('relation_category'), 
+                            from_user_designation = from_user_designation,
                             designation = to_user.get('designation'), 
                             to_user = to_user.get('user_obj'),
                             post_no = to_user.get('post_no')
@@ -368,13 +370,13 @@ class RegisterationView(RecordRuleMixin, APIView):
             )
         
         # get the relations of user
-        relation_obj_lst = Relation.objects.filter(
+        relation_obj = Relation.objects.filter(
             Q(from_user=user_obj) | Q(to_user=user_obj),
             relation_category__iexact=relation_category
-        )
+        ).first()
         
-        print("List of Relation objects:",relation_obj_lst)
-        if not relation_obj_lst.exists():
+        print("Relation object:",relation_obj)
+        if not relation_obj:
             result = {
                 "residential_details": ResidentialDetailGetSerializer(residential_obj).data,
                 "relation_category": relation_category,
@@ -395,6 +397,21 @@ class RegisterationView(RecordRuleMixin, APIView):
             # )
         
         posts_data = []
+        
+        # create first post for from user
+        from_user_details = UserSerializerForGet(relation_obj.from_user).data
+        post = {
+            "user_details": from_user_details,
+            "designation": relation_obj.from_user_designation.name,
+            "post_no": relation_obj.post_no
+        }
+        posts_data.append(post)
+        
+        relation_obj_lst = Relation.objects.filter(
+            from_user = relation_obj.from_user,
+            relation_category__iexact=relation_category
+        )
+        print("to user relation_obj_lst:",relation_obj_lst)
         for relation_obj in relation_obj_lst:
             user_details = UserSerializerForGet(relation_obj.to_user).data
             post = {
