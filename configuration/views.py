@@ -117,7 +117,6 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return StateSerializer   # For POST, PUT, PATCH
-        print(True)
         return StateDetailSerializer
    
    
@@ -820,11 +819,33 @@ class RoomFlashListView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        room_flashes = RoomFlash.objects.all()
+        room_flashes = get_regular_query(RoomFlash)
         room_flashes = room_flashes.order_by('code')
         serializer = RoomFlashNameCodeSerializer(room_flashes, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+class RoomTypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = RoomType
+    queryset = RoomType.objects.all()
+    serializer_class = RoomTypeSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+
+
+class RoomTypeListView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        room_types = get_regular_query(RoomType)
+        room_types = room_types.order_by('code')
+        serializer = RoomTypeNameCodeSerializer(room_types, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 # ==================
 # Import Features
 # ==================

@@ -160,6 +160,13 @@ class RoomFlash(OrderByMixin, HoldableMixin):
         return f"{self.code} - {self.name}"
 
 
+class RoomType(OrderByMixin, HoldableMixin):
+    name = models.CharField(max_length=20)
+    code = models.CharField(max_length=10)
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
 # -------------------------------------------------------------------------------------------------
 # Model & Record Rule Access
 # -------------------------------------------------------------------------------------------------

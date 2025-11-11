@@ -722,6 +722,17 @@ class RoomFlashNameCodeSerializer(serializers.ModelSerializer):
         fields = ['name', 'code']
 
 
+class RoomTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomFlash
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class RoomTypeNameCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomFlash
+        fields = ['name', 'code']
+
 class ModelNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = ModelName

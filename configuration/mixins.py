@@ -364,12 +364,17 @@ class FilteredQuerysetMixin(BaseQueryMixin):
                 if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
                     base_qs = base_qs.filter(**{field: value})
                     
-            elif value is not None and value is not '':
+            elif value not in [None, "", " "]:
                 try: 
-                    if param == "search":
-                        base_qs = base_qs.filter(name__icontains=value)
-                    else:
-                        base_qs = base_qs.filter(**{field: value})
+                    # if param == "search":
+                    #     base_qs = base_qs.filter(name__icontains=value)
+                    # else:
+                    #     base_qs = base_qs.filter(**{field: value})
+                    
+                    # dynamically use the field for 'search'
+                    lookup = f"{field}__icontains" if param == "search" else field
+                    base_qs = base_qs.filter(**{lookup: value})
+                    
                 except Exception as e:
                     # if not a valid field, ignore
                     continue

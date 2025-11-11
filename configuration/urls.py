@@ -36,7 +36,7 @@ router.register(r'subdepartments', SubDepartmentViewSet)
 router.register(r'types', TypeViewSet)
 router.register(r'brands', BrandViewSet)
 router.register(r'roomflashes', RoomFlashViewSet)
-
+router.register(r'roomtypes', RoomTypeViewSet)
 router.register(r'designations', DesignationViewSet)
 
 urlpatterns = [
@@ -86,4 +86,6 @@ urlpatterns = [
     
     path("designation_lst/", DesignationListView.as_view(), name="designation_lst"),
     path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
+    path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
+    
 ]
