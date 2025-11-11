@@ -129,21 +129,29 @@ def allocate_rooms_for_from_user(user_obj):
     # get residential details
     residential_obj = user_obj.residential_details
     print("residential_obj to allocate room", residential_obj)
-    print("room details", residential_obj.room_details)
+    print("room details:", residential_obj.room_details)
     room_details = residential_obj.room_details
     
-    if user_obj.allocated_rooms is None:
-        print("pending rooms to allocate:",residential_obj.pending_rooms_to_allocate)
-        user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
-        user_obj.save()
+    # if user_obj.allocated_rooms is None:
+    #     print("pending rooms to allocate (1):",residential_obj.pending_rooms_to_allocate)
+    #     user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
+    #     user_obj.save()
+
+
+    print("pending rooms to allocate (1):",residential_obj.pending_rooms_to_allocate)
+    user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
+    user_obj.save()
+            
         
-    for room_type, total_rooms in room_details.items():
+    for room_type, value in room_details.items():
         # user_obj.allocated_rooms[room_type] = 1
-        if residential_obj.pending_rooms_to_allocate[room_type] == total_rooms:
+        if residential_obj.pending_rooms_to_allocate[room_type]["count"] == value["count"]:
             # residential_obj.pending_rooms_to_allocate[room_type] = total_rooms
+            print("Pending room stay as it is:", residential_obj.pending_rooms_to_allocate)
             pass
         else:
-            residential_obj.pending_rooms_to_allocate[room_type] += 1
+            residential_obj.pending_rooms_to_allocate[room_type]["count"] += 1
+            print("Pending room to allocate:", residential_obj.pending_rooms_to_allocate)
     
     print("user allocate rooms:", user_obj.allocated_rooms)
     residential_obj.save()
@@ -156,12 +164,12 @@ def allocate_rooms_for_to_user(user_obj):
     if user_obj.allocated_rooms is None:
         user_obj.allocated_rooms = {}
         
-    for room_type, total_rooms in pending_rooms.items():
-        if residential_obj.room_details[room_type] == total_rooms:
-            user_obj.allocated_rooms[room_type] = total_rooms
+    for room_type, value in pending_rooms.items():
+        if residential_obj.room_details[room_type]["count"] == value["count"]:
+            user_obj.allocated_rooms[room_type]["count"] = value["count"]
         else:
-            user_obj.allocated_rooms[room_type] += 1
-            residential_obj.pending_rooms_to_allocate[room_type] -= 1
+            user_obj.allocated_rooms[room_type]["count"] += 1
+            residential_obj.pending_rooms_to_allocate[room_type]["count"] -= 1
             
     user_obj.save()
     residential_obj.save()

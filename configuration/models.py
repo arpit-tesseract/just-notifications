@@ -154,7 +154,8 @@ class Ward(OrderByMixin, HoldableMixin):
 
 class RoomFlash(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=20)
-    code = models.CharField(max_length=10)
+    is_used = models.BooleanField(default=False)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -162,7 +163,8 @@ class RoomFlash(OrderByMixin, HoldableMixin):
 
 class RoomType(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=20)
-    code = models.CharField(max_length=10)
+    is_used = models.BooleanField(default=False)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
         return f"{self.code} - {self.name}"

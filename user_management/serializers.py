@@ -86,7 +86,75 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
         # extra_kwargs = {
         #     'category_of_user': {'required': False},
         # } 
+    
+    def validate_room_details(self, value):
+        for room_type_id, room_info in value.items():
+            # room_name = "hall"
+            try:
+                room_type_id = int(room_type_id)
+            except ValueError:
+                raise serializers.ValidationError(
+                    f"'{room_type_id}' must be an integer."
+                )
+            room_type_obj = get_obj_by_modle_and_id(RoomType, room_type_id)
+            if room_type_obj is None:
+                raise serializers.ValidationError(
+                    f"'{room_type_id}' not found in RoomType table."
+                )
+            else:
+                if room_type_obj.is_used == False:
+                    room_type_obj.is_used = True
+                    room_type_obj.save()
+                    
+            if not isinstance(room_info, dict):
+                raise serializers.ValidationError(
+                    f"'{room_type_id}' must be an object with 'count', 'room_flash_id' and 'room_type_name' keys."
+                )
         
+            # required keys
+            required_keys = {"count", "room_flash_id"}
+            missing = required_keys - room_info.keys()
+            if missing:
+                raise serializers.ValidationError(
+                    f"Missing keys in '{room_type_id}': {', '.join(missing)}"
+                )
+            
+            # type checks
+            if isinstance(room_info["count"], int):
+                if room_info["count"] < 1:
+                    raise serializers.ValidationError(
+                        f"'count' in '{room_type_id}' must be a positive integer."
+                    )
+            else:
+                raise serializers.ValidationError(
+                    f"'count' in '{room_type_id}' must be an integer."
+                )
+            
+
+            if isinstance(room_info["room_flash_id"], int):
+                if room_info["room_flash_id"] < 1:
+                    raise serializers.ValidationError(
+                        f"'room_flash_id' for '{room_type_id}' must be a positive integer."
+                    )
+                    
+                room_flash_obj = get_obj_by_modle_and_id(RoomFlash, room_info.get("room_flash_id"))
+                if room_flash_obj is None:
+                    raise serializers.ValidationError(
+                        f"'room_flash_id' for '{room_type_id}' does not exist."
+                    )
+                else:
+                    if room_flash_obj.is_used == False:
+                        room_flash_obj.is_used = True
+                        room_flash_obj.save()
+                
+                # store room_flash_obj
+                # room_info["room_flash_id"] = room_flash_obj
+            else:
+                raise serializers.ValidationError(
+                    f"'room_flash_id' in '{room_type_id}' must be an integer."
+                )
+                
+        return value
     
     def validate(self, attrs):
         text_fields = [
@@ -267,9 +335,9 @@ class UserRegistrationSerializer(serializers.Serializer):
         if room_details is None or room_details == {}:
             raise serializers.ValidationError({"room_details": "Room details is required."})
         
-        for key, val in room_details.items():
-            if val is None or val == "" or val <= 0:
-                raise serializers.ValidationError({"room_details": f"Room details is required."})
+        # for key, val in room_details.items():
+        #     if val is None or val == "" or val <= 0:
+        #         raise serializers.ValidationError({"room_details": f"Room details is required."})
            
         # verify relation category
         relation_category = attrs.get('relation_category')

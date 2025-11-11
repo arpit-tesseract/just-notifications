@@ -713,25 +713,27 @@ class DesignationSerializer(serializers.ModelSerializer):
 class RoomFlashSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomFlash
-        fields = '__all__'
-        read_only_fields = ['id']
+        fields = "__all__"
+        # fields = ['id', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date']
+        read_only_fields = ['id', 'is_used']
 
-class RoomFlashNameCodeSerializer(serializers.ModelSerializer):
+class RoomFlashIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomFlash
-        fields = ['name', 'code']
+        fields = ['id', 'name']
 
 
 class RoomTypeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = RoomFlash
-        fields = '__all__'
-        read_only_fields = ['id']
+        model = RoomType
+        fields = "__all__"
+        # fields = ['id', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date']
+        read_only_fields = ['id', 'is_used']
 
-class RoomTypeNameCodeSerializer(serializers.ModelSerializer):
+class RoomTypeIdNameSerializer(serializers.ModelSerializer):
     class Meta:
-        model = RoomFlash
-        fields = ['name', 'code']
+        model = RoomType
+        fields = ['id', 'name']
 
 class ModelNameSerializer(serializers.ModelSerializer):
     class Meta:

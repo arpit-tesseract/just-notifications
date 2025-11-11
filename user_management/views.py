@@ -122,16 +122,17 @@ class RegisterationView(RecordRuleMixin, APIView):
                 residential_details['residential_type'] = "home"
                 # room_details = residential_details.get('room_details', None)
                 residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
-                print("residential_obj:", residential_obj.pending_rooms_to_allocate)
+                print("First Room Details:", residential_obj.room_details)
+                print("First Pending Rooms:", residential_obj.pending_rooms_to_allocate)
                 if created:
                     residential_obj.pending_rooms_to_allocate = {}
                     for key, val in residential_obj.room_details.items():
-                        residential_obj.pending_rooms_to_allocate[key] = 1
+                        print("Value:",val)
+                        residential_obj.pending_rooms_to_allocate[key] = val.copy()
+                        residential_obj.pending_rooms_to_allocate[key]["count"] = 1
                     # residential_obj.pending_rooms_to_allocate = {key: 1 for key in room_details.keys()}
                     residential_obj.save()
-                    
-                print("residential_obj", residential_obj.pending_rooms_to_allocate)
-                    
+                                        
                 if isinstance(residential_obj, Response):
                     return residential_obj
                 

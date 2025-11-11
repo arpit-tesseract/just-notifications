@@ -814,6 +814,21 @@ class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'on_hold': 'on_hold',
         'search': 'name'
     }
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+            
+        if instance.is_used:
+            return Response(
+                {
+                    "error": f"Cannot delete RoomFlash '{instance.name}' (Code: {instance.code}) "
+                             "because it is referenced in one or more users ResidentialDetail records.",
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Proceed with normal deletion if not used
+        return super().destroy(request, *args, **kwargs)
 
 class RoomFlashListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -821,7 +836,7 @@ class RoomFlashListView(APIView):
     def get(self, request):
         room_flashes = get_regular_query(RoomFlash)
         room_flashes = room_flashes.order_by('code')
-        serializer = RoomFlashNameCodeSerializer(room_flashes, many=True)
+        serializer = RoomFlashIdNameSerializer(room_flashes, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -836,6 +851,21 @@ class RoomTypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'on_hold': 'on_hold',
         'search': 'name'
     }
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+            
+        if instance.is_used:
+            return Response(
+                {
+                    "error": f"Cannot delete RoomType '{instance.name}' (Code: {instance.code}) "
+                             "because it is referenced in one or more users ResidentialDetail records.",
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Proceed with normal deletion if not used
+        return super().destroy(request, *args, **kwargs)
 
 
 class RoomTypeListView(APIView):
@@ -844,7 +874,7 @@ class RoomTypeListView(APIView):
     def get(self, request):
         room_types = get_regular_query(RoomType)
         room_types = room_types.order_by('code')
-        serializer = RoomTypeNameCodeSerializer(room_types, many=True)
+        serializer = RoomTypeIdNameSerializer(room_types, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 # ==================
 # Import Features
