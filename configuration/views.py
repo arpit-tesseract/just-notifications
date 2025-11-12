@@ -1679,7 +1679,176 @@ class UploadWardsView(APIView):
             }, status=status.HTTP_201_CREATED
         )
 
+
+class UploadRoomFlashesView(APIView):
+    model = RoomFlash
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["room_flash", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
                 
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                room_flash_name = clean(row.get("room_flash"))
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([room_flash_name, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                objs.append(RoomFlash(
+                    name=room_flash_name, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+                RoomFlash.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} RoomFlash uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadRoomTypesView(APIView):
+    model = RoomType
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["room_type", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                room_type_name = clean(row.get("room_type"))
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([room_type_name, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                objs.append(RoomType(
+                    name=room_type_name, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+                RoomType.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} RoomType uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
+                   
 class ModelNameView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ModelNameSerializer
@@ -5310,58 +5479,31 @@ class ProfessionalSearchView(APIView):
         output = ProfessionalOutputSerializer(results, many=True)
         return Response(output.data, status=status.HTTP_200_OK)
             
-                    
-# class DesignationView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+   
+# class DesignationSubCategoryView(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+#     model = DesignationSubCategory
+#     queryset = DesignationSubCategory.objects.all()
+#     serializer_class = DesignationSubCategorySerializer
 #     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     pagination_class = ConfigurationPagination
 #     FILTER_FIELDS = {
-#         'relation_category': 'relation_category'
+#         'category': 'category',
+#         'is_hidden': 'is_hidden',
+#         'on_hold': 'on_hold',
+#         'search': 'name'
 #     }
-    
-#     def get_base_queryset(self):
-#         today = timezone.now().date()
-        
-#         return Designation.objects.filter(
-#             is_hidden=False,
-#             on_hold=False
-#         ).filter(
-#             Q(hold_date__lte=today) | Q(hold_date__isnull=True)
-#         )
-    
-#     def get(self, request):
-#         qs = self.get_result_queryset()
-#         output = DesignationSerializer(qs, many=True)
-#         return Response(output.data, status=status.HTTP_200_OK)
-    
-#     def post(self, request):
-#         serializer = DesignationSerializer(data=request.data)
-        
-#         if not serializer.is_valid():
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)                       
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-#     def put(self, request, pk):
-#         try:
-#             designation_obj = Designation.objects.get(pk=pk)
-#         except Designation.DoesNotExist:
-#             return Response({"error": "Designation does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         serializer = DesignationSerializer(designation_obj, data=request.data)
-        
-#         if not serializer.is_valid():
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_200_OK)
 
-#     def delete(self, request, pk):
-#         try:
-#             designation_obj = Designation.objects.get(pk=pk)
-#         except Designation.DoesNotExist:
-#             return Response({"error": "Designation does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         designation_obj.delete()
-#         return Response({"message": "Successfully deleted"}, status=status.HTTP_200_OK)
+
+class DesignationSubCategoryListView(APIView):
+    model = DesignationSubCategory
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        qs = get_regular_query(DesignationSubCategory)
+        qs = qs.order_by('code')
+        output = DesignationSubCategoryIdNameSerializer(qs, many=True)
+        return Response(output.data, status=status.HTTP_200_OK)
+    
     
 class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Designation
@@ -5370,11 +5512,17 @@ class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
+        'subcategory': 'subcategory__name',
         'category': 'category',
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold',
         'search': 'name'
     }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return DesignationSerializer   # For POST, PUT, PATCH
+        return DesignationGetSerializer
 
 
 class DesignationListView(RecordRuleMixin, APIView):
@@ -5385,10 +5533,57 @@ class DesignationListView(RecordRuleMixin, APIView):
     
     def get(self, request):
         qs = self.get_base_queryset()
-        category = request.query_params.get('category', None)
-        if category and category != '':
-            qs = qs.filter(category=category)
+        category = request.query_params.get('category', "").strip()
+        subcategory = request.query_params.get('subcategory', "").strip()
+        
+        if category != '':
+            if subcategory != '':
+                qs = qs.filter(category=category, subcategory__name=subcategory)
+            else:
+                return Response(
+                    {
+                        "error": "Query paramter 'subcategory' cannot be empty."
+                    }, status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            return Response(
+                {
+                    "error": "Query paramter 'category' cannot be empty."
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
         qs = qs.order_by('code')
         output = DesignationIdNameSerializer(qs, many=True)
         return Response(output.data, status=status.HTTP_200_OK)
     
+
+class DownloadSampleFile(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        router = request.query_params.get('router', "").strip()
+        if router == '':
+            return Response({"error": "Query paramter 'router' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            file = SampleFile.objects.get(router=router)
+        except SampleFile.DoesNotExist:
+            return Response({"error": "Sample file not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get sample file: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        if not file.file:
+            return Response({"error": "File not associated with this record."}, status=status.HTTP_404_NOT_FOUND)
+            
+        return Response({"file_url": file.file.url}, status=status.HTTP_200_OK)
+
+
+class DesignationCategoryListView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        categories = [
+            {"key": key, "label": label}
+            for key, label in Designation.CATEGORY_CHOICES
+        ]
+        return Response({"categories": categories})

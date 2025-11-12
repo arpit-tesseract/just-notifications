@@ -104,8 +104,8 @@ class CustomUserManager(BaseUserManager):
 
         # ensure admin role exists
         role, _ = UserRole.objects.get_or_create(
-            name="tesseract_admin",
-            display_name="Tesseract Admin"
+            name="user",
+            display_name="User"
         )
 
         extra_fields.setdefault("is_staff", True)
