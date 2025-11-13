@@ -107,7 +107,9 @@ class RegisterationView(RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     parser_classes = [MultiPartParser, JSONParser, FormParser]
     
-    def post(self, request):
+    def post(self, request, user_id=None):
+        
+            
         serializer = UserRegistrationSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -115,27 +117,18 @@ class RegisterationView(RecordRuleMixin, APIView):
         validated_data = serializer.validated_data
         relation_category = validated_data.get('relation_category')
         
+        existing_from_user_obj = None
+        if relation_category in ['inlaws', 'maternal', 'business']:
+            if user_id is None:
+                return Response(
+                    {"error": "User id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                existing_from_user_obj = get_object_or_404(CustomUser, id=user_id)
+            
         try:
             with transaction.atomic():
-                # create residential details
-                residential_details = validated_data.get('residential_details')
-                residential_details['residential_type'] = "home"
-                # room_details = residential_details.get('room_details', None)
-                residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
-                print("First Room Details:", residential_obj.room_details)
-                print("First Pending Rooms:", residential_obj.pending_rooms_to_allocate)
-                if created:
-                    residential_obj.pending_rooms_to_allocate = {}
-                    for key, val in residential_obj.room_details.items():
-                        print("Value:",val)
-                        residential_obj.pending_rooms_to_allocate[key] = val.copy()
-                        residential_obj.pending_rooms_to_allocate[key]["count"] = 1
-                    # residential_obj.pending_rooms_to_allocate = {key: 1 for key in room_details.keys()}
-                    residential_obj.save()
-                                        
-                if isinstance(residential_obj, Response):
-                    return residential_obj
-                
                 
                 posts = validated_data.get('posts', None)
                 
@@ -146,7 +139,6 @@ class RegisterationView(RecordRuleMixin, APIView):
                 response_data = []
                 
                 active_users = []
-                room_details = residential_obj.room_details
                 for index, post in enumerate(posts):
                     user_details = post.pop("user_details", None)
                     existing_user_obj = user_details.pop("user_id", None)
@@ -155,9 +147,26 @@ class RegisterationView(RecordRuleMixin, APIView):
                     
                     if user_details:
                         user_role_obj = user_details.pop("user_role", None)
-                        # user_residential_details = user_details.pop("residential_details", None)
                         user_personal_details = user_details.pop("personal_details", None)
                         user_bussiness_details = user_details.pop("bussiness_details", None)
+                        residential_details = user_details.pop('residential_details')
+                        residential_details['residential_type'] = "home"
+                        
+                        # create residential details
+                        residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
+                        print("First Room Details:", residential_obj.room_details)
+                        print("First Pending Rooms:", residential_obj.pending_rooms_to_allocate)
+                        if created:
+                            residential_obj.pending_rooms_to_allocate = {}
+                            for key, val in residential_obj.room_details.items():
+                                print("Value:",val)
+                                residential_obj.pending_rooms_to_allocate[key] = val.copy()
+                                residential_obj.pending_rooms_to_allocate[key]["count"] = 1
+                            residential_obj.save()
+                                        
+                        if isinstance(residential_obj, Response):
+                            return residential_obj
+                        
                         
                         # create to user
                         if existing_user_obj is not None:
@@ -175,36 +184,40 @@ class RegisterationView(RecordRuleMixin, APIView):
                             active_users.append(user_obj)
                         
                         # assign residential details
-                        user_obj.residential_details = residential_obj
-                        user_obj.save()
+                        if user_obj.id != existing_from_user_obj.id:
+                            user_obj.residential_details = residential_obj
+                            user_obj.save()
                         
-                        # add user id in response data list
-                        response_data.append(user_obj.id)
+                            # add user id in response data list
+                            response_data.append(user_obj.id)
                         
                         # add user role to user 
                         user_obj.user_role.add(user_role_obj)
                         
                         # get higher designation for the create main user / from user
-                        if higher_designation is None:
-                            if user_obj.expired_date is None:
-                                higher_designation = designation
-                            #     if higher_designation_failed_count > 0:
-                            #         higher_designation_failed_count -= 1
-                            # else:
-                            #     higher_designation_failed_count += 1
-                                
+                        if existing_from_user_obj:
+                            higher_designation = existing_from_user_obj.designation
                         else:
-                            if higher_designation.code > designation.code and user_obj.expired_date is None:
-                                higher_designation = designation
-                            #     if higher_designation_failed_count > 0:
-                            #         higher_designation_failed_count -= 1
-                            # else:
-                            #     higher_designation_failed_count += 1
+                            if higher_designation is None:
+                                if user_obj.expired_date is None:
+                                    higher_designation = designation
+                                #     if higher_designation_failed_count > 0:
+                                #         higher_designation_failed_count -= 1
+                                # else:
+                                #     higher_designation_failed_count += 1
+                                    
+                            else:
+                                if higher_designation.code > designation.code and user_obj.expired_date is None:
+                                    higher_designation = designation
+                                #     if higher_designation_failed_count > 0:
+                                #         higher_designation_failed_count -= 1
+                                # else:
+                                #     higher_designation_failed_count += 1
                         
-                        print(higher_designation_failed_count)
-                        if higher_designation_failed_count >= 2:
-                            raise Exception("Automatic set main user failed!")
-                            # transaction.set_rollback(True)
+                            print(higher_designation_failed_count)
+                            if higher_designation_failed_count >= 2:
+                                raise Exception("Automatic set main user failed!")
+                                # transaction.set_rollback(True)
                         
                         # create personal details 
                         if user_personal_details is not None:   
@@ -249,7 +262,13 @@ class RegisterationView(RecordRuleMixin, APIView):
                         }
                     )
                 
-                from_user, from_user_designation, to_users = get_from_user_and_to_users(higher_designation, relations)
+                if existing_user_obj:
+                    from_user = existing_from_user_obj
+                    from_user_designation = existing_from_user_obj.designation
+                    to_users = relations
+                else:
+                    from_user, from_user_designation, to_users = get_from_user_and_to_users(higher_designation, relations)
+                    
                 relation_obj_lst = []
                 for to_user in to_users:
                     
@@ -277,35 +296,38 @@ class RegisterationView(RecordRuleMixin, APIView):
                     relation_obj_lst.append(relation_obj)
                 
                 # 1. Process the FROM_USER (for ex: husband)
-                if from_user.expired_date is None:
+                if existing_user_obj:
+                    pass
+                else:
+                    if from_user.expired_date is None:
+                        
+                        # This function is now safe (if you use my updated version)
+                        from_user.is_verified = True
+                        from_user.save()
+                        # mark_as_verify_or_unverify_user(from_user) 
+                        allocate_rooms_for_from_user(from_user)
+                        # Allocates room directly, WITHOUT finding a parent
+                        # allocate_room_dict = allocate_rooms(0, room_details, from_user) 
+                        # from_user.allocated_rooms = allocate_room_dict
+                        # from_user.save()
                     
-                    # This function is now safe (if you use my updated version)
-                    from_user.is_verified = True
-                    from_user.save()
-                    # mark_as_verify_or_unverify_user(from_user) 
-                    allocate_rooms_for_from_user(from_user)
-                    # Allocates room directly, WITHOUT finding a parent
-                    # allocate_room_dict = allocate_rooms(0, room_details, from_user) 
-                    # from_user.allocated_rooms = allocate_room_dict
-                    # from_user.save()
-                
-                # 2. Process the TO_USER (for ex: wife, son)
-                for relation_obj in relation_obj_lst:
-                    mark_as_verify_or_unverify_user(relation_obj.to_user, relation_obj.relation_category)
-                    
-                    if relation_obj.to_user.expired_date is not None:
-                        continue
-                    
-                    if relation_obj.designation.name == "wife" or relation_obj.designation.name == "Wife":
-                        allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
-                    else:
-                        if relation_obj.to_user.marital_status == "single":
+                    # 2. Process the TO_USER (for ex: wife, son)
+                    for relation_obj in relation_obj_lst:
+                        mark_as_verify_or_unverify_user(relation_obj.to_user, relation_obj.relation_category)
+                        
+                        if relation_obj.to_user.expired_date is not None:
+                            continue
+                        
+                        if relation_obj.designation.name == "wife" or relation_obj.designation.name == "Wife":
                             allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
-                        # else:
-                        #     allocate_rooms(relation_obj.to_user)
-                            # allocate_room_dict = allocate_rooms(0, room_details, relation_obj.to_user) 
-                            # relation_obj.to_user.allocated_rooms = allocate_room_dict
-                            # relation_obj.to_user.save()
+                        else:
+                            if relation_obj.to_user.marital_status == "single":
+                                allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
+                            # else:
+                            #     allocate_rooms(relation_obj.to_user)
+                                # allocate_room_dict = allocate_rooms(0, room_details, relation_obj.to_user) 
+                                # relation_obj.to_user.allocated_rooms = allocate_room_dict
+                                # relation_obj.to_user.save()
                 
                 # 2. Process the TO_USER (for ex: wife, son)
                 # for user_obj in to_users: 
@@ -770,27 +792,113 @@ class RecordRuleListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     
-class RecordRuleView(APIView):
-    model = RecordRule
-    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
+# class RecordRuleView(APIView):
+#     model = RecordRule
+#     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
 
-    def get(self, request):
-        record_rule_id_str = request.query_params.get("record_rule_id", None)
-        if not record_rule_id_str:
-            return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+#     def get(self, request):
+#         record_rule_id_str = request.query_params.get("record_rule_id", None)
+#         if not record_rule_id_str:
+#             return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            record_rule_id = int(record_rule_id_str)
-            record_rule_obj = RecordRule.objects.get(id = record_rule_id)
-        except ValueError:
-            return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
-        except RecordRule.DoesNotExist:
-            return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
+#         try:
+#             record_rule_id = int(record_rule_id_str)
+#             record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+#         except ValueError:
+#             return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
+#         except RecordRule.DoesNotExist:
+#             return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
         
-        serializer = RecordRuleGetSerializer(record_rule_obj)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+#         serializer = RecordRuleGetSerializer(record_rule_obj)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+#     def post(self, request):
+#         user_id_str = request.query_params.get("user_id", None)
+#         if not user_id_str:
+#             return Response({"error": "User id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         try:
+#             user_id = int(user_id_str)
+#         except ValueError:
+#             return Response({"error": "Invalid user_id format."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         user_obj = request.user
+#         if user_obj.id == user_id:
+#             return Response({"error": "You cannot set record rules for yourself."}, status=status.HTTP_403_FORBIDDEN)
+        
+#         user_obj = get_object_or_404(CustomUser, id=user_id)
+#         serializer = RecordRuleSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+        
+#         validated_data = serializer.validated_data
+#         value = validated_data.get('value')
+    
+#         domain_filter = {
+#             "id__in": value
+#         }
+        
+#         model_obj = validated_data.get('model')
+#         can_read = validated_data.get('can_read')
+#         can_create = validated_data.get('can_create')
+#         can_update = validated_data.get('can_update')
+#         can_delete = validated_data.get('can_delete')
+        
+        
+#         defaults = {
+#             "domain_filter": domain_filter,
+#             "name": f"{model_obj.model} Allocation",
+#             "can_read": validated_data.get('can_read', False),
+#             "can_create": validated_data.get('can_create', False),
+#             "can_update": validated_data.get('can_update', False),
+#             "can_delete": validated_data.get('can_delete', False),
+#         }
+        
+#         print("defaults:", defaults)
+#         record_rule, created = RecordRule.objects.update_or_create(
+#             model=model_obj,
+#             user=user_obj,
+#             defaults=defaults
+#         )
+#         # record_rule.save()
+        
+#         return Response(
+#             {
+#                 "message": f"Record rule {'created' if created else 'updated'} successfully.",
+#                 # "record_rule": RecordRuleSerializer(record_rule).data
+#             },
+#             status= status.HTTP_201_CREATED if created else status.HTTP_200_OK
+#         )
+    
+#     def delete(self, request):
+#         record_rule_id_str = request.query_params.get("record_rule_id", None)
+#         if not record_rule_id_str:
+#             return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         try:
+#             record_rule_id = int(record_rule_id_str)
+#             record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+#         except ValueError:
+#             return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
+#         except RecordRule.DoesNotExist:
+#             return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+#         record_rule_obj.delete()
+#         return Response(
+#             {
+#                 "message": "Record rule deleted successfully."
+#             },
+#             status=status.HTTP_200_OK
+#         )
+
+
+class RecordRuleView(APIView):
+    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
     
     def post(self, request):
+        
+        if not isinstance(request.data, list):
+            return Response({"error": "Expected a list of model objects."}, status=status.HTTP_400_BAD_REQUEST)
+
         user_id_str = request.query_params.get("user_id", None)
         if not user_id_str:
             return Response({"error": "User id is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -805,65 +913,60 @@ class RecordRuleView(APIView):
             return Response({"error": "You cannot set record rules for yourself."}, status=status.HTTP_403_FORBIDDEN)
         
         user_obj = get_object_or_404(CustomUser, id=user_id)
-        serializer = RecordRuleSerializer(data=request.data)
+        serializer = RecordRuleCreateSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         
-        validated_data = serializer.validated_data
-        value = validated_data.get('value')
-    
-        domain_filter = {
-            "id__in": value
-        }
-        
-        model_obj = validated_data.get('model')
-        can_read = validated_data.get('can_read')
-        can_create = validated_data.get('can_create')
-        can_update = validated_data.get('can_update')
-        can_delete = validated_data.get('can_delete')
-        
-        
-        defaults = {
-            "domain_filter": domain_filter,
-            "name": f"{model_obj.model} Allocation",
-            "can_read": validated_data.get('can_read', False),
-            "can_create": validated_data.get('can_create', False),
-            "can_update": validated_data.get('can_update', False),
-            "can_delete": validated_data.get('can_delete', False),
-        }
-        
-        print("defaults:", defaults)
-        record_rule, created = RecordRule.objects.update_or_create(
-            model=model_obj,
-            user=user_obj,
-            defaults=defaults
-        )
-        # record_rule.save()
-        
-        return Response(
-            {
-                "message": f"Record rule {'created' if created else 'updated'} successfully.",
-                # "record_rule": RecordRuleSerializer(record_rule).data
-            },
-            status= status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        )
-    
-    def delete(self, request):
-        record_rule_id_str = request.query_params.get("record_rule_id", None)
-        if not record_rule_id_str:
-            return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            record_rule_id = int(record_rule_id_str)
-            record_rule_obj = RecordRule.objects.get(id = record_rule_id)
-        except ValueError:
-            return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
-        except RecordRule.DoesNotExist:
-            return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        record_rule_obj.delete()
-        return Response(
-            {
-                "message": "Record rule deleted successfully."
-            },
-            status=status.HTTP_200_OK
-        )
+            with transaction.atomic():
+                for item in serializer.validated_data:
+                    model_obj = item.get('model')
+                    values_dict = item.get('values') # e.g., {"1": {perms}, "2": {perms}}
+                    
+                    for record_id, perms in values_dict.items():
+                        # LOGIC FIX: The key ('1') is the ID, 'perms' is the dict of booleans
+                        
+                        # Ensure ID is an integer for the DB
+                        try:
+                            record_id_int = int(record_id)
+                        except ValueError:
+                            continue # Skip if ID is not a number
+
+                        # Construct the filter strictly for this ID
+                        domain_filter = {
+                            'id__in': [record_id_int]
+                        }
+                        
+                        # Handle field mapping (JSON has 'can_write', Model has 'can_update')
+                        can_read = perms.get('can_read', False)
+                        can_create = perms.get('can_create', False)
+                        # check for can_update OR can_write
+                        can_update = perms.get('can_update', False) or perms.get('can_write', False)
+                        can_delete = perms.get('can_delete', False)
+
+                        # Use update_or_create for cleaner logic
+                        RecordRule.objects.update_or_create(
+                            model=model_obj,
+                            user=user_obj,
+                            domain_filter=domain_filter,
+                            defaults={
+                                "name": f"{model_obj.model} Allocation - {record_id}",
+                                "can_read": can_read,
+                                "can_create": can_create,
+                                "can_update": can_update,
+                                "can_delete": can_delete,
+                            }
+                        )
+
+            return Response(
+                {"message": "Record rules created/updated successfully."}, 
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Something went wrong while creating record rules.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+                

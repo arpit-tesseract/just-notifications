@@ -314,4 +314,4 @@ def get_ModelName_obj_by_name(model_name):
         model_obj = ModelName.objects.get(model=model_name)
         return model_obj
     except ModelName.DoesNotExist:
-        raise ValidationError(f"Model '{model_name}' does not exist.")
+        return None

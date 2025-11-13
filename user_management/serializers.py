@@ -234,6 +234,7 @@ class UserSerializerForPost(serializers.ModelSerializer):
     date_of_birth = serializers.DateField(validators=[validate_dob])
     user_role_name = serializers.CharField()
     user_role = UserRoleSerializer(many=False, read_only=True)
+    residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
     bussiness_details = BussinessDetailSerializer(many=True, required=False, allow_null=True)
     class Meta:
@@ -253,6 +254,7 @@ class UserSerializerForPost(serializers.ModelSerializer):
             'marital_status', 
             'is_verified', 
             'expired_date',
+            'residential_details',
             'personal_details',
             'bussiness_details',
             'category_of_user',
@@ -324,16 +326,16 @@ class PostSerializer(serializers.ModelSerializer):
 
 
 class UserRegistrationSerializer(serializers.Serializer):
-    residential_details = ResidentialDetailSerializer(many=False)
+    # residential_details = ResidentialDetailSerializer(many=False)
     relation_category = serializers.CharField()      
     number_of_post = serializers.IntegerField()
     posts = PostSerializer(many=True)
     
     def validate(self, attrs):
-        residential_details = attrs.get('residential_details', None)
-        room_details = residential_details.get('room_details', None)
-        if room_details is None or room_details == {}:
-            raise serializers.ValidationError({"room_details": "Room details is required."})
+        # residential_details = attrs.get('residential_details', None)
+        # room_details = residential_details.get('room_details', None)
+        # if room_details is None or room_details == {}:
+        #     raise serializers.ValidationError({"room_details": "Room details is required."})
         
         # for key, val in room_details.items():
         #     if val is None or val == "" or val <= 0:
@@ -863,3 +865,16 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
         model_name = obj.model.model
         result = self.get_location_hierarchy(model_name, obj.domain_filter["id__in"])
         return result
+
+
+class RecordRuleCreateSerializer(serializers.Serializer):
+    model = serializers.CharField()
+    values = serializers.DictField(child=serializers.DictField())
+
+    def validate(self, attrs):
+        model_name = attrs.get('model')
+        model = get_ModelName_obj_by_name(model_name)
+        if model is None:
+            raise serializers.ValidationError(f"Invalid model name: {model_name}")
+        attrs['model'] = model
+        return attrs
