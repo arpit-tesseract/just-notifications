@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import *
 # Register your models here.
 
+admin.site.register(SampleFile)
 admin.site.register(Glob)
 admin.site.register(Continent)
 admin.site.register(Country)
@@ -25,6 +26,7 @@ admin.site.register(SubCaste)
 admin.site.register(Gotra)
 admin.site.register(SubGotra)
 admin.site.register(Kul)
+admin.site.register(Vansh)
 admin.site.register(Family)
 admin.site.register(Pidhi)
 
@@ -33,17 +35,34 @@ admin.site.register(Section)
 admin.site.register(Class)
 admin.site.register(ProfCategory)
 admin.site.register(ProfSubCategory)
-admin.site.register(Type)
-admin.site.register(Brand)
 admin.site.register(Sector)
 admin.site.register(SubSector)
 admin.site.register(Department)
 admin.site.register(SubDepartment)
+admin.site.register(Type)
+admin.site.register(Brand)
+
+admin.site.register(DesignationSubCategory)
+@admin.register(Designation)
+class DesignationAdmin(admin.ModelAdmin):
+    # Show these fields in the list view
+    list_display = ("category", "subcategory", "name", "code")
+
+    # Add filter sidebar
+    list_filter = ("category", "subcategory")
+
+    # Add search box
+    search_fields = ("name", "code")
+
+    # Optional: order results
+    ordering = ("category",)
+
 admin.site.register(RoomFlash)
+admin.site.register(RoomType)
+
 admin.site.register(ModelName)
 admin.site.register(ModelAccess)
 admin.site.register(RecordRule)
 
-admin.site.register(Designation)
 # admin.site.register(PermissionModule)
 # admin.site.register(PermissionAction)

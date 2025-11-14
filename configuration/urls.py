@@ -4,13 +4,15 @@ from .views import *
 
 router = DefaultRouter()
 router.register(r'globs', GlobViewSet)
-router.register(r'countries', CountryViewSet)
 router.register(r'continents', ContinentViewSet)
+router.register(r'countries', CountryViewSet)
 router.register(r'states', StateViewSet)
 router.register(r'districts', DistrictViewSet)
 router.register(r'talukas', TalukaViewSet)
 router.register(r'cityvillages', CityVillageViewSet)
 router.register(r'wards', WardViewSet)
+router.register(r'roomflashes', RoomFlashViewSet)
+router.register(r'roomtypes', RoomTypeViewSet)
 
 router.register(r'religions', ReligionViewSet)
 router.register(r'sampradays', SampradayViewSet)
@@ -35,7 +37,6 @@ router.register(r'departments', DepartmentViewSet)
 router.register(r'subdepartments', SubDepartmentViewSet)
 router.register(r'types', TypeViewSet)
 router.register(r'brands', BrandViewSet)
-router.register(r'roomflashes', RoomFlashViewSet)
 
 router.register(r'designations', DesignationViewSet)
 
@@ -50,6 +51,8 @@ urlpatterns = [
     path('upload/talukas/', UploadTalukasView.as_view()),
     path('upload/cityvillages/', UploadCityVillagesView.as_view()),
     path('upload/wards/', UploadWardsView.as_view()),
+    path('upload/roomflashes/', UploadRoomFlashesView.as_view()),
+    path('upload/roomtypes/', UploadRoomTypesView.as_view()),
     
     path('upload/religions/', UploadReligionView.as_view()),
     path('upload/sampradays/', UploadSampradayView.as_view()),
@@ -75,15 +78,21 @@ urlpatterns = [
     path('upload/types/', UploadTypeView.as_view()),
     path('upload/brands/', UploadBrandView.as_view()),
 
+    path('download-sample-file/', DownloadSampleFile.as_view(), name="download_sample_file"),
     
     path("models/", ModelNameView.as_view(), name="get_models"),
-    path("model_access_rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
-    path("model_access_rules/<int:user_id>/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
+    path("model-access-rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
+    path("model-access-rules/<int:user_id>/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
     
     path("residential_search/", ResidentialSearchView.as_view(), name="search_residential"),
     path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
     
-    path("designation_lst/", DesignationListView.as_view(), name="designation_lst"),
+    path("designation-lst/", DesignationListView.as_view(), name="designation_lst"),
+    path('designation-category-lst/', DesignationCategoryListView.as_view(), name='designation_category_lst'),
+    path("designation-subcategory-lst/", DesignationSubCategoryListView.as_view(), name="designation_subcategory_lst"),
+    
     path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
+    path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
+    
 ]

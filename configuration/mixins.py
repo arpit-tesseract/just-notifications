@@ -360,19 +360,29 @@ class FilteredQuerysetMixin(BaseQueryMixin):
             if value in ["false", "False", "0"]:
                 value = False
                 
+            lookup = None
             if isinstance(value, bool):
                 if user.check_is_system_admin() or user.check_is_super_admin() and user.is_verified:
                     base_qs = base_qs.filter(**{field: value})
-                    
-            elif value is not None and value is not '':
-                try: 
-                    if param == "search":
-                        base_qs = base_qs.filter(name__icontains=value)
-                    else:
-                        base_qs = base_qs.filter(**{field: value})
-                except Exception as e:
-                    # if not a valid field, ignore
-                    continue
+            
+            elif value not in [None, "", " "]:
+                # Determine lookup type
+                if param == "search":
+                    lookup = f"{field}__icontains"
+                else:
+                    lookup = f"{field}__iexact"
+
+                if lookup:  
+                    try:
+                        # print(f"Filtering: {lookup} = {value}")
+                        base_qs = base_qs.filter(**{lookup: value})
+                    except FieldError as e:
+                        # print(f"⚠️ Skipped invalid filter ({lookup}={value}): {e}")
+                        continue
+                    except Exception as e:
+                        # Catch other errors (e.g., invalid value for lookup)
+                        # print(f"Filter error ({lookup}={value}): {e}")
+                        continue
         
         # Apply record rules if RecordRuleMixin is used
         # if hasattr(self, "apply_record_rules"):

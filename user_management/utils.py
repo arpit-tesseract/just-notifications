@@ -105,16 +105,19 @@ def clean_str(value):
 
 
 def get_from_user_and_to_users(higher_designation, relations):
-    for relation in relations:
+    for index, relation in enumerate(relations):
         user_obj = relation.get("user_obj")
         designation = relation.get("designation")
         
         print(designation.id, "===", higher_designation.id, "and", user_obj.expired_date)
         if designation.id == higher_designation.id and user_obj.expired_date is None:
+            print("Before from user pop:", relations)
             relation_obj = relations.pop(relations.index(relation))
+            print("After from user pop:", relations)
             from_user_obj = relation_obj.get("user_obj")
+            from_user_designation = designation
             # print("Higher designation user:", relation_obj.get("user_obj"), relations)
-    return from_user_obj, relations
+    return from_user_obj, from_user_designation, relations
 
 
 def get_or_create_residential_details(**residential_details):
@@ -128,21 +131,29 @@ def allocate_rooms_for_from_user(user_obj):
     # get residential details
     residential_obj = user_obj.residential_details
     print("residential_obj to allocate room", residential_obj)
-    print("room details", residential_obj.room_details)
+    print("room details:", residential_obj.room_details)
     room_details = residential_obj.room_details
     
-    if user_obj.allocated_rooms is None:
-        print("pending rooms to allocate:",residential_obj.pending_rooms_to_allocate)
-        user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
-        user_obj.save()
+    # if user_obj.allocated_rooms is None:
+    #     print("pending rooms to allocate (1):",residential_obj.pending_rooms_to_allocate)
+    #     user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
+    #     user_obj.save()
+
+
+    print("pending rooms to allocate (1):",residential_obj.pending_rooms_to_allocate)
+    user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
+    user_obj.save()
+            
         
-    for room_type, total_rooms in room_details.items():
+    for room_type, value in room_details.items():
         # user_obj.allocated_rooms[room_type] = 1
-        if residential_obj.pending_rooms_to_allocate[room_type] == total_rooms:
+        if residential_obj.pending_rooms_to_allocate[room_type]["count"] == value["count"]:
             # residential_obj.pending_rooms_to_allocate[room_type] = total_rooms
+            print("Pending room stay as it is:", residential_obj.pending_rooms_to_allocate)
             pass
         else:
-            residential_obj.pending_rooms_to_allocate[room_type] += 1
+            residential_obj.pending_rooms_to_allocate[room_type]["count"] += 1
+            print("Pending room to allocate:", residential_obj.pending_rooms_to_allocate)
     
     print("user allocate rooms:", user_obj.allocated_rooms)
     residential_obj.save()
@@ -155,12 +166,12 @@ def allocate_rooms_for_to_user(user_obj):
     if user_obj.allocated_rooms is None:
         user_obj.allocated_rooms = {}
         
-    for room_type, total_rooms in pending_rooms.items():
-        if residential_obj.room_details[room_type] == total_rooms:
-            user_obj.allocated_rooms[room_type] = total_rooms
+    for room_type, value in pending_rooms.items():
+        if residential_obj.room_details[room_type]["count"] == value["count"]:
+            user_obj.allocated_rooms[room_type]["count"] = value["count"]
         else:
-            user_obj.allocated_rooms[room_type] += 1
-            residential_obj.pending_rooms_to_allocate[room_type] -= 1
+            user_obj.allocated_rooms[room_type]["count"] += 1
+            residential_obj.pending_rooms_to_allocate[room_type]["count"] -= 1
             
     user_obj.save()
     residential_obj.save()
@@ -305,4 +316,8 @@ def get_ModelName_obj_by_name(model_name):
         model_obj = ModelName.objects.get(model=model_name)
         return model_obj
     except ModelName.DoesNotExist:
-        raise ValidationError(f"Model '{model_name}' does not exist.")
+        return None
+
+from django.apps import apps
+def get_django_model_from_obj(model_obj: ModelName):
+    return apps.get_model(model_obj.app_label, model_obj.model)

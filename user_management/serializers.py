@@ -86,7 +86,75 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
         # extra_kwargs = {
         #     'category_of_user': {'required': False},
         # } 
+    
+    def validate_room_details(self, value):
+        for room_type_id, room_info in value.items():
+            # room_name = "hall"
+            try:
+                room_type_id = int(room_type_id)
+            except ValueError:
+                raise serializers.ValidationError(
+                    f"'{room_type_id}' must be an integer."
+                )
+            room_type_obj = get_obj_by_modle_and_id(RoomType, room_type_id)
+            if room_type_obj is None:
+                raise serializers.ValidationError(
+                    f"'{room_type_id}' not found in RoomType table."
+                )
+            else:
+                if room_type_obj.is_used == False:
+                    room_type_obj.is_used = True
+                    room_type_obj.save()
+                    
+            if not isinstance(room_info, dict):
+                raise serializers.ValidationError(
+                    f"'{room_type_id}' must be an object with 'count', 'room_flash_id' and 'room_type_name' keys."
+                )
         
+            # required keys
+            required_keys = {"count", "room_flash_id"}
+            missing = required_keys - room_info.keys()
+            if missing:
+                raise serializers.ValidationError(
+                    f"Missing keys in '{room_type_id}': {', '.join(missing)}"
+                )
+            
+            # type checks
+            if isinstance(room_info["count"], int):
+                if room_info["count"] < 1:
+                    raise serializers.ValidationError(
+                        f"'count' in '{room_type_id}' must be a positive integer."
+                    )
+            else:
+                raise serializers.ValidationError(
+                    f"'count' in '{room_type_id}' must be an integer."
+                )
+            
+
+            if isinstance(room_info["room_flash_id"], int):
+                if room_info["room_flash_id"] < 1:
+                    raise serializers.ValidationError(
+                        f"'room_flash_id' for '{room_type_id}' must be a positive integer."
+                    )
+                    
+                room_flash_obj = get_obj_by_modle_and_id(RoomFlash, room_info.get("room_flash_id"))
+                if room_flash_obj is None:
+                    raise serializers.ValidationError(
+                        f"'room_flash_id' for '{room_type_id}' does not exist."
+                    )
+                else:
+                    if room_flash_obj.is_used == False:
+                        room_flash_obj.is_used = True
+                        room_flash_obj.save()
+                
+                # store room_flash_obj
+                # room_info["room_flash_id"] = room_flash_obj
+            else:
+                raise serializers.ValidationError(
+                    f"'room_flash_id' in '{room_type_id}' must be an integer."
+                )
+                
+        return value
     
     def validate(self, attrs):
         text_fields = [
@@ -166,6 +234,7 @@ class UserSerializerForPost(serializers.ModelSerializer):
     date_of_birth = serializers.DateField(validators=[validate_dob])
     user_role_name = serializers.CharField()
     user_role = UserRoleSerializer(many=False, read_only=True)
+    residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
     bussiness_details = BussinessDetailSerializer(many=True, required=False, allow_null=True)
     class Meta:
@@ -185,6 +254,7 @@ class UserSerializerForPost(serializers.ModelSerializer):
             'marital_status', 
             'is_verified', 
             'expired_date',
+            'residential_details',
             'personal_details',
             'bussiness_details',
             'category_of_user',
@@ -256,20 +326,20 @@ class PostSerializer(serializers.ModelSerializer):
 
 
 class UserRegistrationSerializer(serializers.Serializer):
-    residential_details = ResidentialDetailSerializer(many=False)
+    # residential_details = ResidentialDetailSerializer(many=False)
     relation_category = serializers.CharField()      
     number_of_post = serializers.IntegerField()
     posts = PostSerializer(many=True)
     
     def validate(self, attrs):
-        residential_details = attrs.get('residential_details', None)
-        room_details = residential_details.get('room_details', None)
-        if room_details is None or room_details == {}:
-            raise serializers.ValidationError({"room_details": "Room details is required."})
+        # residential_details = attrs.get('residential_details', None)
+        # room_details = residential_details.get('room_details', None)
+        # if room_details is None or room_details == {}:
+        #     raise serializers.ValidationError({"room_details": "Room details is required."})
         
-        for key, val in room_details.items():
-            if val is None or val == "" or val <= 0:
-                raise serializers.ValidationError({"room_details": f"Room details is required."})
+        # for key, val in room_details.items():
+        #     if val is None or val == "" or val <= 0:
+        #         raise serializers.ValidationError({"room_details": f"Room details is required."})
            
         # verify relation category
         relation_category = attrs.get('relation_category')
@@ -606,7 +676,7 @@ class UserSerializerForGet(serializers.ModelSerializer):
 class ModelAccessSerializer(serializers.ModelSerializer):
     class Meta:
         model = ModelAccess
-        fields = ['model', 'can_read', 'can_create', 'can_update', 'can_delete']
+        fields = ['model', 'can_create', 'can_update', 'can_delete']
         
 
 
@@ -644,7 +714,7 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
     value = serializers.SerializerMethodField()
     class Meta:
         model = RecordRule
-        fields = ['model', 'value', 'can_create', 'can_read', 'can_update', 'can_delete']
+        fields = ['model', 'value']
     
     def get_model(self, obj):
         return obj.model.model
@@ -658,7 +728,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Ward.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -679,7 +748,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = CityVillage.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -698,7 +766,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Taluka.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -717,7 +784,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = District.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -735,7 +801,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = State.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -752,7 +817,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Country.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -768,7 +832,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Continent.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -778,7 +841,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
         
         elif model_name == "Glob":
             qs = Glob.objects.filter(id__in=id_list)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -795,3 +857,37 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
         model_name = obj.model.model
         result = self.get_location_hierarchy(model_name, obj.domain_filter["id__in"])
         return result
+
+
+class RecordRuleCreateSerializer(serializers.Serializer):
+    model = serializers.CharField()
+    values = serializers.ListField(
+        child = serializers.IntegerField(),
+        required=False, 
+        allow_null=True
+        )
+
+    def validate(self, attrs):
+        # validate model
+        model_name = attrs.get('model')
+        model = get_ModelName_obj_by_name(model_name)
+        if model is None:
+            raise serializers.ValidationError(f"Invalid model name: {model_name}")
+        attrs['model_obj'] = model
+        
+        # validate model ids(values)
+        django_model = get_django_model_from_obj(model)
+        values = attrs.get('values')
+        # 'values' can be None (for delete), so only validate if it exists
+        if values:
+            if not isinstance(values, list):
+                raise serializers.ValidationError(f"Expected a list: {values}")
+            
+            # Validate all IDs in one query ---
+            valid_ids_count = django_model.objects.filter(id__in=values).count()
+            
+            if valid_ids_count != len(values):
+                # If counts don't match, an invalid ID was provided
+                raise serializers.ValidationError(f"One or more model IDs are invalid for {model_name}.")
+        
+        return attrs

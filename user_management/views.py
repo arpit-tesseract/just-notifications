@@ -107,7 +107,8 @@ class RegisterationView(RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     parser_classes = [MultiPartParser, JSONParser, FormParser]
     
-    def post(self, request):
+    def post(self, request, user_id=None):
+            
         serializer = UserRegistrationSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -115,75 +116,87 @@ class RegisterationView(RecordRuleMixin, APIView):
         validated_data = serializer.validated_data
         relation_category = validated_data.get('relation_category')
         
-        try:
-            with transaction.atomic():
-                # create residential details
-                residential_details = validated_data.get('residential_details')
-                residential_details['residential_type'] = "home"
-                # room_details = residential_details.get('room_details', None)
-                residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
-                print("residential_obj:", residential_obj.pending_rooms_to_allocate)
-                if created:
-                    residential_obj.pending_rooms_to_allocate = {}
-                    for key, val in residential_obj.room_details.items():
-                        residential_obj.pending_rooms_to_allocate[key] = 1
-                    # residential_obj.pending_rooms_to_allocate = {key: 1 for key in room_details.keys()}
-                    residential_obj.save()
-                    
-                print("residential_obj", residential_obj.pending_rooms_to_allocate)
-                    
-                if isinstance(residential_obj, Response):
-                    return residential_obj
-                
-                
-                posts = validated_data.get('posts', None)
-                
-                higher_designation = None
-                higher_designation_failed_count = 0
-                relations = []
+        existing_from_user_obj = None
+        if relation_category in ['inlaws', 'maternal', 'business']:
+            if user_id is None:
+                return Response(
+                    {"error": "User id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                existing_from_user_obj = get_object_or_404(CustomUser, id=user_id)
+                print("existing_from_user_obj:", existing_from_user_obj)
+            
+        # try:
+        with transaction.atomic():
+            
+            posts = validated_data.get('posts', None)
+            
+            higher_designation = None
+            higher_designation_failed_count = 0
+            relations = []
 
-                response_data = []
+            response_data = []
+            
+            active_users = []
+            for index, post in enumerate(posts):
+                user_details = post.pop("user_details", None)
+                existing_user_obj = user_details.pop("user_id", None)
+                user_post_no = post.pop("post_no", None)
+                designation = post.pop("designation", None)
                 
-                active_users = []
-                room_details = residential_obj.room_details
-                for index, post in enumerate(posts):
-                    user_details = post.pop("user_details", None)
-                    existing_user_obj = user_details.pop("user_id", None)
-                    user_post_no = post.pop("post_no", None)
-                    designation = post.pop("designation", None)
+                if user_details:
+                    user_role_obj = user_details.pop("user_role", None)
+                    user_personal_details = user_details.pop("personal_details", None)
+                    user_bussiness_details = user_details.pop("bussiness_details", None)
+                    residential_details = user_details.pop('residential_details')
+                    residential_details['residential_type'] = "home"
                     
-                    if user_details:
-                        user_role_obj = user_details.pop("user_role", None)
-                        # user_residential_details = user_details.pop("residential_details", None)
-                        user_personal_details = user_details.pop("personal_details", None)
-                        user_bussiness_details = user_details.pop("bussiness_details", None)
-                        
-                        # create to user
-                        if existing_user_obj is not None:
-                            # update existing user
-                            user_obj = existing_user_obj
-                            for attr, value in user_details.items():
-                                setattr(user_obj, attr, value)
-                            user_obj.save()
+                    # create residential details
+                    residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
+                    print("First Room Details:", residential_obj.room_details)
+                    print("First Pending Rooms:", residential_obj.pending_rooms_to_allocate)
+                    if created:
+                        residential_obj.pending_rooms_to_allocate = {}
+                        for key, val in residential_obj.room_details.items():
+                            print("Value:",val)
+                            residential_obj.pending_rooms_to_allocate[key] = val.copy()
+                            residential_obj.pending_rooms_to_allocate[key]["count"] = 1
+                        residential_obj.save()
+                        print("Residential Details After save:", residential_obj)
+                        print("Room Details After save:", residential_obj.room_details)
+                        print("Pending Room Details After save:", residential_obj.pending_rooms_to_allocate)
                                 
-                        else:    
-                            user_obj = CustomUser.objects.create_user(**user_details)
-                        
-                        # add in list for room sharing in future
-                        if user_obj.expired_date is None:
-                            active_users.append(user_obj)
-                        
-                        # assign residential details
-                        user_obj.residential_details = residential_obj
+                    # create to user
+                    if existing_user_obj is not None:
+                        # update existing user
+                        user_obj = existing_user_obj
+                        for attr, value in user_details.items():
+                            setattr(user_obj, attr, value)
                         user_obj.save()
-                        
-                        # add user id in response data list
-                        response_data.append(user_obj.id)
-                        
-                        # add user role to user 
-                        user_obj.user_role.add(user_role_obj)
-                        
-                        # get higher designation for the create main user / from user
+                            
+                    else:    
+                        user_obj = CustomUser.objects.create_user(**user_details)
+                    
+                    # add in list for room sharing in future
+                    if user_obj.expired_date is None:
+                        active_users.append(user_obj)
+                    
+                    # assign residential details
+                    user_obj.residential_details = residential_obj
+                    user_obj.save()
+                
+                    # add user id in response data list
+                    response_data.append(user_obj.id)
+                    
+                    # add user role to user 
+                    user_obj.user_role.add(user_role_obj)
+                    
+                    # get higher designation for the create main user / from user
+                    if existing_from_user_obj:
+                        existing_from_user_relation_obj = Relation.objects.get(from_user=existing_from_user_obj, relation_category=relation_category)
+                        higher_designation = existing_from_user_relation_obj.designation    
+                    else:
                         if higher_designation is None:
                             if user_obj.expired_date is None:
                                 higher_designation = designation
@@ -199,81 +212,98 @@ class RegisterationView(RecordRuleMixin, APIView):
                             #         higher_designation_failed_count -= 1
                             # else:
                             #     higher_designation_failed_count += 1
-                        
+                    
                         print(higher_designation_failed_count)
                         if higher_designation_failed_count >= 2:
                             raise Exception("Automatic set main user failed!")
                             # transaction.set_rollback(True)
-                        
-                        # create personal details 
-                        if user_personal_details is not None:   
-                            PersonalDetail.objects.update_or_create(
-                                user=user_obj,
-                                defaults= user_personal_details
+                    
+                    # create personal details 
+                    if user_personal_details is not None:   
+                        PersonalDetail.objects.update_or_create(
+                            user=user_obj,
+                            defaults= user_personal_details
+                            )
+                    
+                    # create professional details
+                    if user_bussiness_details is not None:
+                        for bussiness_detail in user_bussiness_details:
+                            user_professional_details = bussiness_detail.get("professional_details", None)
+                            user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
+                            
+                            if user_professional_residential_details is not None:
+                                # Try to find if residential details already exists                            
+                                user_professional_residential_details['residential_type'] = "bussiness"
+                                user_professional_residential_obj = get_or_create_residential_details(**user_professional_residential_details)
+                                if isinstance(user_professional_residential_obj, Response):
+                                    return user_professional_residential_obj
+                            
+                            if user_professional_details is not None:
+                                # user_professional_details['residential_details'] = residential_obj
+                                ProfessionalDetail.objects.update_or_create(
+                                    user = user_obj,
+                                    residential_details = user_professional_residential_obj, 
+                                    defaults=user_professional_details
                                 )
-                        
-                        # create professional details
-                        if user_bussiness_details is not None:
-                            for bussiness_detail in user_bussiness_details:
-                                user_professional_details = bussiness_detail.get("professional_details", None)
-                                user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
-                                
-                                if user_professional_residential_details is not None:
-                                    # Try to find if residential details already exists                            
-                                    user_professional_residential_details['residential_type'] = "bussiness"
-                                    user_professional_residential_obj = get_or_create_residential_details(**user_professional_residential_details)
-                                    if isinstance(user_professional_residential_obj, Response):
-                                        return user_professional_residential_obj
-                                
-                                if user_professional_details is not None:
-                                    # user_professional_details['residential_details'] = residential_obj
-                                    ProfessionalDetail.objects.update_or_create(
-                                        user = user_obj,
-                                        residential_details = user_professional_residential_obj, 
-                                        defaults=user_professional_details
-                                    )
-                                
-                                # assign system admin role if brand is shashan
-                                brand_id = user_professional_details.get("brand", None)
-                                val = assign_system_admin_role_if_brand_is_shashan(user_obj, brand_id)
-                                if isinstance(val, Response):
-                                    return val
-                                
-                    relations.append(
-                        {
-                            'relation_category': relation_category,
-                            'designation': designation,
-                            'user_obj': user_obj,
-                            'post_no': user_post_no,
-                        }
+                            
+                            # assign system admin role if brand is shashan
+                            brand_id = user_professional_details.get("brand", None)
+                            val = assign_system_admin_role_if_brand_is_shashan(user_obj, brand_id)
+                            if isinstance(val, Response):
+                                return val
+                            
+                relations.append(
+                    {
+                        'relation_category': relation_category,
+                        'designation': designation,
+                        'user_obj': user_obj,
+                        'post_no': user_post_no,
+                    }
+                )
+            print("Len of relations:", len(relations))
+            print("relations:", relations)
+            if existing_from_user_obj:
+                from_user = existing_from_user_obj
+                from_user_designation = existing_from_user_relation_obj.designation
+                to_users = relations
+            else:
+                from_user, from_user_designation, to_users = get_from_user_and_to_users(higher_designation, relations)
+            
+            print("from user:", from_user)
+            print("from user designation:", from_user_designation)
+            print("Len of to users:", len(to_users))
+            print("to users:", to_users)
+            
+            relation_obj_lst = []
+            for to_user in to_users:
+                
+                try:
+                    relation_obj = Relation.objects.get(
+                        from_user = from_user, 
+                        relation_category = to_user.get('relation_category'), 
+                        from_user_designation = from_user_designation,
+                        designation = to_user.get('designation'), 
+                        to_user = to_user.get('user_obj'),
+                        post_no = to_user.get('post_no')
                     )
+                except Relation.DoesNotExist:
+                    relation_obj = Relation.objects.create(
+                        from_user = from_user, 
+                        relation_category = to_user.get('relation_category'), 
+                        from_user_designation = from_user_designation,
+                        designation = to_user.get('designation'), 
+                        to_user = to_user.get('user_obj'),
+                        post_no = to_user.get('post_no')
+                    )
+                except Exception as e:
+                    raise ValidationError(f"Error in creating relation between {from_user} and {to_user.get('user_obj')}.")
                 
-                from_user, to_users = get_from_user_and_to_users(higher_designation, relations)
-                relation_obj_lst = []
-                for to_user in to_users:
-                    
-                    try:
-                        relation_obj = Relation.objects.get(
-                            from_user = from_user, 
-                            relation_category = to_user.get('relation_category'), 
-                            designation = to_user.get('designation'), 
-                            to_user = to_user.get('user_obj'),
-                            post_no = to_user.get('post_no')
-                        )
-                    except Relation.DoesNotExist:
-                        relation_obj = Relation.objects.create(
-                            from_user = from_user, 
-                            relation_category = to_user.get('relation_category'), 
-                            designation = to_user.get('designation'), 
-                            to_user = to_user.get('user_obj'),
-                            post_no = to_user.get('post_no')
-                        )
-                    except Exception as e:
-                        raise ValidationError(f"Error in creating relation between {from_user} and {to_user.get('user_obj')}.")
-                    
-                    relation_obj_lst.append(relation_obj)
-                
-                # 1. Process the FROM_USER (for ex: husband)
+                relation_obj_lst.append(relation_obj)
+            
+            # 1. Process the FROM_USER (for ex: husband)
+            if existing_from_user_obj:
+                pass
+            else:
                 if from_user.expired_date is None:
                     
                     # This function is now safe (if you use my updated version)
@@ -287,13 +317,18 @@ class RegisterationView(RecordRuleMixin, APIView):
                     # from_user.save()
                 
                 # 2. Process the TO_USER (for ex: wife, son)
+                print("len of relation_obj_lst:", len(relation_obj_lst))
+                print("relation_obj_lst:", relation_obj_lst)
                 for relation_obj in relation_obj_lst:
+                    print("relation_obj:", relation_obj)
                     mark_as_verify_or_unverify_user(relation_obj.to_user, relation_obj.relation_category)
                     
                     if relation_obj.to_user.expired_date is not None:
                         continue
                     
                     if relation_obj.designation.name == "wife" or relation_obj.designation.name == "Wife":
+                        print("relation_obj.from_user:", relation_obj.from_user.email)
+                        print("relation_obj.to_user:", relation_obj.to_user.email)
                         allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
                     else:
                         if relation_obj.to_user.marital_status == "single":
@@ -303,30 +338,30 @@ class RegisterationView(RecordRuleMixin, APIView):
                             # allocate_room_dict = allocate_rooms(0, room_details, relation_obj.to_user) 
                             # relation_obj.to_user.allocated_rooms = allocate_room_dict
                             # relation_obj.to_user.save()
+            
+            # 2. Process the TO_USER (for ex: wife, son)
+            # for user_obj in to_users: 
+            #     if user_obj.expired_date is not None:
+            #         continue
                 
-                # 2. Process the TO_USER (for ex: wife, son)
-                # for user_obj in to_users: 
-                #     if user_obj.expired_date is not None:
-                #         continue
+            #     # is guaranteed to be a 'to_user' and has a parent
+            #     mark_as_verify_or_unverify_user(user_obj) 
+            #     allocate_room_same_as_parent(user_obj)
                     
-                #     # is guaranteed to be a 'to_user' and has a parent
-                #     mark_as_verify_or_unverify_user(user_obj) 
-                #     allocate_room_same_as_parent(user_obj)
+            # for index, user_obj in enumerate(active_users):
+            #     mark_as_verify_or_unverify_user(user_obj)
+            #     if (user_obj.marital_status == "single") or (is_to_user(user_obj) and user_obj.marital_status == "married"):
+            #         allocate_room_same_as_parent(user_obj)
+            #     else:
+            #         allocate_room_dict = allocate_rooms(index, room_details, user_obj)
+            #         user_obj.allocated_rooms = allocate_room_dict
+            #         user_obj.save()
                         
-                # for index, user_obj in enumerate(active_users):
-                #     mark_as_verify_or_unverify_user(user_obj)
-                #     if (user_obj.marital_status == "single") or (is_to_user(user_obj) and user_obj.marital_status == "married"):
-                #         allocate_room_same_as_parent(user_obj)
-                #     else:
-                #         allocate_room_dict = allocate_rooms(index, room_details, user_obj)
-                #         user_obj.allocated_rooms = allocate_room_dict
-                #         user_obj.save()
-                        
-        except Exception as e:
-            return Response(
-                {"error": "Something went wrong", "details": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # except Exception as e:
+        #     return Response(
+        #         {"error": "Something went wrong", "details": str(e)},
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
             
         return Response(
             {
@@ -368,13 +403,13 @@ class RegisterationView(RecordRuleMixin, APIView):
             )
         
         # get the relations of user
-        relation_obj_lst = Relation.objects.filter(
+        relation_obj = Relation.objects.filter(
             Q(from_user=user_obj) | Q(to_user=user_obj),
             relation_category__iexact=relation_category
-        )
+        ).first()
         
-        print("List of Relation objects:",relation_obj_lst)
-        if not relation_obj_lst.exists():
+        print("Relation object:",relation_obj)
+        if not relation_obj:
             result = {
                 "residential_details": ResidentialDetailGetSerializer(residential_obj).data,
                 "relation_category": relation_category,
@@ -395,6 +430,21 @@ class RegisterationView(RecordRuleMixin, APIView):
             # )
         
         posts_data = []
+        
+        # create first post for from user
+        from_user_details = UserSerializerForGet(relation_obj.from_user).data
+        post = {
+            "user_details": from_user_details,
+            "designation": relation_obj.from_user_designation.name,
+            "post_no": relation_obj.post_no
+        }
+        posts_data.append(post)
+        
+        relation_obj_lst = Relation.objects.filter(
+            from_user = relation_obj.from_user,
+            relation_category__iexact=relation_category
+        )
+        print("to user relation_obj_lst:",relation_obj_lst)
         for relation_obj in relation_obj_lst:
             user_details = UserSerializerForGet(relation_obj.to_user).data
             post = {
@@ -705,7 +755,6 @@ class ModelAccessView(APIView):
                     user=user_obj,
                     model=model_obj,
                     defaults={
-                        "can_read": item.get("can_read", False),
                         "can_create": item.get("can_create", False),
                         "can_update": item.get("can_update", False),
                         "can_delete": item.get("can_delete", False),
@@ -752,27 +801,126 @@ class RecordRuleListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     
-class RecordRuleView(APIView):
-    model = RecordRule
-    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
+# class RecordRuleView(APIView):
+#     model = RecordRule
+#     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
 
+#     def get(self, request):
+#         record_rule_id_str = request.query_params.get("record_rule_id", None)
+#         if not record_rule_id_str:
+#             return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         try:
+#             record_rule_id = int(record_rule_id_str)
+#             record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+#         except ValueError:
+#             return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
+#         except RecordRule.DoesNotExist:
+#             return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+#         serializer = RecordRuleGetSerializer(record_rule_obj)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+#     def post(self, request):
+#         user_id_str = request.query_params.get("user_id", None)
+#         if not user_id_str:
+#             return Response({"error": "User id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         try:
+#             user_id = int(user_id_str)
+#         except ValueError:
+#             return Response({"error": "Invalid user_id format."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         user_obj = request.user
+#         if user_obj.id == user_id:
+#             return Response({"error": "You cannot set record rules for yourself."}, status=status.HTTP_403_FORBIDDEN)
+        
+#         user_obj = get_object_or_404(CustomUser, id=user_id)
+#         serializer = RecordRuleSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+        
+#         validated_data = serializer.validated_data
+#         value = validated_data.get('value')
+    
+#         domain_filter = {
+#             "id__in": value
+#         }
+        
+#         model_obj = validated_data.get('model')
+#         can_read = validated_data.get('can_read')
+#         can_create = validated_data.get('can_create')
+#         can_update = validated_data.get('can_update')
+#         can_delete = validated_data.get('can_delete')
+        
+        
+#         defaults = {
+#             "domain_filter": domain_filter,
+#             "name": f"{model_obj.model} Allocation",
+#             "can_read": validated_data.get('can_read', False),
+#             "can_create": validated_data.get('can_create', False),
+#             "can_update": validated_data.get('can_update', False),
+#             "can_delete": validated_data.get('can_delete', False),
+#         }
+        
+#         print("defaults:", defaults)
+#         record_rule, created = RecordRule.objects.update_or_create(
+#             model=model_obj,
+#             user=user_obj,
+#             defaults=defaults
+#         )
+#         # record_rule.save()
+        
+#         return Response(
+#             {
+#                 "message": f"Record rule {'created' if created else 'updated'} successfully.",
+#                 # "record_rule": RecordRuleSerializer(record_rule).data
+#             },
+#             status= status.HTTP_201_CREATED if created else status.HTTP_200_OK
+#         )
+    
+#     def delete(self, request):
+#         record_rule_id_str = request.query_params.get("record_rule_id", None)
+#         if not record_rule_id_str:
+#             return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         try:
+#             record_rule_id = int(record_rule_id_str)
+#             record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+#         except ValueError:
+#             return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
+#         except RecordRule.DoesNotExist:
+#             return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+#         record_rule_obj.delete()
+#         return Response(
+#             {
+#                 "message": "Record rule deleted successfully."
+#             },
+#             status=status.HTTP_200_OK
+#         )
+
+
+class RecordRuleView(APIView):
+    permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
+    
     def get(self, request):
-        record_rule_id_str = request.query_params.get("record_rule_id", None)
-        if not record_rule_id_str:
-            return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        user_id_str = request.query_params.get("user_id", None)
+        if not user_id_str:
+            return Response({"error": "User id is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            record_rule_id = int(record_rule_id_str)
-            record_rule_obj = RecordRule.objects.get(id = record_rule_id)
+            user_id = int(user_id_str)
+            record_rule_objs = RecordRule.objects.filter(user=user_id)
         except ValueError:
             return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
-        except RecordRule.DoesNotExist:
-            return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
         
-        serializer = RecordRuleGetSerializer(record_rule_obj)
+        serializer = RecordRuleGetSerializer(record_rule_objs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     def post(self, request):
+        if not isinstance(request.data, list):
+            return Response({"error": "Expected a list of model objects."}, status=status.HTTP_400_BAD_REQUEST)
+
         user_id_str = request.query_params.get("user_id", None)
         if not user_id_str:
             return Response({"error": "User id is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -787,65 +935,111 @@ class RecordRuleView(APIView):
             return Response({"error": "You cannot set record rules for yourself."}, status=status.HTTP_403_FORBIDDEN)
         
         user_obj = get_object_or_404(CustomUser, id=user_id)
-        serializer = RecordRuleSerializer(data=request.data)
+        serializer = RecordRuleCreateSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         
-        validated_data = serializer.validated_data
-        value = validated_data.get('value')
-    
-        domain_filter = {
-            "id__in": value
-        }
-        
-        model_obj = validated_data.get('model')
-        can_read = validated_data.get('can_read')
-        can_create = validated_data.get('can_create')
-        can_update = validated_data.get('can_update')
-        can_delete = validated_data.get('can_delete')
-        
-        
-        defaults = {
-            "domain_filter": domain_filter,
-            "name": f"{model_obj.model} Allocation",
-            "can_read": validated_data.get('can_read', False),
-            "can_create": validated_data.get('can_create', False),
-            "can_update": validated_data.get('can_update', False),
-            "can_delete": validated_data.get('can_delete', False),
-        }
-        
-        print("defaults:", defaults)
-        record_rule, created = RecordRule.objects.update_or_create(
-            model=model_obj,
-            user=user_obj,
-            defaults=defaults
-        )
-        # record_rule.save()
-        
-        return Response(
-            {
-                "message": f"Record rule {'created' if created else 'updated'} successfully.",
-                # "record_rule": RecordRuleSerializer(record_rule).data
-            },
-            status= status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        )
-    
-    def delete(self, request):
-        record_rule_id_str = request.query_params.get("record_rule_id", None)
-        if not record_rule_id_str:
-            return Response({"error": "Record rule id is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            record_rule_id = int(record_rule_id_str)
-            record_rule_obj = RecordRule.objects.get(id = record_rule_id)
-        except ValueError:
-            return Response({"error": "Invalid record_rule_id format."}, status=status.HTTP_400_BAD_REQUEST)
-        except RecordRule.DoesNotExist:
-            return Response({"error": "Record rule not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        record_rule_obj.delete()
-        return Response(
-            {
-                "message": "Record rule deleted successfully."
-            },
-            status=status.HTTP_200_OK
-        )
+            with transaction.atomic():
+                deletions_occurred = False
+                last_create_update_status = None # Will be True (created) or False (updated)
+                
+                # Handle empty list
+                if len(serializer.validated_data) == 0:
+                    return Response(
+                        {"message": "No record rules to process."}, 
+                        status=status.HTTP_200_OK
+                    )
+                    
+                for item in serializer.validated_data:
+                    model_name = item.get('model')
+                    model_obj = item.get('model_obj')
+                    model_ids = item.get('values') # e.g., {"1": {perms}, "2": {perms}}
+                    
+                    # Construct the filter strictly for this ID
+                    if model_ids is None:
+                        try:
+                            record_rule_obj = RecordRule.objects.get(user=user_obj, model=model_obj)
+                            record_rule_obj.delete()
+                            deletions_occurred = True
+                        except RecordRule.DoesNotExist:
+                            pass
+                        except Exception as e:
+                            pass
+                        continue
+                        
+                    domain_filter = {
+                        'id__in': model_ids
+                    }
+                    # Use update_or_create for cleaner logic
+                    record_rule_obj, created =RecordRule.objects.update_or_create(
+                        model=model_obj,
+                        user=user_obj,
+                        defaults={
+                            "name": f"{model_obj.model} Allocation",
+                            "domain_filter": domain_filter,
+                            "can_read": True,
+                            "can_create": True,
+                            "can_update": True,
+                            "can_delete": True,
+                        }
+                    )
+                    last_create_update_status = created
+                    
+                    # For Continent Model
+                    # if model_name == "Continent":
+                    #     glob_ids = []
+                    #     select_path = (
+                    #         "glob"
+                    #     )       
+                    #     qs = Continent.objects.filter(id__in=model_ids).select_related(select_path)
+                        
+                    #     for continent_obj in qs:
+                    #         glob_id = continent_obj.glob.id
+                    #         if glob_id not in glob_ids:
+                    #             glob_ids.append(glob_id)
+                                
+                    #     # Use update_or_create for cleaner logic
+                    #     glob_model_obj = get_ModelName_obj_by_name("Glob")
+                    #     domain_filter = {
+                    #         'id__in': glob_ids
+                    #     }
+                    #     RecordRule.objects.update_or_create(
+                    #         model=glob_model_obj,
+                    #         user=user_obj,
+                    #         defaults={
+                    #             "name": f"{glob_model_obj.model} Allocation",
+                    #             "domain_filter": domain_filter,
+                    #             "can_read": True,
+                    #             "can_create": True,
+                    #             "can_update": True,
+                    #             "can_delete": True,
+                    #         }
+                    #     )
+            if last_create_update_status is not None:
+                if last_create_update_status: # True means created
+                        flag = "created"
+                        response_status = status.HTTP_201_CREATED
+                else: # False means updated
+                    flag = "updated"
+                    response_status = status.HTTP_200_OK
+                
+                return Response(
+                    {"message": f"Record rules {flag} successfully."}, 
+                    status=response_status
+                )
+                    
+            if deletions_occurred:
+                # No create/update happened, but deletions did occur.
+                return Response(
+                    {"message": "Record rules deleted successfully."}, 
+                    status=status.HTTP_200_OK # 200 OK is standard for a successful delete
+                )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Something went wrong while creating record rules.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+                

@@ -61,6 +61,11 @@ class HasModelAccessPermission(BasePermission):
         }
 
         perm_field = action_map.get(action)
+        
+        # By default read permission is allowed.
+        if perm_field in ["can_read"]:
+            return True
+        
         if not perm_field:
             return False
 

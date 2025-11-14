@@ -26,13 +26,9 @@ def delete_residential_details(sender, instance, **kwargs):
         pending_rooms_to_allocate = residential_obj.pending_rooms_to_allocate
         if allocated_rooms_of_user is not None:
             for room_type, total_rooms in allocated_rooms_of_user.items():
-                # print("room_type:", room_type)
-                # print("room_details[room_type]:", room_details[room_type])
-                # print("allocated_rooms_of_user[room_type]:", allocated_rooms_of_user[room_type])
-                # print("pending_rooms_to_allocate[room_type]:", pending_rooms_to_allocate[room_type])
-                if room_details[room_type] != allocated_rooms_of_user[room_type]:
-                    if allocated_rooms_of_user[room_type] != 1:
+                if room_details[room_type]["count"] != allocated_rooms_of_user[room_type]["count"]:
+                    if allocated_rooms_of_user[room_type]["count"] != 1:
                         # print(True)
-                        pending_rooms_to_allocate[room_type] -= 1
+                        pending_rooms_to_allocate[room_type]["count"] -= 1
                         
         residential_obj.save()

@@ -154,11 +154,20 @@ class Ward(OrderByMixin, HoldableMixin):
 
 class RoomFlash(OrderByMixin, HoldableMixin):
     name = models.CharField(max_length=20)
-    code = models.CharField(max_length=10)
+    is_used = models.BooleanField(default=False)
+    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+
+class RoomType(OrderByMixin, HoldableMixin):
+    name = models.CharField(max_length=20)
+    is_used = models.BooleanField(default=False)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
 
 # -------------------------------------------------------------------------------------------------
 # Model & Record Rule Access
@@ -176,7 +185,7 @@ class ModelAccess(models.Model):
     user = models.ForeignKey('user_management.CustomUser', on_delete=models.CASCADE, related_name='model_access_permission')
     model = models.ForeignKey(ModelName, on_delete=models.CASCADE)
 
-    can_read = models.BooleanField(default=False)
+    can_read = models.BooleanField(default=True)
     can_create = models.BooleanField(default=False)
     can_update = models.BooleanField(default=False)
     can_delete = models.BooleanField(default=False)
@@ -200,7 +209,7 @@ class RecordRule(models.Model):
     can_delete = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.name} ({self.model})"
+        return f"{self.name} For: '{self.user.email}'"
 
 
 # -------------------------------------------------------------------------------------------------
@@ -407,28 +416,40 @@ class Brand(OrderByMixin, HoldableMixin):
 #         return f"{self.name} - {self.code}"
 
 
+
+# Current, Owner, Permanent, Native, InLaws, Maternal, Business
+class DesignationSubCategory(OrderByMixin, HoldableMixin):
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
 class Designation(OrderByMixin, HoldableMixin):
-    category_choices = [
-        ('personal', 'Personal'),
+    CATEGORY_CHOICES = [
+        ('owner', 'Owner'),
+        ('tenant', 'Tenant'),
+        ('grp_tenant', 'Group Tenant'),        
+        ('family', 'Family'),
         ('professional', 'Professional'),
-        ('residential', 'Residential'),        
     ]
-    category = models.CharField(choices=category_choices, max_length=20)
+    category = models.CharField(choices=CATEGORY_CHOICES, max_length=20)
+    subcategory = models.ForeignKey(DesignationSubCategory, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     code = models.PositiveIntegerField(help_text="Hierarchy level, 1=top", unique=True) # code / Designation number / level / post no 
     reporting_designation = models.ForeignKey(
         "self",
         null=True,
-        blank=True,
+        blank=True, 
         related_name="children",
         on_delete=models.SET_NULL,
         help_text="Parent designation for hierarchy"
     )
 
-
     def __str__(self):
-        return f"{self.name} (Level {self.code})"
+        return f"{self.category} - {self.name} (Level {self.code})"
 
     class Meta:
         constraints = [
@@ -442,3 +463,27 @@ class Designation(OrderByMixin, HoldableMixin):
     #     if self.post_no != 0 or self.post_no is None:
     #         self.post_no = self.reporting_designation.post_no + 1 if self.reporting_designation else 1
     #     super().save(*args, **kwargs)
+
+import os
+from django.db import models
+
+def sample_file_upload_path(instance, filename):
+    """
+    Store files like:
+    sample_files/<category>/<filename>
+    """
+    category = instance.category.lower()
+    return os.path.join('sample_files', category, filename)
+
+class SampleFile(models.Model):
+    # CATEGORY_CHOICES = [
+    #     ('personal', 'Personal'),
+    #     ('residential', 'Residential'),
+    #     ('professional', 'Professional'),
+    # ]
+    # category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
+    router = models.CharField(max_length=100)
+    file = models.FileField(upload_to=sample_file_upload_path, blank=True, null=True)
+    
+    def __str__(self):
+        return f"{self.router} ({self.category})"

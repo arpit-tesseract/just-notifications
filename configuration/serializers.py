@@ -713,14 +713,27 @@ class DesignationSerializer(serializers.ModelSerializer):
 class RoomFlashSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomFlash
-        fields = '__all__'
-        read_only_fields = ['id']
+        fields = "__all__"
+        # fields = ['id', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date']
+        read_only_fields = ['id', 'is_used']
 
-class RoomFlashNameCodeSerializer(serializers.ModelSerializer):
+class RoomFlashIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomFlash
-        fields = ['name', 'code']
+        fields = ['id', 'name']
 
+
+class RoomTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomType
+        fields = "__all__"
+        # fields = ['id', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date']
+        read_only_fields = ['id', 'is_used']
+
+class RoomTypeIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomType
+        fields = ['id', 'name']
 
 class ModelNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1112,6 +1125,18 @@ class ProfessionalOutputSerializer(serializers.Serializer):
     brand = BrandIdNameSerializer(allow_null=True)
 
 
+class DesignationSubCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DesignationSubCategory
+        fields = "__all__"
+
+
+class DesignationSubCategoryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DesignationSubCategory
+        fields = ["id", "name"]
+
+
 class DesignationIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
@@ -1188,3 +1213,11 @@ class DesignationSerializer(serializers.ModelSerializer):
                 attrs['code'] = 1
 
         return attrs
+
+
+class DesignationGetSerializer(serializers.ModelSerializer):
+    reporting_designation = DesignationIdNameSerializer()
+    subcategory = DesignationSubCategoryIdNameSerializer()
+    class Meta:
+        model = Designation
+        fields = "__all__"
