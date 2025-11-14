@@ -4393,10 +4393,13 @@ class ModelAndAccessRulesView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
 
-class ResidentialSearchView(APIView):
+class ResidentialSearchView(APIView, RecordRuleMixin):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
+        # that variable help to RecordRuleMixin class
+        self.action = 'list'
+        
         serializer = ResidentialSearchInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -4417,6 +4420,8 @@ class ResidentialSearchView(APIView):
             qs = get_regular_query(Glob)
             if glob_name:
                 qs = qs.filter(name__icontains=glob_name)
+                
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4439,6 +4444,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(glob__name__icontains=glob_name)
             if continent_name:
                 qs = qs.filter(name__icontains=continent_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4463,6 +4469,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(continent__name__icontains=continent_name)
             if country_name:
                 qs = qs.filter(name__icontains=country_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4489,6 +4496,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(country__name__icontains=country_name)
             if state_name:
                 qs = qs.filter(name__icontains=state_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4517,6 +4525,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(state__name__icontains=state_name)
             if district_name:
                 qs = qs.filter(name__icontains=district_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4547,6 +4556,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(district__name__icontains=district_name)
             if taluka_name:
                 qs = qs.filter(name__icontains=taluka_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4579,6 +4589,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(taluka__name__icontains=taluka_name)
             if city_village_name:
                 qs = qs.filter(name__icontains=city_village_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4613,6 +4624,7 @@ class ResidentialSearchView(APIView):
                 qs = qs.filter(city_village__name__icontains=city_village_name)
             if ward_name:
                 qs = qs.filter(name__icontains=ward_name)
+            qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
             results = [
@@ -4632,6 +4644,7 @@ class ResidentialSearchView(APIView):
         else:
             # fallback → default globs
             qs = get_regular_query(Glob)
+            qs = self.apply_record_rules(qs)
             results = [
                 {
                     "glob": GlobIdNameSerializer(obj).data,

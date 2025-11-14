@@ -676,7 +676,7 @@ class UserSerializerForGet(serializers.ModelSerializer):
 class ModelAccessSerializer(serializers.ModelSerializer):
     class Meta:
         model = ModelAccess
-        fields = ['model', 'can_read', 'can_create', 'can_update', 'can_delete']
+        fields = ['model', 'can_create', 'can_update', 'can_delete']
         
 
 
@@ -714,7 +714,7 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
     value = serializers.SerializerMethodField()
     class Meta:
         model = RecordRule
-        fields = ['model', 'value', 'can_create', 'can_read', 'can_update', 'can_delete']
+        fields = ['model', 'value']
     
     def get_model(self, obj):
         return obj.model.model
@@ -728,7 +728,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Ward.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -749,7 +748,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = CityVillage.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -768,7 +766,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Taluka.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -787,7 +784,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = District.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -805,7 +801,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = State.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -822,7 +817,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Country.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -838,7 +832,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
             )
             
             qs = Continent.objects.filter(id__in=id_list).select_related(select_path)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -848,7 +841,6 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
         
         elif model_name == "Glob":
             qs = Glob.objects.filter(id__in=id_list)
-            print("queryset:", qs)
             
             for obj in qs:
                 results.append({
@@ -869,12 +861,33 @@ class RecordRuleGetSerializer(serializers.ModelSerializer):
 
 class RecordRuleCreateSerializer(serializers.Serializer):
     model = serializers.CharField()
-    values = serializers.DictField(child=serializers.DictField())
+    values = serializers.ListField(
+        child = serializers.IntegerField(),
+        required=False, 
+        allow_null=True
+        )
 
     def validate(self, attrs):
+        # validate model
         model_name = attrs.get('model')
         model = get_ModelName_obj_by_name(model_name)
         if model is None:
             raise serializers.ValidationError(f"Invalid model name: {model_name}")
-        attrs['model'] = model
+        attrs['model_obj'] = model
+        
+        # validate model ids(values)
+        django_model = get_django_model_from_obj(model)
+        values = attrs.get('values')
+        # 'values' can be None (for delete), so only validate if it exists
+        if values:
+            if not isinstance(values, list):
+                raise serializers.ValidationError(f"Expected a list: {values}")
+            
+            # Validate all IDs in one query ---
+            valid_ids_count = django_model.objects.filter(id__in=values).count()
+            
+            if valid_ids_count != len(values):
+                # If counts don't match, an invalid ID was provided
+                raise serializers.ValidationError(f"One or more model IDs are invalid for {model_name}.")
+        
         return attrs

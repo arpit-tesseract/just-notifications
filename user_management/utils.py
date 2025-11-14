@@ -111,7 +111,9 @@ def get_from_user_and_to_users(higher_designation, relations):
         
         print(designation.id, "===", higher_designation.id, "and", user_obj.expired_date)
         if designation.id == higher_designation.id and user_obj.expired_date is None:
+            print("Before from user pop:", relations)
             relation_obj = relations.pop(relations.index(relation))
+            print("After from user pop:", relations)
             from_user_obj = relation_obj.get("user_obj")
             from_user_designation = designation
             # print("Higher designation user:", relation_obj.get("user_obj"), relations)
@@ -315,3 +317,7 @@ def get_ModelName_obj_by_name(model_name):
         return model_obj
     except ModelName.DoesNotExist:
         return None
+
+from django.apps import apps
+def get_django_model_from_obj(model_obj: ModelName):
+    return apps.get_model(model_obj.app_label, model_obj.model)

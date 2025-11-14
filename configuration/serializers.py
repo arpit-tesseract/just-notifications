@@ -1216,6 +1216,7 @@ class DesignationSerializer(serializers.ModelSerializer):
 
 
 class DesignationGetSerializer(serializers.ModelSerializer):
+    reporting_designation = DesignationIdNameSerializer()
     subcategory = DesignationSubCategoryIdNameSerializer()
     class Meta:
         model = Designation
