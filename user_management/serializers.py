@@ -479,13 +479,13 @@ class UserListSerializer(serializers.ModelSerializer):
         ]
     
     def get_country(self, obj):
-        return obj.residential_details.country.name if obj.residential_details and obj.residential_details.country else None
+        return obj.current_residential_details.country.name if obj.current_residential_details and obj.current_residential_details.country else None
 
     def get_state(self, obj):
-        return obj.residential_details.state.name if obj.residential_details and obj.residential_details.state else None
+        return obj.current_residential_details.state.name if obj.current_residential_details and obj.current_residential_details.state else None
 
     def get_city(self, obj):
-        return obj.residential_details.city_village.name if obj.residential_details and obj.residential_details.city_village else None
+        return obj.current_residential_details.city_village.name if obj.current_residential_details and obj.current_residential_details.city_village else None
 
 
 class ResidentialDetailGetSerializer(serializers.ModelSerializer):

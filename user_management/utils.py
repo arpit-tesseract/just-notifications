@@ -109,11 +109,14 @@ def get_from_user_and_to_users(higher_designation, relations):
         user_obj = relation.get("user_obj")
         designation = relation.get("designation")
         
-        print(designation.id, "===", higher_designation.id, "and", user_obj.expired_date)
+        if user_obj.category_of_user == "grp_tenant":
+            from_user = relations[0].get('user_obj')
+            from_user_designation = relations[0].get('designation')
+            return from_user, from_user_designation, relations[1::]
+        
+        # print(designation.id, "===", higher_designation.id, "and", user_obj.expired_date)
         if designation.id == higher_designation.id and user_obj.expired_date is None:
-            print("Before from user pop:", relations)
             relation_obj = relations.pop(relations.index(relation))
-            print("After from user pop:", relations)
             from_user_obj = relation_obj.get("user_obj")
             from_user_designation = designation
             # print("Higher designation user:", relation_obj.get("user_obj"), relations)
@@ -126,12 +129,13 @@ def get_or_create_residential_details(**residential_details):
     )
     return residential_details_obj
 
-
-def allocate_rooms_for_from_user(user_obj):
+import copy
+def allocate_rooms_for_from_user(user_obj, residential_category):
     # get residential details
-    residential_obj = user_obj.residential_details
-    print("residential_obj to allocate room", residential_obj)
-    print("room details:", residential_obj.room_details)
+    if residential_category != "current":
+        return
+        
+    residential_obj = user_obj.current_residential_details
     room_details = residential_obj.room_details
     
     # if user_obj.allocated_rooms is None:
@@ -140,8 +144,7 @@ def allocate_rooms_for_from_user(user_obj):
     #     user_obj.save()
 
 
-    print("pending rooms to allocate (1):",residential_obj.pending_rooms_to_allocate)
-    user_obj.allocated_rooms = residential_obj.pending_rooms_to_allocate.copy()
+    user_obj.allocated_rooms = copy.deepcopy(residential_obj.pending_rooms_to_allocate)
     user_obj.save()
             
         
@@ -149,29 +152,29 @@ def allocate_rooms_for_from_user(user_obj):
         # user_obj.allocated_rooms[room_type] = 1
         if residential_obj.pending_rooms_to_allocate[room_type]["count"] == value["count"]:
             # residential_obj.pending_rooms_to_allocate[room_type] = total_rooms
-            print("Pending room stay as it is:", residential_obj.pending_rooms_to_allocate)
             pass
         else:
             residential_obj.pending_rooms_to_allocate[room_type]["count"] += 1
-            print("Pending room to allocate:", residential_obj.pending_rooms_to_allocate)
-    
-    print("user allocate rooms:", user_obj.allocated_rooms)
-    residential_obj.save()
 
-def allocate_rooms_for_to_user(user_obj):
-    # get residential details
-    residential_obj = user_obj.residential_details
-    pending_rooms = residential_obj.pending_rooms_to_allocate
+    residential_obj.save()
+    # print("pending rooms to allocate from user case:",residential_obj.pending_rooms_to_allocate)
     
+def allocate_rooms_for_to_user(user_obj, residential_category):
+    if residential_category != "current":
+        return
+        
+    # get residential details
+    residential_obj = user_obj.current_residential_details
+    pending_rooms = copy.deepcopy(residential_obj.pending_rooms_to_allocate)
+    
+    # print("pending rooms to allocate for to user:",pending_rooms)
     if user_obj.allocated_rooms is None:
-        user_obj.allocated_rooms = {}
+        user_obj.allocated_rooms = pending_rooms.copy()
         
     for room_type, value in pending_rooms.items():
-        if residential_obj.room_details[room_type]["count"] == value["count"]:
-            user_obj.allocated_rooms[room_type]["count"] = value["count"]
-        else:
+        if residential_obj.room_details[room_type]["count"] > value["count"]:
             user_obj.allocated_rooms[room_type]["count"] += 1
-            residential_obj.pending_rooms_to_allocate[room_type]["count"] -= 1
+            residential_obj.pending_rooms_to_allocate[room_type]["count"] += 1
             
     user_obj.save()
     residential_obj.save()
@@ -190,19 +193,23 @@ def allocate_rooms_for_to_user(user_obj):
             
 #     return allocated_room_dict
 
-def get_parent_user_obj(user_obj, relation_category):
+def get_parent_user_obj(user_obj, residential_category):
     try:
-        relation_obj = Relation.objects.get(relation_category=relation_category, to_user = user_obj)
+        relation_obj = Relation.objects.get(relation_category=residential_category, to_user = user_obj)
         return relation_obj.from_user
     except Relation.DoesNotExist:
         raise ValidationError(f"No parent relation found for user {user_obj.email}.")
     except Relation.MultipleObjectsReturned:
         raise ValidationError(f"Multiple parent relations found for user {user_obj.email}.")
 
-def allocate_room_same_as_parent(user_obj, relation_category):
+def allocate_room_same_as_parent(user_obj, residential_category):
+    # Don't allocate room for inlaws, maternal, business
+    if residential_category != "current":
+        return
+    
     try:
-        print("allocate_room_same_as_parent", user_obj.email)
-        parent_user_obj = get_parent_user_obj(user_obj, relation_category)
+        # print("allocate_room_same_as_parent", user_obj.email)
+        parent_user_obj = get_parent_user_obj(user_obj, residential_category)
         user_obj.allocated_rooms = parent_user_obj.allocated_rooms
         user_obj.save()
         
@@ -210,9 +217,12 @@ def allocate_room_same_as_parent(user_obj, relation_category):
         raise ValidationError(f"Room allocation failed for {user_obj.email}: {str(e)}")
 
 
-def mark_as_verify_or_unverify_user(user_obj, relation_category):
+def mark_as_verify_or_unverify_user(user_obj, residential_category):
+    if residential_category != "current":
+        return
+    
     try:
-        parent_user_obj = get_parent_user_obj(user_obj, relation_category)
+        parent_user_obj = get_parent_user_obj(user_obj, residential_category)
     except ValidationError:
         # This user has no parent (is a from_user), so just return.
         # The 'from_user' verification logic is different.
@@ -304,7 +314,7 @@ def validate_assignable_permissions(request_user, model_id, requested_perms: dic
     for perm in ["can_read", "can_create", "can_update", "can_delete"]:
         # can_read = True & current_user_access.can_read = False, then raise error
         if requested_perms.get(perm) and not getattr(current_user_access, perm): # getattr(current_user_access, "can_update") → True/False.
-            print(getattr(current_user_access, perm))
+            # print(getattr(current_user_access, perm))
             raise ValidationError(
                 f"You cannot assign {perm.split("_")[1]} for {model_name.model} "
                 f"because you don’t have it yourself."
