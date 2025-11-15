@@ -253,9 +253,16 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
     blood_group = models.CharField(max_length=4, null=True, blank=True)
     marital_status = models.CharField(choices=[('single','Single'), ('married','Married')], max_length=20)
     expired_date = models.DateField(null=True, blank=True)
-    residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True)
+    current_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='current_residential_details')
+    owner_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='owner_residential_details')
+    permanent_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='permanent_residential_details')
+    native_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='native_residential_details')
+    inlaws_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='inlaws_residential_details')
+    maternal_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='maternal_residential_details')
+    business_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='business_residential_details')
+    
     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20)
-    allocated_rooms = models.JSONField(null=True, blank=True)
+    allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

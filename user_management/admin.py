@@ -15,7 +15,10 @@ class CustomUserAdmin(BaseUserAdmin):
         (None, {'fields': ('is_archive', 'archived_at', 'email', 'contact_no', 'password', 'user_role', 'full_name',
                            'pet_name', 'father_name', 'photo', 'date_of_birth',
                            'blood_group', 'marital_status', 'expired_date',
-                           'category_of_user', 'allocated_rooms', 'residential_details')}),
+                           'category_of_user', 'allocated_rooms', 'current_residential_details',
+                           'owner_residential_details', 'permanent_residential_details',
+                           'native_residential_details', 'inlaws_residential_details',
+                           'maternal_residential_details', 'business_residential_details',)}),
     )
 
     add_fieldsets = (
