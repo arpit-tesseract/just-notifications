@@ -285,60 +285,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
         return False
     
     
-# class Address(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-#     ADDRESS_CHOICES = [
-#         ('current','Current Address'),
-#         ('owner','Owner Address'),
-#         ('permanent','Permanent Address'),
-#         ('native','Native Address'),
-#         ('inlaws','InLaws Address'),
-#         ('maternal','Maternal Address'),
-#         ('business','Business Address')
-#     ]
-#     address_type = models.CharField("Address Type", max_length=20, choices=ADDRESS_CHOICES)
-#     block_number = models.CharField("Block Number", max_length=20)
-#     floor = models.CharField("Floor", max_length=20)
-#     room_count = models.IntegerField("Room Count", default=0)
-#     house_number = models.CharField("House Number", max_length=20)
-#     main_person = models.CharField("Main/Mukhiya's Name", max_length=30)
-#     mobile_number = models.CharField("Mobile Number", max_length=14)
-#     is_verified = models.BooleanField(default=False)
-
-#     def save(self, *args, **kwargs):
-#         super().save(*args, **kwargs)
-#         user = self.user
-
-#         if Address.objects.filter(user=user).exists():
-#             has_unverified = Address.objects.filter(user=user, is_verified=False).exists()
-#             if has_unverified:
-#                 user.is_verified = False
-#             else:
-#                 user.is_verified = True
-#             user.save(update_fields=['is_verified'])
-
-
-# class Relation(models.Model):
-#     relation_category_choices = [
-#         ('current','Current'),
-#         ('owner','Owner'),
-#         ('permanent','Permanent'),
-#         ('native','Native'),
-#         ('inlaws','InLaws'),
-#         ('maternal','Maternal'),
-#         ('business','Business')
-#     ]
-#     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
-#     relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
-#     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
-#     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
-
-#     def __str__(self):
-#         return f"{self.from_user} - {self.designation.name} - {self.to_user}"
-    
     
 class PersonalDetail(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='personal_details')
     religion = models.ForeignKey(configm.Religion, on_delete=models.SET_NULL, null=True, blank=True)
     sampraday = models.ForeignKey(configm.Sampraday, on_delete=models.SET_NULL, null=True, blank=True)
     panth = models.ForeignKey(configm.Panth, on_delete=models.SET_NULL, null=True, blank=True)
@@ -386,6 +335,27 @@ class PersonalDetail(models.Model):
     def __str__(self):
         return f"{self.user} - {self.personal_code}"
 
+# class Relation(models.Model):
+#     relation_category_choices = [
+#         ('current','Current'),
+#         ('owner','Owner'),
+#         ('permanent','Permanent'),
+#         ('native','Native'),
+#         ('inlaws','InLaws'),
+#         ('maternal','Maternal'),
+#         ('business','Business')
+#     ]
+#     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
+#     relation_category = models.CharField(choices=relation_category_choices, max_length=20)
+#     from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (Father, mother)
+#     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
+#     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
+#     post_no = models.FloatField(null=True, blank=True)
+    
+#     def __str__(self):
+#         return f"{self.relation_category}, {self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
+
+
 class Relation(models.Model):
     relation_category_choices = [
         ('current','Current'),
@@ -398,14 +368,17 @@ class Relation(models.Model):
     ]
     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
     relation_category = models.CharField(choices=relation_category_choices, max_length=20)
-    from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (Father, mother)
-    designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
+    from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (husband, wife)
+    relation_between_from_and_to = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="relation_between_from_and_to") # option-1 (husband, wife, son, daughter, guest, other)
+    to_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="to_user_designation") # option-1 (husband, wife, son, daughter, guest-relation, other)
     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
     post_no = models.FloatField(null=True, blank=True)
     
     def __str__(self):
-        return f"{self.relation_category}, {self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
+        return f"""{self.relation_category}: {self.from_user} - {self.from_user_designation.name} "{self.relation_between_from_and_to.name}" {self.to_user} - {self.to_user_designation}"""
 
+    
+    
 class Document(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     adhar_card_no = models.CharField(max_length=12, unique=True, blank=True, null=True)

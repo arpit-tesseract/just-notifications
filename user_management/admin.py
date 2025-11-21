@@ -72,6 +72,8 @@ admin.site.register(ResidentialDetail)
 admin.site.register(Document)
 admin.site.register(PersonalDetail)
 admin.site.register(ProfessionalDetail)
-admin.site.register(Relation)
 admin.site.register(ReportCard)
-
+@admin.register(Relation)
+class RelationAdmin(admin.ModelAdmin):
+    list_display = ['relation_category', 'from_user', 'from_user_designation', 'relation_between_from_and_to', 'to_user', 'to_user_designation', 'post_no']
+    list_filter = ['relation_category']
