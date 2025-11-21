@@ -33,7 +33,7 @@ def verify_user_category_for_residential(category):
         return False
     return True
 
-def verify_user_relation_category(category):
+def verify_user_relation_category(category): # relation / residential
     categories = ['current', 'owner', 'permanent', 'native', 'inlaws', 'maternal', 'business']
     if category not in categories:
         return False
@@ -105,6 +105,8 @@ def clean_str(value):
 
 
 def get_from_user_and_to_users(higher_designation, relations):
+    print("higher_designation:", higher_designation)
+    print("relations:", relations)
     for index, relation in enumerate(relations):
         user_obj = relation.get("user_obj")
         designation = relation.get("designation")

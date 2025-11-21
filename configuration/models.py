@@ -416,27 +416,14 @@ class Brand(OrderByMixin, HoldableMixin):
 #         return f"{self.name} - {self.code}"
 
 
-
-# Current, Owner, Permanent, Native, InLaws, Maternal, Business
-class DesignationSubCategory(OrderByMixin, HoldableMixin):
-    name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.code}"
-
-
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
 class Designation(OrderByMixin, HoldableMixin):
     CATEGORY_CHOICES = [
-        ('owner', 'Owner'),
-        ('tenant', 'Tenant'),
-        ('grp_tenant', 'Group Tenant'),        
-        ('family', 'Family'),
+        ('personal', 'Personal'),        
+        ('resident', 'Resident'),
         ('professional', 'Professional'),
     ]
     category = models.CharField(choices=CATEGORY_CHOICES, max_length=20)
-    subcategory = models.ForeignKey(DesignationSubCategory, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     code = models.PositiveIntegerField(help_text="Hierarchy level, 1=top", unique=True) # code / Designation number / level / post no 
     reporting_designation = models.ForeignKey(

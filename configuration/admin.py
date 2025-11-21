@@ -42,20 +42,7 @@ admin.site.register(SubDepartment)
 admin.site.register(Type)
 admin.site.register(Brand)
 
-admin.site.register(DesignationSubCategory)
-@admin.register(Designation)
-class DesignationAdmin(admin.ModelAdmin):
-    # Show these fields in the list view
-    list_display = ("category", "subcategory", "name", "code")
-
-    # Add filter sidebar
-    list_filter = ("category", "subcategory")
-
-    # Add search box
-    search_fields = ("name", "code")
-
-    # Optional: order results
-    ordering = ("category",)
+admin.site.register(Designation)
 
 admin.site.register(RoomFlash)
 admin.site.register(RoomType)

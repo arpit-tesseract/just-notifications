@@ -261,7 +261,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
     maternal_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='maternal_residential_details')
     business_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='business_residential_details')
     
-    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20)
+    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
     allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
     
     USERNAME_FIELD = 'email'
@@ -404,7 +404,7 @@ class Relation(models.Model):
     post_no = models.FloatField(null=True, blank=True)
     
     def __str__(self):
-        return f"{self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
+        return f"{self.relation_category}, {self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
 
 class Document(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)

@@ -5491,31 +5491,6 @@ class ProfessionalSearchView(APIView):
         
         output = ProfessionalOutputSerializer(results, many=True)
         return Response(output.data, status=status.HTTP_200_OK)
-            
-   
-# class DesignationSubCategoryView(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-#     model = DesignationSubCategory
-#     queryset = DesignationSubCategory.objects.all()
-#     serializer_class = DesignationSubCategorySerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-#     pagination_class = ConfigurationPagination
-#     FILTER_FIELDS = {
-#         'category': 'category',
-#         'is_hidden': 'is_hidden',
-#         'on_hold': 'on_hold',
-#         'search': 'name'
-#     }
-
-
-class DesignationSubCategoryListView(APIView):
-    model = DesignationSubCategory
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        qs = get_regular_query(DesignationSubCategory)
-        qs = qs.order_by('code')
-        output = DesignationSubCategoryIdNameSerializer(qs, many=True)
-        return Response(output.data, status=status.HTTP_200_OK)
     
     
 class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -5525,7 +5500,6 @@ class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
-        'subcategory': 'subcategory__name',
         'category': 'category',
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold',
@@ -5547,23 +5521,15 @@ class DesignationListView(RecordRuleMixin, APIView):
     def get(self, request):
         qs = self.get_base_queryset()
         category = request.query_params.get('category', "").strip()
-        subcategory = request.query_params.get('subcategory', "").strip()
         
-        if category != '':
-            if subcategory != '':
-                qs = qs.filter(category=category, subcategory__name=subcategory)
-            else:
-                return Response(
-                    {
-                        "error": "Query paramter 'subcategory' cannot be empty."
-                    }, status=status.HTTP_400_BAD_REQUEST
-                )
-        else:
+        if category == '':
             return Response(
                 {
                     "error": "Query paramter 'category' cannot be empty."
                 }, status=status.HTTP_400_BAD_REQUEST
             )
+        else:
+            qs = qs.filter(category=category)
         
         qs = qs.order_by('code')
         output = DesignationIdNameSerializer(qs, many=True)
@@ -5589,14 +5555,3 @@ class DownloadSampleFile(APIView):
             return Response({"error": "File not associated with this record."}, status=status.HTTP_404_NOT_FOUND)
             
         return Response({"file_url": file.file.url}, status=status.HTTP_200_OK)
-
-
-class DesignationCategoryListView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        categories = [
-            {"key": key, "label": label}
-            for key, label in Designation.CATEGORY_CHOICES
-        ]
-        return Response({"categories": categories})

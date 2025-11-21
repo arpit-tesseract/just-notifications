@@ -20,6 +20,7 @@ urlpatterns = [
     path('<int:user_id>/', views.RegisterationView.as_view(), name='register'),
     path('upload-photo/<int:user_id>', views.UserPhotoUploadView.as_view(), name='upload_photo'),
     path('upload-documents/<int:user_id>', views.UserDocumentUploadView.as_view(), name='upload_documents'),
+    path('suggest-users/', views.UserSuggestionsView.as_view(), name='suggest_users'),
     
     # path('', views.CustomUserViewSet.as_view(), name='users'),
     path('user-lst/', views.UserListView.as_view(), name='user_lst'),

@@ -89,8 +89,6 @@ urlpatterns = [
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
     
     path("designation-lst/", DesignationListView.as_view(), name="designation_lst"),
-    path('designation-category-lst/', DesignationCategoryListView.as_view(), name='designation_category_lst'),
-    path("designation-subcategory-lst/", DesignationSubCategoryListView.as_view(), name="designation_subcategory_lst"),
     
     path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
     path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),

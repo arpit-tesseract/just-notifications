@@ -1125,18 +1125,6 @@ class ProfessionalOutputSerializer(serializers.Serializer):
     brand = BrandIdNameSerializer(allow_null=True)
 
 
-class DesignationSubCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DesignationSubCategory
-        fields = "__all__"
-
-
-class DesignationSubCategoryIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DesignationSubCategory
-        fields = ["id", "name"]
-
-
 class DesignationIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
@@ -1217,7 +1205,6 @@ class DesignationSerializer(serializers.ModelSerializer):
 
 class DesignationGetSerializer(serializers.ModelSerializer):
     reporting_designation = DesignationIdNameSerializer()
-    subcategory = DesignationSubCategoryIdNameSerializer()
     class Meta:
         model = Designation
         fields = "__all__"

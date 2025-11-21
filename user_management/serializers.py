@@ -225,7 +225,7 @@ class BussinessDetailSerializer(serializers.Serializer):
 
 
 class UserSerializerForPost(serializers.ModelSerializer):
-    user_id = serializers.IntegerField(required=False, allow_null=True)
+    user_id = serializers.IntegerField(required=True, allow_null=True)
     email = serializers.EmailField(validators=[validate_email])
     contact_no = serializers.CharField(validators=[])
     full_name = serializers.CharField(validators=[validate_full_name])
@@ -233,17 +233,15 @@ class UserSerializerForPost(serializers.ModelSerializer):
     blood_group = serializers.CharField(validators=[validate_blood_group])
     date_of_birth = serializers.DateField(validators=[validate_dob])
     user_role_name = serializers.CharField()
-    user_role = UserRoleSerializer(many=False, read_only=True)
     residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
-    bussiness_details = BussinessDetailSerializer(many=True, required=False, allow_null=True)
+    bussiness_details = BussinessDetailSerializer(many=True, required=True, allow_null=True)
     class Meta:
         model = CustomUser
         fields = [
             'user_id', 
             'email', 
             'contact_no', 
-            'user_role', 
             'user_role_name',
             'full_name', 
             'pet_name', 
@@ -263,7 +261,6 @@ class UserSerializerForPost(serializers.ModelSerializer):
     
     def get_user_role_name(self, obj):
         return obj.user_role.name
-    
 
     def validate(self, attrs):
         # verify user role    
@@ -317,46 +314,71 @@ class UserSerializerForPost(serializers.ModelSerializer):
         
       
 
-class PostSerializer(serializers.ModelSerializer):
+class PostSerializer(serializers.Serializer):
     user_details = UserSerializerForPost(many=False)
-    class Meta:
-        model = Relation
-        fields = ['user_details', 'designation', 'post_no']
-        read_only_fields = ['id']
-
+    designation = serializers.SlugRelatedField(     # Use SlugRelatedField for name-based lookup
+        slug_field='name',                          # Input: "Manager" (string) -> Output: Designation Object (or 400 Error)
+        queryset=Designation.objects.all()
+    )
+    to_user_designation = serializers.PrimaryKeyRelatedField(   # Use PrimaryKeyRelatedField for ID-based lookup
+        queryset=Designation.objects.all(),                     # Input: 5 (int) -> Output: Designation Object (or 400 Error)
+        required=True, 
+        allow_null=False
+    )
+    post_no = serializers.IntegerField(required=True, allow_null=True)
+    
 
 class UserRegistrationSerializer(serializers.Serializer):
-    # residential_details = ResidentialDetailSerializer(many=False)
-    relation_category = serializers.CharField()      
-    number_of_post = serializers.IntegerField()
+    existing_from_user_id = serializers.PrimaryKeyRelatedField(
+        queryset=CustomUser.objects.all(),
+        required=True,
+        allow_null=True
+    )
+    existing_from_user_designation = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=Designation.objects.all(),
+        required=True,
+        allow_null=True
+    )
+    residential_category = serializers.CharField()      
     posts = PostSerializer(many=True)
     
     def validate(self, attrs):
-        # residential_details = attrs.get('residential_details', None)
-        # room_details = residential_details.get('room_details', None)
-        # if room_details is None or room_details == {}:
-        #     raise serializers.ValidationError({"room_details": "Room details is required."})
-        
-        # for key, val in room_details.items():
-        #     if val is None or val == "" or val <= 0:
-        #         raise serializers.ValidationError({"room_details": f"Room details is required."})
-           
         # verify relation category
-        relation_category = attrs.get('relation_category')
+        relation_category = attrs.get('residential_category')
         if verify_user_relation_category(relation_category) == False:
             raise serializers.ValidationError({"relation_category": "Invalid relation category."})
         
+        if relation_category != 'current':
+            if attrs.get('existing_from_user_id') is None:
+                raise serializers.ValidationError({"existing_from_user_id": "Existing from user id null not allowed."})
+            
+            if attrs.get('existing_from_user_designation') is None:
+                raise serializers.ValidationError({"existing_from_user_designation": "Existing from user designation name null not allowed."})
+        # else:
+        #     attrs['existing_from_user_id'] = None
+               
         # verify number of posts
         posts = attrs.get('posts', [])
-        number_of_post = attrs.get('number_of_post')
-        if number_of_post != len(posts):
-            raise serializers.ValidationError({"posts": f"Number of posts should be {number_of_post}."})
+        if len(posts) == 0:
+            raise serializers.ValidationError({"posts": "At least one post is required."})
         
+        # verify number of unique emails and contact numbers
         email_in_requests = set()
         contact_no_in_requests = set()
         for index, post in enumerate(posts):
             user_details = post.get('user_details', None)
+            to_user_designation = post.get('to_user_designation', None)
             
+            if relation_category != 'current':
+                if to_user_designation is None:
+                    raise serializers.ValidationError({
+                        "posts": f"to_user_designation is required at post {index+1}."
+                    })
+            # else:
+            #     post['to_user_designation'] = None
+                
+                    
             if user_details:
                 user_email = user_details.get('email', None)
                 user_contact_no = user_details.get('contact_no', None)
@@ -372,37 +394,13 @@ class UserRegistrationSerializer(serializers.Serializer):
                             "posts": f"The contact number '{user_contact_no}' is used more than once in this request (at post {index+1})."
                         })
                 contact_no_in_requests.add(user_contact_no)
-        
-        # for index, post in enumerate(posts):
-        #     user_details = post.get('user_details', None)
-        #     user_id = post.get("existing_user_id", None)
-            
-        #     if user_details is not None and user_id is not None:
-        #         raise serializers.ValidationError({"posts": f"Either user_details or existing_user_id should be provided for post: {index+1}."})
-            
-        #     if user_details is None and user_id is None:
-        #         raise serializers.ValidationError({"posts": f"Required either user_details or existing_user_idc for post: {index+1}."})
-            
-            # verify user details
-            # if user_details:
-            #     user_email = user_details.get('email', None)
-            #     user_contact_no = user_details.get('contact_no', None)
                 
-            #     if check_email_exists(user_email):
-            #         raise serializers.ValidationError({"user_details": f"Post: {index+1}, Email already exists."})
-            #     if check_contact_no_exists(user_contact_no):
-            #         raise serializers.ValidationError({"user_details": f"Post: {index+1}, Contact number already exists."})
-                
-            #     # verify to user role name
-            #     user_role_name = user_details.get('user_role_name', None)
-            #     user_role_obj = get_role_obj_by_name(user_role_name)
-            #     if user_role_obj is None:
-            #         raise serializers.ValidationError({"user_details": f"Post: {index+1}, Invalid to user role name."})
-            #     else:
-            #         attrs['posts'][index]['user_details'].pop('user_role_name', None)
-            #         attrs['posts'][index]['user_details']['user_role_obj'] = user_role_obj
-            
+                # designation_name = post.get('designation')
+                # designation_obj = get_designation_obj_by_name(designation_name)
+                # posts[index]['designation_obj'] = designation_obj
+                    
         return attrs 
+ 
 
 class UserPhotoUploadSerializer(serializers.ModelSerializer):
     photo = serializers.ImageField(validators=[validate_image_file])
@@ -592,8 +590,9 @@ class DocumentSerializerForGet(serializers.ModelSerializer):
         
 class UserSerializerForGet(serializers.ModelSerializer):
     user_id = serializers.SerializerMethodField()
-    # user_role_name = serializers.SerializerMethodField()
+    user_role_name = serializers.SerializerMethodField()
     documents = serializers.SerializerMethodField()
+    residential_details = serializers.SerializerMethodField()
     personal_details = serializers.SerializerMethodField()
     bussiness_details = serializers.SerializerMethodField()
 
@@ -604,7 +603,7 @@ class UserSerializerForGet(serializers.ModelSerializer):
             'photo',
             'email',
             'contact_no',
-            # 'user_role_name',
+            'user_role_name',
             'full_name',
             'pet_name',
             'father_name',
@@ -616,6 +615,7 @@ class UserSerializerForGet(serializers.ModelSerializer):
             'expired_date',
             'allocated_rooms',
             'documents',
+            'residential_details',
             'personal_details',
             'bussiness_details',
             'category_of_user',
@@ -624,6 +624,36 @@ class UserSerializerForGet(serializers.ModelSerializer):
     def get_user_id(self, obj):
         return obj.id
 
+    def get_residential_details(self, obj):
+        target_category = self.context.get("residential_category")
+        
+        if not target_category:
+            return None
+
+        field_mapping = {
+            'current': 'current_residential_details',
+            'owner': 'owner_residential_details',
+            'permanent': 'permanent_residential_details',
+            'native': 'native_residential_details',
+            'inlaws': 'inlaws_residential_details',
+            'maternal': 'maternal_residential_details',
+            'business': 'business_residential_details',
+        }
+        
+        # current_residential_details, etc.
+        field_name = field_mapping.get(target_category.lower())
+
+        if not field_name:
+            return None
+        
+        # This is equivalent to obj.current_residential_details, etc.
+        residential_obj = getattr(obj, field_name, None)
+        
+        if residential_obj:
+            return ResidentialDetailGetSerializer(residential_obj).data
+        
+        return None
+            
     def get_documents(self, obj):
         """
         'obj' is the CustomUser instance.
@@ -638,8 +668,8 @@ class UserSerializerForGet(serializers.ModelSerializer):
         except Exception as e:
             return None
 
-    # def get_user_role_name(self, obj):
-    #     return obj.user_role.name
+    def get_user_role_name(self, obj):
+        return obj.user_role.name
     
     def get_personal_details(self, obj):
         try:
@@ -672,6 +702,107 @@ class UserSerializerForGet(serializers.ModelSerializer):
             
         return professional_details_lst
 
+class ResidentialDetailsForUserSugesionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidentialDetail
+        fields = [
+            'glob',
+            'continent',
+            'country',
+            'state',
+            'district',
+            'taluka',
+            'city_village',
+            'ward',
+            'society',
+            'block',
+            'floor',
+            'house_no',
+            'total_no_of_rooms',
+            'room_details',
+        ]  
+
+class UserSuggestionInputSerializer(serializers.Serializer):
+    personal_details = PersonalDetailSerializer()
+    full_name = serializers.CharField(allow_null=True)
+    email = serializers.EmailField(allow_null=True)
+    contact_no = serializers.CharField(allow_null=True)
+    gender = serializers.CharField(allow_null=True)
+    
+
+class UserSuggestionOutputSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="id")
+    user_role = UserRoleSerializer(many=True, read_only=True)
+    current_residential_details = ResidentialDetailGetSerializer(many=False)
+    personal_details = PersonalDetailGetSerializer(many=False, source='personaldetail_set')
+    bussiness_details = serializers.SerializerMethodField()
+    documents = serializers.SerializerMethodField()
+    
+    def get_documents(self, obj):
+        """
+        'obj' is the CustomUser instance.
+        """
+        try:
+            # Get the single Document object related to this user
+            document_obj = Document.objects.get(user=obj)
+            return DocumentSerializerForGet(document_obj).data
+        except Document.DoesNotExist:
+            # If the user has no documents, return null
+            return None
+        except Exception as e:
+            return None
+
+    # def get_user_role_name(self, obj):
+    #     return obj.user_role.name
+    
+    
+    def get_bussiness_details(self, obj):
+        professional_objs_lst = ProfessionalDetail.objects.filter(user=obj)
+        if not professional_objs_lst:
+            return []
+
+        professional_details_lst = []
+        for professional_detail in professional_objs_lst:
+            
+            # 1. Serialize the professional details
+            prof_data = ProfessionalDetailGetSerializer(professional_detail).data
+            
+            # 2. Serialize the residential details
+            res_data = ResidentialDetailGetSerializer(professional_detail.residential_details).data
+            
+            # 3. Create the new dictionary with the correct structure
+            bussiness_item = {
+                "professional_details": prof_data,
+                "professional_residential_details": res_data
+            }
+            
+            # 4. Append this new dictionary to the final list
+            professional_details_lst.append(bussiness_item)
+            
+        return professional_details_lst
+    
+    class Meta:
+        model = CustomUser
+        fields = [
+            'user_id', 
+            'photo',
+            'email', 
+            'contact_no', 
+            'user_role', 
+            'full_name', 
+            'pet_name', 
+            'father_name',
+            'gender',
+            'date_of_birth',
+            'blood_group', 
+            'marital_status', 
+            'expired_date',
+            'current_residential_details',
+            'personal_details',
+            'bussiness_details',
+            'documents',
+        ]
+    
 
 class ModelAccessSerializer(serializers.ModelSerializer):
     class Meta:
