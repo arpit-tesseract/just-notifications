@@ -706,7 +706,7 @@ class ResidentialDetailsForUserSugesionInputSerializer(serializers.ModelSerializ
         ]  
 
 class UserSuggestionInputSerializer(serializers.Serializer):
-    residential_details = ResidentialDetailsForUserSugesionInputSerializer(required=True, allow_null=True)
+    # residential_details = ResidentialDetailsForUserSugesionInputSerializer(required=True, allow_null=True)
     personal_details = PersonalDetailSerializer()
     full_name = serializers.CharField(required=True, allow_null=True)
     father_name = serializers.CharField(required=True, allow_null=True)
@@ -834,7 +834,7 @@ class ModelAccessSerializer(serializers.Serializer):
         # ERROR LIST
         errors = {}
 
-        print("my_perm:", my_perm)
+        # print("my_perm:", my_perm)
         if my_perm:
             # Logic: I can only give what I have
             if data['can_read'] and not my_perm.can_read:

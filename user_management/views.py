@@ -222,11 +222,11 @@ class RegisterationView(RecordRuleMixin, APIView):
                             for bussiness_detail in user_bussiness_details:
                                 user_professional_details = bussiness_detail.get("professional_details", None)
                                 user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
-                                
                                 if user_professional_residential_details is not None:
                                     # Try to find if residential details already exists                            
                                     user_professional_residential_details['residential_type'] = "bussiness"
-                                    user_professional_residential_obj = get_or_create_residential_details(**user_professional_residential_details)
+                                    # print(user_professional_residential_details)
+                                    user_professional_residential_obj, created = ResidentialDetail.objects.get_or_create(**user_professional_residential_details)
                                     if isinstance(user_professional_residential_obj, Response):
                                         return user_professional_residential_obj
                                 
@@ -257,7 +257,8 @@ class RegisterationView(RecordRuleMixin, APIView):
                                 }, status=status.HTTP_201_CREATED
                             )
                             
-                        if existing_main_user_obj:
+                        if existing_main_user_obj and existing_main_user_obj != user_obj:
+                            
                             try:
                                 relation_obj = Relation.objects.get(
                                     from_user = existing_main_user_obj, 
@@ -580,7 +581,7 @@ class UserSuggestionsListView(APIView):
         if p_user_obj_list is not None:
             user_obj_list = user_obj_list | p_user_obj_list
             
-        suggested_users = user_obj_list.filter(reduce(operator.or_, filters))
+        suggested_users = user_obj_list.filter(reduce(operator.and_, filters))
         response_data = UserSuggestionOutputListSerializer(suggested_users, many=True).data
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -777,6 +778,21 @@ class UserListView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
     pagination_class = UserManagementPagination
     def get(self, request):
+        user_role = request.query_params.get('user_role', None)
+        if user_role is not None:
+            try:
+                UserRole.objects.get(name=user_role)
+            except UserRole.DoesNotExist:
+                return Response({"error": "Invalid user role."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            users = CustomUser.objects.filter(
+                is_superuser=False,
+                is_archive=False,
+                user_role__name=user_role
+            )
+            serializer = UserListSerializer(users, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
         users = CustomUser.objects.filter(
             is_superuser=False, 
             is_archive=False,
@@ -873,7 +889,7 @@ class ModelAccessView(APIView):
                 for acc in ModelAccess.objects.filter(user=request.user)
             }
 
-        print("logged_user_perms_map:", logged_user_perms_map)
+        # print("logged_user_perms_map:", logged_user_perms_map)
         # 2. Pass context to Serializer
         serializer = ModelAccessSerializer(
             data=request.data, 

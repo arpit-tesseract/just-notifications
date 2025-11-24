@@ -105,8 +105,8 @@ def clean_str(value):
 
 
 def get_from_user_and_to_users(higher_designation, relations):
-    print("higher_designation:", higher_designation)
-    print("relations:", relations)
+    # print("higher_designation:", higher_designation)
+    # print("relations:", relations)
     for index, relation in enumerate(relations):
         user_obj = relation.get("user_obj")
         user_designation_obj = relation.get("user_designation")
