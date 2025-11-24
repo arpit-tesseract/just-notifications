@@ -32,11 +32,8 @@ class HasModelAccessPermission(BasePermission):
             raise AttributeError(
                 f"{view.__class__.__name__} must define either `queryset` or `model`"
             )
-        # print("model_name:", model_name)
+        print("model_name:", model_name)
         # print("logged user:", request.user)
-        
-        if model_name == "configuration.ModelAccess":
-            return True
         
         # Try to get action (ViewSet) or fall back to HTTP method (APIView)
         action = getattr(view, "action", None)
@@ -62,17 +59,24 @@ class HasModelAccessPermission(BasePermission):
 
         perm_field = action_map.get(action)
         
-        # By default read permission is allowed.
-        if perm_field in ["can_read"]:
-            return True
-        
         if not perm_field:
             return False
-
+        
+        # Always allow access to the configuration model itself to avoid lockout loops        
+        if model_name == "ModelAccess" and perm_field == "can_read":
+            return True
+        
+        
+        # By default read permission is allowed.
+        # if perm_field in ["can_read"]:
+        #     return True
+        
         # Fetch model access
         try:
             model_access = user.model_access_permission.get(model__technical_name=model_name)
         except ModelAccess.DoesNotExist:
+            if perm_field in ["can_read"]:
+                return True
             return False
         except Exception as e:
             return False

@@ -790,86 +790,154 @@ class ModelAccessView(APIView):
     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
     
     def get(self, request, user_id=None):
-        try:
-            if user_id is None:
-                user_obj = request.user
-            else:
-                user_obj = get_object_or_404(CustomUser, id=user_id)
-            
-            # if user_obj.id == user_obj.id:
-            #     return Response({"error": "You cannot edit your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
-            
-            if user_obj.check_is_super_admin():
-                model_access_rights = get_model_access_rights_of_super_admin()
-                return Response(
-                    model_access_rights,
-                    status=status.HTTP_200_OK
-                )
-            
-            model_access_rights_obj_lst = user_obj.model_access_permission.all()
-            if model_access_rights_obj_lst.exists():
-                serializer = ModelAccessSerializer(model_access_rights_obj_lst, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            else:
-                return Response([], status=status.HTTP_200_OK)
-            
-            # model_access_rights = get_default_model_access_rights()
-            # return Response(
-            #     model_access_rights,
-            #     status=status.HTTP_200_OK
-            # )
-            
-        except Exception as e:
-            return Response(
-                {
-                    "error":"Something went wrong",
-                    "details": str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-
-    def post(self, request, user_id):
-        try:
+        # try:
+        if user_id is None:
+            user_obj = request.user
+        else:
             user_obj = get_object_or_404(CustomUser, id=user_id)
-            logged_user = request.user
+        
+        # if user_obj.id == user_obj.id:
+        #     return Response({"error": "You cannot edit your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Response for super admin
+        if user_obj.check_is_super_admin():
+            model_access_rights = get_model_access_rights_of_super_admin()
+            return Response(
+                model_access_rights,
+                status=status.HTTP_200_OK
+            )
+        
+        # Response for other users
+        
+        # Get all available model definitions
+        all_models = ModelName.objects.all()
+        
+        user_access_map = {
+            access.model: access 
+            for access in ModelAccess.objects.filter(user=user_obj)
+        }
+        
+        response_data = []
+        for model_name_obj in all_models:
+            model_identifier = model_name_obj.model
             
-            if user_obj.id == logged_user.id:
-                return Response({"error": "You cannot edit your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
+            if model_identifier in user_access_map:
+                # CASE 1: Logic found in table -> Return stored logic
+                access_obj = user_access_map[model_identifier]
+                response_data.append({
+                    "model": model_identifier,
+                    "can_read": access_obj.can_read,
+                    "can_create": access_obj.can_create,
+                    "can_update": access_obj.can_update,
+                    "can_delete": access_obj.can_delete,
+                })
+            else:
+                # CASE 2: Logic NOT found -> Return TRUE (As per your request)
+                response_data.append({
+                    "model": model_identifier,
+                    "can_read": True,   # Default Allowed
+                    "can_create": False, # Default Allowed
+                    "can_update": False, # Default Allowed
+                    "can_delete": False, # Default Allowed
+                })
+        
+        return Response(
+            response_data,
+            status=status.HTTP_200_OK
+        )
             
-            # Expecting a list of model access entries
-            model_access_data = request.data
-            if not isinstance(model_access_data, list) or not model_access_data:
-                return Response(
-                    {"error": "model_access_list must be a non-empty list."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # except Exception as e:
+        #     return Response(
+        #         {
+        #             "error":"Something went wrong",
+        #             "details": str(e)
+        #         }, status=status.HTTP_400_BAD_REQUEST)
 
+
+    def post(self, request, user_id=None):
+        if user_id is None:
+            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_obj = get_object_or_404(CustomUser, id=user_id)
+        logged_user = request.user
+        
+        if user_obj.id == logged_user.id:
+            return Response({"error": "You cannot edit your own model access rights."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Expecting a list of model access entries
+
+        logged_user_perms_map = {}
+        if not request.user.check_is_super_admin():
+            logged_user_perms_map = {
+                acc.model.model: acc 
+                for acc in ModelAccess.objects.filter(user=request.user)
+            }
+
+        print("logged_user_perms_map:", logged_user_perms_map)
+        # 2. Pass context to Serializer
+        serializer = ModelAccessSerializer(
+            data=request.data, 
+            many=True,
+            context={
+                'request': request, 
+                'logged_user_perms_map': logged_user_perms_map,
+                'target_user': user_obj
+            }
+        )
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        if not isinstance(validated_data, list):
+            return Response(
+                {"error": "model_access_list must be a list."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not validated_data:
+            return Response(
+                {"error": "model_access_list cannot be empty."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
             # Validate and create/update each record
-            created_or_updated = []
-            for item in model_access_data:
-                model_name = item.get("model")
-                if not model_name:
-                    return Response(
-                        {"error": "Each record must contain 'model'."},
-                        status=status.HTTP_400_BAD_REQUEST
+            
+            # Extract all model names from request
+            requested_model_names = [item['model'] for item in validated_data]
+            
+            # Create a map: "City" -> <ModelName Object>
+            db_models_map = {
+                m.model: m 
+                for m in ModelName.objects.filter(model__in=requested_model_names)
+            }
+            
+            for item in validated_data:
+                model_str = item.get("model")
+
+                # Skip if model doesn't exist in our DB definition
+                if model_str not in db_models_map:
+                    continue
+                
+                model_obj = db_models_map[model_str]
+                read_perm = item.get("can_read", False)
+                create_perm = item.get("can_create", False)
+                update_perm = item.get("can_update", False)
+                delete_perm = item.get("can_delete", False)
+                
+                if read_perm == False or True in [create_perm, update_perm, delete_perm]:
+                    ModelAccess.objects.update_or_create(
+                        user=user_obj,
+                        model=model_obj,
+                        defaults={
+                            "can_read": read_perm,
+                            "can_create": create_perm,
+                            "can_update": update_perm,
+                            "can_delete": delete_perm,
+                        }
                     )
-                
-                model_obj = get_ModelName_obj_by_name(model_name)
-                
-                access_obj, created = ModelAccess.objects.update_or_create(
-                    user=user_obj,
-                    model=model_obj,
-                    defaults={
-                        "can_create": item.get("can_create", False),
-                        "can_update": item.get("can_update", False),
-                        "can_delete": item.get("can_delete", False),
-                    }
-                )
-                created_or_updated.append(access_obj)
-            serializer = ModelAccessSerializer(created_or_updated, many=True)
             return Response(
                 {
                     "message": "Model access rights successfully updated.",
-                    "data": serializer.data,
                 },
                 status=status.HTTP_200_OK
             )

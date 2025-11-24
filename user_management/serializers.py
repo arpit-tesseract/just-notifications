@@ -88,6 +88,9 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
         # } 
     
     def validate_room_details(self, value):
+        if value is None:
+            return
+        
         for room_type_id, room_info in value.items():
             # room_name = "hall"
             try:
@@ -805,12 +808,54 @@ class UserSuggestionOutputDetailSerializer(serializers.ModelSerializer):
         ]
     
 
-class ModelAccessSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ModelAccess
-        fields = ['model', 'can_create', 'can_update', 'can_delete']
+class ModelAccessSerializer(serializers.Serializer):
+    model = serializers.CharField()
+    can_create = serializers.BooleanField()
+    can_read = serializers.BooleanField()
+    can_update = serializers.BooleanField()
+    can_delete = serializers.BooleanField()
+    
+    def validate(self, data):
+        """
+        Check if the logged-in user has the right to assign these permissions.
+        """
+        request = self.context['request']
+        perms_map = self.context['logged_user_perms_map'] # Got from View
         
+        model_name = data.get('model')
+        
+        # Super Admins bypass validation
+        if request.user.check_is_super_admin():
+            return data
 
+        # Get the logged-in user's permission for this specific model
+        my_perm = perms_map.get(model_name)
+
+        # ERROR LIST
+        errors = {}
+
+        print("my_perm:", my_perm)
+        if my_perm:
+            # Logic: I can only give what I have
+            if data['can_read'] and not my_perm.can_read:
+                errors['can_read'] = "You cannot assign Read permission as you do not possess it."
+            if data['can_create'] and not my_perm.can_create:
+                errors['can_create'] = "You cannot assign Create permission as you do not possess it."
+            if data['can_update'] and not my_perm.can_update:
+                errors['can_update'] = "You cannot assign Update permission as you do not possess it."
+            if data['can_delete'] and not my_perm.can_delete:
+                errors['can_delete'] = "You cannot assign Delete permission as you do not possess it."
+        else:
+            # Logic: No permission record found -> Only Read allowed
+            if data['can_create'] or data['can_update'] or data['can_delete']:
+                raise serializers.ValidationError(
+                    f"You have no rights on model '{model_name}'. You can only assign Read access."
+                )
+
+        if errors:
+            raise serializers.ValidationError(errors)
+        return data
+        
 
 class RecordRuleListSerializer(serializers.ModelSerializer):
     model_name = serializers.SerializerMethodField()
