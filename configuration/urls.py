@@ -11,7 +11,19 @@ router.register(r'districts', DistrictViewSet)
 router.register(r'talukas', TalukaViewSet)
 router.register(r'cityvillages', CityVillageViewSet)
 router.register(r'wards', WardViewSet)
+router.register(r'societies', SocietyViewSet)
+router.register(r'blocks', BlockViewSet)
+router.register(r'floors', FloorViewSet)
+router.register(r'houses', HouseViewSet)
+router.register(r'rooms', RoomViewSet)
+
+router.register(r'ward-flashes', WardFlashViewSet)
+router.register(r'society-flashes', SocietyFlashViewSet)
+router.register(r'block-flashes', BlockFlashViewSet)
+router.register(r'floor-flashes', FloorFlashViewSet)
+router.register(r'house-flashes', HouseFlashViewSet)
 router.register(r'roomflashes', RoomFlashViewSet)
+
 router.register(r'roomtypes', RoomTypeViewSet)
 
 router.register(r'religions', ReligionViewSet)
@@ -92,5 +104,6 @@ urlpatterns = [
     
     path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
     path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
-    
+    path("brand-lst/", BrandListView.as_view(), name="brand_lst"),
+    path("product-lst/", ProductListView.as_view(), name="product_lst"),
 ]

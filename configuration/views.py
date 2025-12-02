@@ -223,6 +223,144 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     
 
 
+class SocietyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Society
+    queryset = Society.objects.all()
+    serializer_class = SocietySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'ward': 'ward__id',
+        'city_village': 'ward__city_village__id',
+        'taluka': 'ward__city_village__taluka__id',
+        'district': 'ward__city_village__taluka__district__id',
+        'state': 'ward__city_village__taluka__district__state__id',
+        'country': 'ward__city_village__taluka__district__state__country__id',
+        'continent': 'ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return SocietySerializer   # For POST, PUT, PATCH
+        return SocietyDetailSerializer
+
+
+class BlockViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Block
+    queryset = Block.objects.all()
+    serializer_class = BlockSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'society': 'society__id',
+        'ward': 'society__ward__id',
+        'city_village': 'society__ward__city_village__id',
+        'taluka': 'society__ward__city_village__taluka__id',
+        'district': 'society__ward__city_village__taluka__district__id',
+        'state': 'society__ward__city_village__taluka__district__state__id',
+        'country': 'society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return BlockSerializer   # For POST, PUT, PATCH
+        return BlockDetailSerializer
+
+
+class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Floor
+    queryset = Floor.objects.all()
+    serializer_class = FloorSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'block': 'block__id',
+        'society': 'block__society__id',
+        'ward': 'block__society__ward__id',
+        'city_village': 'block__society__ward__city_village__id',
+        'taluka': 'block__society__ward__city_village__taluka__id',
+        'district': 'block__society__ward__city_village__taluka__district__id',
+        'state': 'block__society__ward__city_village__taluka__district__state__id',
+        'country': 'block__society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'block__society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return FloorSerializer   # For POST, PUT, PATCH
+        return FloorDetailSerializer
+    
+class HouseViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = House
+    queryset = House.objects.all()
+    serializer_class = HouseSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'floor': 'floor__id',
+        'block': 'floor__block__id',
+        'society': 'floor__block__society__id',
+        'ward': 'floor__block__society__ward__id',
+        'city_village': 'floor__block__society__ward__city_village__id',
+        'taluka': 'floor__block__society__ward__city_village__taluka__id',
+        'district': 'floor__block__society__ward__city_village__taluka__district__id',
+        'state': 'floor__block__society__ward__city_village__taluka__district__state__id',
+        'country': 'floor__block__society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'floor__block__society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return HouseSerializer   # For POST, PUT, PATCH
+        return HouseDetailSerializer
+
+
+class RoomViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Room
+    queryset = Room.objects.all()
+    serializer_class = RoomSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'house': 'house__id',
+        'floor': 'house__floor__id',
+        'block': 'house__floor__block__id',
+        'society': 'house__floor__block__society__id',
+        'ward': 'house__floor__block__society__ward__id',
+        'city_village': 'house__floor__block__society__ward__city_village__id',
+        'taluka': 'house__floor__block__society__ward__city_village__taluka__id',
+        'district': 'house__floor__block__society__ward__city_village__taluka__district__id',
+        'state': 'house__floor__block__society__ward__city_village__taluka__district__state__id',
+        'country': 'house__floor__block__society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return RoomSerializer   # For POST, PUT, PATCH
+        return RoomDetailSerializer
+    
 # ========================================
 # Personal 
 # ========================================
@@ -745,6 +883,16 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         return TypeDetailSerializer
     
 
+class BrandListView(APIView):
+    def get(self, request):
+        search = request.query_params.get('search')
+        if search:
+            brand_objs_lst = Brand.objects.filter(name__icontains=search)[:10]
+        else:
+            brand_objs_lst = Brand.objects.all()[:10]
+        serializer = BrandIdNameSerializer(brand_objs_lst, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Brand
     queryset = Brand.objects.all()
@@ -774,6 +922,54 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         return BrandDetailSerializer
 
 
+class ProductViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Product
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'brand': 'brand__id',
+        'type': 'brand__type__id',
+        'subdepartment': 'brand__type__subdepartment__id',
+        'department': 'brand__type__subdepartment__department__id',
+        'subsector': 'brand__type__subdepartment__department__subsector__id',
+        'sector': 'brand__type__subdepartment__department__subsector__sector__id',
+        'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
+        'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
+        'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
+        'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return ProductSerializer   # For POST, PUT, PATCH
+        return ProductDetailSerializer
+
+
+class ProductListView(APIView):
+    def get(self, request):
+        brand_id = request.query_params.get('brand_id')
+        if not brand_id:
+            return Response({
+                "error": "brand_id is required."
+            })
+        
+        brand = get_object_or_404(Brand, id=brand_id)
+        
+        search = request.query_params.get('search')
+        if search:
+            product_objs_lst = Product.objects.filter(brand=brand, name__icontains=search)[:10]
+        else:
+            product_objs_lst = Product.objects.filter(brand=brand)[:10]
+            
+        serializer = ProductIdNameSerializer(product_objs_lst, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
 # class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
 #     model = PostModel
 #     queryset = PostModel.objects.all()
@@ -803,32 +999,32 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
 #         return PostModelDetailSerializer
 
 
-class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = RoomFlash
-    queryset = RoomFlash.objects.all()
-    serializer_class = RoomFlashSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
+# class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+#     model = RoomFlash
+#     queryset = RoomFlash.objects.all()
+#     serializer_class = RoomFlashSerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     pagination_class = ConfigurationPagination
+#     FILTER_FIELDS = {
+#         'is_hidden': 'is_hidden',
+#         'on_hold': 'on_hold',
+#         'search': 'name'
+#     }
     
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
+#     def destroy(self, request, *args, **kwargs):
+#         instance = self.get_object()
             
-        if instance.is_used:
-            return Response(
-                {
-                    "error": f"Cannot delete RoomFlash '{instance.name}' (Code: {instance.code}) "
-                             "because it is referenced in one or more users ResidentialDetail records.",
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#         if instance.is_used:
+#             return Response(
+#                 {
+#                     "error": f"Cannot delete RoomFlash '{instance.name}' (Code: {instance.code}) "
+#                              "because it is referenced in one or more users ResidentialDetail records.",
+#                 },
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
 
-        # Proceed with normal deletion if not used
-        return super().destroy(request, *args, **kwargs)
+#         # Proceed with normal deletion if not used
+#         return super().destroy(request, *args, **kwargs)
 
 class RoomFlashListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -4413,14 +4609,19 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         taluka_name = data.get("taluka")
         city_village_name = data.get("city_village")
         ward_name = data.get("ward")
+        society_name = data.get("society")
+        block_name = data.get("block")
+        floor_name = data.get("floor")
+        house_no = data.get("house")
+        room_no = data.get("room")
         
-        
-
+        filters = {}
         if search_key == "glob":
             qs = get_regular_query(Glob)
             if glob_name:
-                qs = qs.filter(name__icontains=glob_name)
-                
+                filters['name__icontains'] = glob_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4433,7 +4634,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4441,9 +4647,11 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "continent":
             qs = get_regular_query(Continent)
             if glob_name:
-                qs = qs.filter(glob__name__icontains=glob_name)
+                filters['glob__name__icontains']=glob_name
             if continent_name:
-                qs = qs.filter(name__icontains=continent_name)
+                filters['name__icontains'] = continent_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4456,7 +4664,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4464,11 +4677,13 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "country":
             qs = get_regular_query(Country)
             if glob_name:
-                qs = qs.filter(continent__glob__name__icontains=glob_name)
+                filters['continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(continent__name__icontains=continent_name)
+                filters['continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(name__icontains=country_name)
+                filters['name__icontains'] = country_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4481,7 +4696,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4489,13 +4709,15 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "state":
             qs = get_regular_query(State)
             if glob_name:
-                qs = qs.filter(country__continent__glob__name__icontains=glob_name)
+                filters['country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(country__continent__name__icontains=continent_name)
+                filters['country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(country__name__icontains=country_name)
+                filters['country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(name__icontains=state_name)
+                filters['name__icontains'] = state_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4508,7 +4730,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4516,15 +4743,17 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "district":
             qs = get_regular_query(District)
             if glob_name:
-                qs = qs.filter(state__country__continent__glob__name__icontains=glob_name)
+                filters['state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(state__country__continent__name__icontains=continent_name)
+                filters['state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(state__country__name__icontains=country_name)
+                filters['state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(state__name__icontains=state_name)
+                filters['state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(name__icontains=district_name)
+                filters['name__icontains'] = district_name
+                
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4537,7 +4766,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj).data,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4545,17 +4779,19 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "taluka":
             qs = get_regular_query(Taluka)
             if glob_name:
-                qs = qs.filter(district__state__country__continent__glob__name__icontains=glob_name)
+                filters['district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(district__state__country__continent__name__icontains=continent_name)
+                filters['district__state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(district__state__country__name__icontains=country_name)
+                filters['district__state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(district__state__name__icontains=state_name)
+                filters['district__state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(district__name__icontains=district_name)
+                filters['district__name__icontains'] = district_name
             if taluka_name:
-                qs = qs.filter(name__icontains=taluka_name)
+                filters['name__icontains'] = taluka_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4568,7 +4804,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj.district).data,
                     "taluka": TalukaIdNameSerializer(obj).data,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4576,19 +4817,21 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "city_village":
             qs = get_regular_query(CityVillage)
             if glob_name:
-                qs = qs.filter(taluka__district__state__country__continent__glob__name__icontains=glob_name)
+                filters['taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(taluka__district__state__country__continent__name__icontains=continent_name)
+                filters['taluka__district__state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(taluka__district__state__country__name__icontains=country_name)
+                filters['taluka__district__state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(taluka__district__state__name__icontains=state_name)
+                filters['taluka__district__state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(taluka__district__name__icontains=district_name)
+                filters['taluka__district__name__icontains'] = district_name
             if taluka_name:
-                qs = qs.filter(taluka__name__icontains=taluka_name)
+                filters['taluka__name__icontains'] = taluka_name
             if city_village_name:
-                qs = qs.filter(name__icontains=city_village_name)
+                filters['name__icontains'] = city_village_name
+            
+            qs = qs.filter(**filters)            
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4601,7 +4844,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj.taluka.district).data,
                     "taluka": TalukaIdNameSerializer(obj.taluka).data,
                     "city_village": CityVillageIdNameSerializer(obj).data,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4609,21 +4857,23 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         elif search_key == "ward":
             qs = get_regular_query(Ward)
             if glob_name:
-                qs = qs.filter(city_village__taluka__district__state__country__continent__glob__name__icontains=glob_name)
+                filters['city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(city_village__taluka__district__state__country__continent__name__icontains=continent_name)
+                filters['city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(city_village__taluka__district__state__country__name__icontains=country_name)
+                filters['city_village__taluka__district__state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(city_village__taluka__district__state__name__icontains=state_name)
+                filters['city_village__taluka__district__state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(city_village__taluka__district__name__icontains=district_name)
+                filters['city_village__taluka__district__name__icontains'] = district_name
             if taluka_name:
-                qs = qs.filter(city_village__taluka__name__icontains=taluka_name)
+                filters['city_village__taluka__name__icontains'] = taluka_name
             if city_village_name:
-                qs = qs.filter(city_village__name__icontains=city_village_name)
+                filters['city_village__name__icontains'] = city_village_name
             if ward_name:
-                qs = qs.filter(name__icontains=ward_name)
+                filters['name__icontains'] = ward_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4636,15 +4886,266 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj.city_village.taluka.district).data,
                     "taluka": TalukaIdNameSerializer(obj.city_village.taluka).data,
                     "city_village": CityVillageIdNameSerializer(obj.city_village).data,
-                    "ward": WardIdNameSerializer(obj).data
+                    "ward": WardIdNameSerializer(obj).data,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "society":
+            qs = get_regular_query(Society)
+            
+            if glob_name:
+                filters['ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['ward__name__icontains'] = ward_name
+            if society_name:
+                filters['name__icontains'] = society_name
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.ward).data,
+                    "society": SocietyIdNameSerializer(obj).data,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "block":
+            qs = get_regular_query(Block)
+            
+            if glob_name:
+                filters['society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['society__name__icontains'] = society_name
+            if block_name:
+                filters['name__icontains'] = block_name
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.society).data,
+                    "block": BlockIdNameSerializer(obj).data,
+                    "floor": None,
+                    "house": None,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "floor":
+            qs = get_regular_query(Floor)
+            
+            if glob_name:
+                filters['block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['block__society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['block__society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['block__society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['block__society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['block__society__name__icontains'] = society_name
+            if block_name:
+                filters['block__name__icontains'] = block_name
+            if floor_name:
+                filters['name__icontains'] = floor_name
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.block.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.block.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.block.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.block.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.block.society).data,
+                    "block": BlockIdNameSerializer(obj.block).data,
+                    "floor": FloorIdNameSerializer(obj).data,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
+        elif search_key == "house":
+            qs = get_regular_query(House)
+            
+            if glob_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['floor__block__society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['floor__block__society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['floor__block__society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['floor__block__society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['floor__block__society__name__icontains'] = society_name
+            if block_name:
+                filters['floor__block__name__icontains'] = block_name
+            if floor_name:
+                filters['floor__name__icontains'] = floor_name
+            if house_no:
+                filters['name__icontains'] = house_no
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.floor.block.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.floor.block.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.floor.block.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.floor.block.society).data,
+                    "block": BlockIdNameSerializer(obj.floor.block).data,
+                    "floor": FloorIdNameSerializer(obj.floor).data,
+                    "house": HouseIdNameSerializer(obj).data,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "room":
+            qs = get_regular_query(Room)
+            
+            if glob_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['house__floor__block__society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['house__floor__block__society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['house__floor__block__society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['house__floor__block__society__name__icontains'] = society_name
+            if block_name:
+                filters['house__floor__block__name__icontains'] = block_name
+            if floor_name:
+                filters['house__floor__name__icontains'] = floor_name
+            if house_no:
+                filters['house__name__icontains'] = house_no
+            if room_no:
+                filters['name__icontains'] = room_no
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.house.floor.block.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.house.floor.block.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.house.floor.block.society).data,
+                    "block": BlockIdNameSerializer(obj.house.floor.block).data,
+                    "floor": FloorIdNameSerializer(obj.house.floor).data,
+                    "house": HouseIdNameSerializer(obj.house).data,
+                    "room": RoomIdNameSerializer(obj).data
+                }
+                for obj in qs
+            ]
+            
         else:
             # fallback → default globs
             qs = get_regular_query(Glob)
             qs = self.apply_record_rules(qs)
+            qs = qs[:10]
             results = [
                 {
                     "glob": GlobIdNameSerializer(obj).data,
@@ -4654,7 +5155,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4663,6 +5169,8 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         output = ResidentialOutputSerializer(results, many=True)
         return Response(output.data) 
        
+            
+
 class PersonalSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -5555,3 +6063,109 @@ class DownloadSampleFile(APIView):
             return Response({"error": "File not associated with this record."}, status=status.HTTP_404_NOT_FOUND)
             
         return Response({"file_url": file.file.url}, status=status.HTTP_200_OK)
+
+
+# =======================================================
+# Flash Views
+# =======================================================
+
+class WardFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = WardFlash
+    queryset = WardFlash.objects.all()
+    serializer_class = WardFlashInputSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'ward': 'ward__id',
+        'product': 'product__id',
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return WardFlashInputSerializer   # For POST, PUT, PATCH
+        return WardFlashOutputSerializer
+
+
+class SocietyFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = SocietyFlash
+    queryset = SocietyFlash.objects.all()
+    serializer_class = SocietyFlashInputSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'society': 'society__id',
+        'product': 'product__id',
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return SocietyFlashInputSerializer   # For POST, PUT, PATCH
+        return SocietyFlashOutputSerializer
+
+
+class BlockFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = BlockFlash
+    queryset = BlockFlash.objects.all()
+    serializer_class = BlockFlashInputSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'block': 'block__id',
+        'product': 'product__id',
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return BlockFlashInputSerializer   # For POST, PUT, PATCH
+        return BlockFlashOutputSerializer
+
+
+class FloorFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = FloorFlash
+    queryset = FloorFlash.objects.all()
+    serializer_class = FloorFlashInputSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'floor': 'floor__id',
+        'product': 'product__id',
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return FloorFlashInputSerializer   # For POST, PUT, PATCH
+        return FloorFlashOutputSerializer
+
+
+class HouseFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = HouseFlash
+    queryset = HouseFlash.objects.all()
+    serializer_class = HouseFlashInputSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'house': 'house__id',
+        'product': 'product__id',
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return HouseFlashInputSerializer   # For POST, PUT, PATCH
+        return HouseFlashOutputSerializer
+
+class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = RoomFlash
+    queryset = RoomFlash.objects.all()
+    serializer_class = RoomFlashInputSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'room': 'room__id',
+        'product': 'product__id',
+    }
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return RoomFlashInputSerializer   # For POST, PUT, PATCH
+        return RoomFlashOutputSerializer
+

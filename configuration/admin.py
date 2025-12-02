@@ -11,10 +11,11 @@ admin.site.register(District)
 admin.site.register(Taluka)
 admin.site.register(CityVillage)
 admin.site.register(Ward)
-# admin.site.register(Society)
-# admin.site.register(Block)
-# admin.site.register(Floor)
-# admin.site.register(Houses)
+admin.site.register(Society)
+admin.site.register(Block)
+admin.site.register(Floor)
+admin.site.register(House)
+admin.site.register(Room)
 
 
 admin.site.register(Religion)
@@ -44,6 +45,11 @@ admin.site.register(Brand)
 
 admin.site.register(Designation)
 
+admin.site.register(WardFlash)
+admin.site.register(SocietyFlash)
+admin.site.register(BlockFlash)
+admin.site.register(FloorFlash)
+admin.site.register(HouseFlash)
 admin.site.register(RoomFlash)
 admin.site.register(RoomType)
 

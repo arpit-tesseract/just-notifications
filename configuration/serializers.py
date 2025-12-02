@@ -242,6 +242,143 @@ class WardDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
+
+class SocietySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Society
+        fields = '__all__'
+        read_only_fields = ['id']
+
+
+class SocietyDetailSerializer(DynamicFieldsModelSerializer):
+    ward = serializers.SerializerMethodField()
+    class Meta:
+        model = Society
+        fields = '__all__'
+        read_only_fields = [f for f in Society._meta.fields]
+    
+    def get_ward(self, obj):
+        if not obj.ward:
+            return None
+        
+        serializer = WardDetailSerializer(
+            obj.ward,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+
+
+class BlockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Block
+        fields = '__all__'
+        read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Block.objects.all(),
+                fields=['society', 'name'],
+                message="A block with this name already exists in the selected society.",
+            )
+        ]
+
+class BlockDetailSerializer(DynamicFieldsModelSerializer):
+    society = serializers.SerializerMethodField()
+    class Meta:
+        model = Block
+        fields = '__all__'
+        read_only_fields = [f for f in Block._meta.fields]
+    
+    def get_society(self, obj):
+        if not obj.society:
+            return None
+        serializer = SocietyDetailSerializer(
+            obj.society,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+
+class FloorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Floor
+        fields = '__all__'
+        read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Floor.objects.all(),
+                fields=['block', 'no'],
+                message="A floor with this name already exists in the selected block.",
+            )
+        ]
+
+
+class FloorDetailSerializer(DynamicFieldsModelSerializer):
+    block = serializers.SerializerMethodField()
+    class Meta:
+        model = Floor
+        fields = '__all__'
+        read_only_fields = [f for f in Floor._meta.fields]
+    
+    def get_block(self, obj):
+        if not obj.block:
+            return None
+        serializer = BlockDetailSerializer(
+            obj.block,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+
+
+class HouseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = House
+        fields = ['floor', 'no', 'code', 'is_hidden', 'on_hold', 'hold_date']
+        read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=House.objects.all(),
+                fields=['floor', 'no'],
+                message="A house with this name already exists in the selected block.",
+            )
+        ]
+
+class HouseDetailSerializer(DynamicFieldsModelSerializer):
+    floor = serializers.SerializerMethodField()
+    class Meta:
+        model = House
+        fields = '__all__'
+        read_only_fields = [f for f in House._meta.fields]
+    
+    def get_floor(self, obj):
+        if not obj.floor:
+            return None
+        serializer = FloorDetailSerializer(
+            obj.floor,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+
+class RoomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class RoomDetailSerializer(DynamicFieldsModelSerializer):
+    house = serializers.SerializerMethodField()
+    class Meta:
+        model = Room
+        fields = '__all__'
+        read_only_fields = [f for f in Room._meta.fields]
+    
+    def get_house(self, obj):
+        if not obj.house:
+            return None
+        serializer = HouseDetailSerializer(
+            obj.house,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+    
 # ======================================================
 # Personal 
 # ======================================================
@@ -688,6 +825,25 @@ class DesignationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class ProductDetailSerializer(DynamicFieldsModelSerializer):
+    brand = serializers.SerializerMethodField()
+    class Meta:
+        model = Product
+        fields = '__all__'
+        read_only_fields = [f for f in Product._meta.fields]
+    
+    def get_brand(self, obj):
+        serializer = BrandDetailSerializer(
+            obj.brand,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
         
 # class PostModelSerializer(serializers.ModelSerializer):
 #     class Meta:
@@ -897,7 +1053,11 @@ class ResidentialSearchInputSerializer(serializers.Serializer):
     taluka = serializers.CharField(required=False, allow_blank=True)
     city_village = serializers.CharField(required=False, allow_blank=True)
     ward = serializers.CharField(required=False, allow_blank=True)
-    search_key = serializers.CharField(required=False, allow_blank=True)
+    society = serializers.CharField(required=False, allow_blank=True)
+    block = serializers.CharField(required=False, allow_blank=True)
+    floor = serializers.CharField(required=False, allow_blank=True)
+    house = serializers.CharField(required=False, allow_blank=True)
+    search_key = serializers.CharField()
 
 class GlobIdNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -938,6 +1098,31 @@ class WardIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ward
         fields = ["id", "name"]
+
+class SocietyIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Society
+        fields = ["id", "name"]
+
+class FloorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Floor
+        fields = ["id", "no"]
+
+class BlockIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Block
+        fields = ["id", "name"]
+
+class HouseIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = House
+        fields = ["id", "no"]
+
+class RoomIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room
+        fields = ["id", "no"]
     
 # Residential Unified Output Serializer (always same structure)
 class ResidentialOutputSerializer(serializers.Serializer):
@@ -949,6 +1134,11 @@ class ResidentialOutputSerializer(serializers.Serializer):
     taluka = TalukaIdNameSerializer(allow_null=True)
     city_village = CityVillageIdNameSerializer(allow_null=True)
     ward = WardIdNameSerializer(allow_null=True)
+    society = SocietyIdNameSerializer(allow_null=True)
+    block = BlockIdNameSerializer(allow_null=True)
+    floor = FloorIdNameSerializer(allow_null=True)
+    house = HouseIdNameSerializer(allow_null=True)
+    room = RoomIdNameSerializer(allow_null=True)
 
 class FileUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
@@ -1094,6 +1284,12 @@ class BrandIdNameSerializer(serializers.ModelSerializer):
         model = Brand
         fields = ["id", "name"]
 
+class ProductIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ["id", "name"]
+        
+        
 # class PostModelIdNameSerializer(serializers.ModelSerializer):
 #     class Meta:
 #         model = PostModel
@@ -1208,3 +1404,86 @@ class DesignationGetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
         fields = "__all__"
+
+
+# ============================================
+# Flash serializers
+# ============================================
+class WardFlashInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WardFlash
+        fields = '__all__'
+
+class WardFlashOutputSerializer(serializers.ModelSerializer):
+    ward = WardIdNameSerializer()
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = WardFlash
+        fields = '__all__'
+
+
+class SocietyFlashInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SocietyFlash
+        fields = '__all__'
+
+class SocietyFlashOutputSerializer(serializers.ModelSerializer):
+    society = SocietyIdNameSerializer()
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = SocietyFlash
+        fields = '__all__'
+
+
+class BlockFlashInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlockFlash
+        fields = '__all__'
+
+
+class BlockFlashOutputSerializer(serializers.ModelSerializer):
+    block = BlockIdNameSerializer()
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = BlockFlash
+        fields = '__all__'
+
+
+class FloorFlashInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FloorFlash
+        fields = '__all__'
+
+
+class FloorFlashOutputSerializer(serializers.ModelSerializer):
+    floor = FloorIdNameSerializer()
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = FloorFlash
+        fields = '__all__'
+
+
+class HouseFlashInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HouseFlash
+        fields = '__all__'
+
+class HouseFlashOutputSerializer(serializers.ModelSerializer):
+    house = HouseIdNameSerializer()
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = HouseFlash
+        fields = '__all__'
+
+
+class RoomFlashInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomFlash
+        fields = '__all__'
+
+class RoomFlashOutputSerializer(serializers.ModelSerializer):
+    room = RoomIdNameSerializer()
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = RoomFlash
+        fields = '__all__'
