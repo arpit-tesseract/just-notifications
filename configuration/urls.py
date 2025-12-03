@@ -17,13 +17,6 @@ router.register(r'floors', FloorViewSet)
 router.register(r'houses', HouseViewSet)
 router.register(r'rooms', RoomViewSet)
 
-router.register(r'ward-flashes', WardFlashViewSet)
-router.register(r'society-flashes', SocietyFlashViewSet)
-router.register(r'block-flashes', BlockFlashViewSet)
-router.register(r'floor-flashes', FloorFlashViewSet)
-router.register(r'house-flashes', HouseFlashViewSet)
-router.register(r'roomflashes', RoomFlashViewSet)
-
 router.register(r'roomtypes', RoomTypeViewSet)
 
 router.register(r'religions', ReligionViewSet)
@@ -99,6 +92,7 @@ urlpatterns = [
     path("residential_search/", ResidentialSearchView.as_view(), name="search_residential"),
     path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
+    path("product-search/", ProductSearchView.as_view(), name="product_search"),
     
     path("designation-lst/", DesignationListView.as_view(), name="designation_lst"),
     
@@ -106,4 +100,11 @@ urlpatterns = [
     path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
     path("brand-lst/", BrandListView.as_view(), name="brand_lst"),
     path("product-lst/", ProductListView.as_view(), name="product_lst"),
+    
+    path("ward-flashes/", WardFlashView.as_view(), name="ward_flashes"),
+    path("society-flashes/", SocietyFlashView.as_view(), name="society_flashes"),
+    path("block-flashes/", BlockFlashView.as_view(), name="block_flashes"),
+    path("floor-flashes/", FloorFlashView.as_view(), name="floor_flashes"),
+    path("house-flashes/", HouseFlashView.as_view(), name="house_flashes"),
+    path("room-flashes/", RoomFlashView.as_view(), name="room_flashes"),
 ]

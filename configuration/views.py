@@ -5622,6 +5622,7 @@ class PersonalSearchView(APIView):
         else:
             # fallback - default religions
             qs = get_regular_query(Religion)
+            qs = qs[:10]
             results = [
                 {
                     "religion": ReligionIdNameSerializer(obj).data,
@@ -5981,6 +5982,7 @@ class ProfessionalSearchView(APIView):
         else:
             # fallback - default sections
             qs = get_regular_query(Section)
+            qs = qs[:10]
             results = [
                 {
                     "section": SectionIdNameSerializer(obj).data,
@@ -6069,103 +6071,541 @@ class DownloadSampleFile(APIView):
 # Flash Views
 # =======================================================
 
-class WardFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+class ProductSearchView(RecordRuleMixin, APIView):
+    model = Product
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = ProductSearchInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        input_data = serializer.validated_data
+        search_key = input_data.get('search_key')
+        sector_name = input_data.get('sector')
+        brand_name = input_data.get('brand')
+        product_name = input_data.get('product')
+        
+        filters = {}
+        if search_key == "sector":
+            qs = get_regular_query(Sector)
+            if sector_name:
+                qs = qs.filter(name__icontains=sector_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj).data,
+                    "brand": None,
+                    "product": None,
+                }
+                for obj in qs
+            ]
+            
+        elif search_key == "brand":
+            qs = get_regular_query(Brand)
+            if brand_name:
+                filters['name__icontains'] = brand_name
+            if sector_name:
+                filters['type__subdepartment__department__subsector__sector__name__icontains'] = sector_name
+            
+            qs = qs.filter(**filters)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj.subdepartment.department.subsector.sector).data,
+                    "brand": BrandIdNameSerializer(obj).data,
+                    "product": None,
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "product":
+            qs = get_regular_query(Product)
+            if product_name:
+                filters['name__icontains'] = product_name
+            if brand_name:
+                filters['brand__name__icontains'] = brand_name
+            if sector_name:
+                filters['brand__type__subdepartment__department__subsector__sector__name__icontains'] = sector_name
+            
+            qs = qs.filter(**filters)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector).data,
+                    "brand": BrandIdNameSerializer(obj.brand).data,
+                    "product": ProductIdNameSerializer(obj).data,
+                }
+                for obj in qs
+            ]
+        
+        else:
+            qs = get_regular_query(Sector)
+            qs = qs[:10]
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj).data,
+                    "brand": None,
+                    "product": None,
+                }
+                for obj in qs
+            ]
+        
+        output_data = ProductSearchOutputSerializer(results, many=True).data
+        return Response(output_data, status=status.HTTP_200_OK)
+            
+                
+            
+            
+class WardFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = WardFlash
-    queryset = WardFlash.objects.all()
-    serializer_class = WardFlashInputSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'ward': 'ward__id',
-        'product': 'product__id',
-    }
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return WardFlashInputSerializer   # For POST, PUT, PATCH
-        return WardFlashOutputSerializer
+    def get(self, request):
+        ward_id = request.query_params.get('ward_id', "").strip()
+        if ward_id == '':
+            return Response({"error": "Query paramter 'ward_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            ward_obj = Ward.objects.get(id=ward_id)
+        except Ward.DoesNotExist:
+            return Response({"error": "Ward not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get ward: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = WardFlashOutputSerializer(ward_obj.ward_flashes.all(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        ward_id = request.query_params.get('ward_id', "").strip()
+        if ward_id == '':
+            return Response({"error": "Query paramter 'ward_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            ward_obj = Ward.objects.get(id=ward_id)
+        except Ward.DoesNotExist:
+            return Response({"error": "Ward not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get ward: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = WardFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                WardFlash.objects.filter(ward=ward_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(WardFlash, id=flash_id, ward=ward_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        WardFlash.objects.create(
+                            ward=ward_obj,
+                            product=product,
+                            value=value
+                        )
+                        
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update ward flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        updated_ward_flashes = ward_obj.ward_flashes.all()
+        serializer = WardFlashOutputSerializer(updated_ward_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class SocietyFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+class SocietyFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = SocietyFlash
-    queryset = SocietyFlash.objects.all()
-    serializer_class = SocietyFlashInputSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'society': 'society__id',
-        'product': 'product__id',
-    }
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SocietyFlashInputSerializer   # For POST, PUT, PATCH
-        return SocietyFlashOutputSerializer
+    def get(self, request):
+        society_id = request.query_params.get('society_id', "").strip()
+        if society_id == '':
+            return Response({"error": "Query paramter 'society_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            society_obj = Society.objects.get(id=society_id)
+        except Society.DoesNotExist:
+            return Response({"error": "Society not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get society: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = SocietyFlashOutputSerializer(society_obj.society_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        society_id = request.query_params.get('society_id', "").strip()
+        if society_id == '':
+            return Response({"error": "Query paramter 'society_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            society_obj = Society.objects.get(id=society_id)
+        except Society.DoesNotExist:
+            return Response({"error": "Society not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get society: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = SocietyFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                SocietyFlash.objects.filter(society=society_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(SocietyFlash, id=flash_id, society=society_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        SocietyFlash.objects.create(
+                            society=society_obj,
+                            product=product,
+                            value=value
+                        )
+                        
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update society flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
+            
+        updated_society_flashes = society_obj.society_flashes.all()
+        serializer = SocietyFlashOutputSerializer(updated_society_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-class BlockFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+class BlockFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = BlockFlash
-    queryset = BlockFlash.objects.all()
-    serializer_class = BlockFlashInputSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'block': 'block__id',
-        'product': 'product__id',
-    }
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return BlockFlashInputSerializer   # For POST, PUT, PATCH
-        return BlockFlashOutputSerializer
+    def get(self, request):
+        block_id = request.query_params.get('block_id', "").strip()
+        if block_id == '':
+            return Response({"error": "Query paramter 'block_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            block_obj = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get block: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = BlockFlashOutputSerializer(block_obj.block_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        block_id = request.query_params.get('block_id', "").strip()
+        if block_id == '':
+            return Response({"error": "Query paramter 'block_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            block_obj = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get block: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = BlockFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                BlockFlash.objects.filter(block=block_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+                    
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(BlockFlash, id=flash_id, block=block_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        BlockFlash.objects.create(
+                            block=block_obj,
+                            product=product,
+                            value=value
+                        )
 
-class FloorFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update block flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_block_flashes = block_obj.block_flashes.all()
+        serializer = BlockFlashOutputSerializer(updated_block_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class FloorFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = FloorFlash
-    queryset = FloorFlash.objects.all()
-    serializer_class = FloorFlashInputSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'floor': 'floor__id',
-        'product': 'product__id',
-    }
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return FloorFlashInputSerializer   # For POST, PUT, PATCH
-        return FloorFlashOutputSerializer
+    def get(self, request):
+        floor_id = request.query_params.get('floor_id', "").strip()
+        if floor_id == '':
+            return Response({"error": "Query paramter 'floor_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            floor_obj = Floor.objects.get(id=floor_id)
+        except Floor.DoesNotExist:
+            return Response({"error": "Floor not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get floor: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = FloorFlashOutputSerializer(floor_obj.floor_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def post(self, request):
+        floor_id = request.query_params.get('floor_id', "").strip()
+        if floor_id == '':
+            return Response({"error": "Query paramter 'floor_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            floor_obj = Floor.objects.get(id=floor_id)
+        except Floor.DoesNotExist:
+            return Response({"error": "Floor not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get floor: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = FloorFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-class HouseFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                FloorFlash.objects.filter(floor=floor_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+                    
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(FloorFlash, id=flash_id, floor=floor_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        FloorFlash.objects.create(
+                            floor=floor_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update floor flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_floor_flashes = floor_obj.floor_flashes.all()
+        serializer = FloorFlashOutputSerializer(updated_floor_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class HouseFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = HouseFlash
-    queryset = HouseFlash.objects.all()
-    serializer_class = HouseFlashInputSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'house': 'house__id',
-        'product': 'product__id',
-    }
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return HouseFlashInputSerializer   # For POST, PUT, PATCH
-        return HouseFlashOutputSerializer
+    def get(self, request):
+        house_id = request.query_params.get('house_id', "").strip()
+        if house_id == '':
+            return Response({"error": "Query paramter 'house_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            house_obj = House.objects.get(id=house_id)
+        except House.DoesNotExist:
+            return Response({"error": "House not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get house: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = HouseFlashOutputSerializer(house_obj.house_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        house_id = request.query_params.get('house_id', "").strip()
+        if house_id == '':
+            return Response({"error": "Query paramter 'house_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            house_obj = House.objects.get(id=house_id)
+        except House.DoesNotExist:
+            return Response({"error": "House not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get house: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = HouseFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                HouseFlash.objects.filter(house=house_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(HouseFlash, id=flash_id, house=house_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        HouseFlash.objects.create(
+                            house=house_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update house flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_house_flashes = house_obj.house_flashes.all()
+        serializer = HouseFlashOutputSerializer(updated_house_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class RoomFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = RoomFlash
-    queryset = RoomFlash.objects.all()
-    serializer_class = RoomFlashInputSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'room': 'room__id',
-        'product': 'product__id',
-    }
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return RoomFlashInputSerializer   # For POST, PUT, PATCH
-        return RoomFlashOutputSerializer
+    def get(self, request):
+        room_id = request.query_params.get('room_id', "").strip()
+        if room_id == '':
+            return Response({"error": "Query paramter 'room_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            room_obj = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get room: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = RoomFlashOutputSerializer(room_obj.room_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def post(self, request):
+        room_id = request.query_params.get('room_id', "").strip()
+        if room_id == '':
+            return Response({"error": "Query paramter 'room_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            room_obj = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get room: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = RoomFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                RoomFlash.objects.filter(room=room_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(RoomFlash, id=flash_id, room=room_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        RoomFlash.objects.create(
+                            room=room_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update room flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_room_flashes = room_obj.room_flashes.all()
+        serializer = RoomFlashOutputSerializer(updated_room_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

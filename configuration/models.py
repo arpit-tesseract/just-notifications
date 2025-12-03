@@ -72,7 +72,7 @@ class Glob(OrderByMixin, HoldableMixin):
 
 
 class Continent(OrderByMixin, HoldableMixin):
-    glob = models.ForeignKey(Glob, on_delete=models.CASCADE, related_name="continents_of_glob")
+    glob = models.ForeignKey(Glob, on_delete=models.CASCADE, related_name="continents")
     name = models.CharField(max_length=100, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -81,7 +81,7 @@ class Continent(OrderByMixin, HoldableMixin):
 
 
 class Country(OrderByMixin, HoldableMixin):
-    continent = models.ForeignKey(Continent, on_delete=models.CASCADE, related_name="countries_of_continent")
+    continent = models.ForeignKey(Continent, on_delete=models.CASCADE, related_name="countries")
     name = models.CharField(max_length=100, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -98,7 +98,7 @@ class Country(OrderByMixin, HoldableMixin):
 
 
 class State(OrderByMixin, HoldableMixin):
-    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="states_of_country")
+    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="states")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
     
@@ -114,7 +114,7 @@ class State(OrderByMixin, HoldableMixin):
 
 
 class District(OrderByMixin, HoldableMixin):
-    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name="districts_of_state")
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name="districts")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -130,7 +130,7 @@ class District(OrderByMixin, HoldableMixin):
     
 
 class Taluka(OrderByMixin, HoldableMixin):
-    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="talukas_of_district")
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="talukas")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -146,7 +146,7 @@ class Taluka(OrderByMixin, HoldableMixin):
 
 
 class CityVillage(OrderByMixin, HoldableMixin):
-    taluka = models.ForeignKey(Taluka, on_delete=models.CASCADE, related_name="city_villages_of_taluka")
+    taluka = models.ForeignKey(Taluka, on_delete=models.CASCADE, related_name="city_villages")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -162,14 +162,14 @@ class CityVillage(OrderByMixin, HoldableMixin):
 
 
 class Ward(OrderByMixin, HoldableMixin):
-    city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, related_name="wards_of_city_village")
+    city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, related_name="wards")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["city_village", "code"], name="unique_ward_per_city_village"
+                fields=["city_village", "name"], name="unique_ward_per_city_village"
             )
         ]
 
@@ -178,7 +178,7 @@ class Ward(OrderByMixin, HoldableMixin):
 
 
 class Society(OrderByMixin, HoldableMixin):
-    ward = models.ForeignKey(Ward, on_delete=models.CASCADE, related_name="societies_of_ward")
+    ward = models.ForeignKey(Ward, on_delete=models.CASCADE, related_name="societies")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 
@@ -187,7 +187,7 @@ class Society(OrderByMixin, HoldableMixin):
 
 
 class Block(OrderByMixin, HoldableMixin):
-    society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="blocks_of_society")
+    society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="blocks")
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
     
@@ -203,7 +203,7 @@ class Block(OrderByMixin, HoldableMixin):
 
 
 class Floor(OrderByMixin, HoldableMixin):
-    block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="floors_of_block")
+    block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="floors")
     no = models.IntegerField(default=0)
     code = models.PositiveIntegerField(unique=True)
     
@@ -219,7 +219,7 @@ class Floor(OrderByMixin, HoldableMixin):
 
 
 class House(OrderByMixin, HoldableMixin):
-    floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="houses_of_floor")
+    floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="houses")
     no = models.CharField(max_length=200, db_index=True)
     total_rooms = models.PositiveIntegerField(null=True, blank=True)
     code = models.PositiveIntegerField(unique=True)
@@ -244,7 +244,7 @@ class RoomType(OrderByMixin, HoldableMixin):
     
     
 class Room(OrderByMixin, HoldableMixin):
-    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="rooms_of_house")
+    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="rooms")
     room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name="rooms_of_room_type")
     no = models.IntegerField()
     code = models.PositiveIntegerField(unique=True)
@@ -589,81 +589,38 @@ class SampleFile(models.Model):
 # ====================================
 
 class WardFlash(models.Model):
-    ward = models.ForeignKey(Ward, on_delete=models.CASCADE, related_name="ward_flash")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="product_ward_flash")
+    ward = models.ForeignKey(Ward, on_delete=models.CASCADE, related_name="ward_flashes")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="ward_flashes_of_product")
     value = models.CharField(max_length=255)
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["ward", "product"],
-                name="unique_product_per_ward"
-            )
-        ]
 
 class SocietyFlash(models.Model):
-    society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="society_flash")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="product_society_flash")
+    society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="society_flashes")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="society_flashes_of_product")
     value = models.CharField(max_length=255)
     
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["society", "product"],
-                name="unique_product_per_society"
-            )
-        ]
 
 class BlockFlash(models.Model):
-    block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="block_flash")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="product_block_flash")
+    block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="block_flashes")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="block_flashes_of_product")
     value = models.CharField(max_length=255)
     
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["block", "product"],
-                name="unique_product_per_block"
-            )
-        ]
     
 class FloorFlash(models.Model):
-    floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="floor_flash")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="product_floor_flash")
+    floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="floor_flashes")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="floor_flashes_of_product")
     value = models.CharField(max_length=255)
     
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["floor", "product"],
-                name="unique_product_per_floor"
-            )
-        ]
 
 
 class HouseFlash(models.Model):
-    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="house_flash")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="product_house_flash")
+    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="house_flashes")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="house_flashes_of_product")
     value = models.CharField(max_length=255)
-    
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["house", "product"],
-                name="unique_product_per_house"
-            )
-        ]
 
 
 class RoomFlash(models.Model):
-    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="room_flash")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="product_room_flash")
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="room_flashes")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="room_flashes_of_product")
     value = models.CharField(max_length=255)
-    
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["room", "product"],
-                name="unique_product_per_room"
-            )
-        ]
+

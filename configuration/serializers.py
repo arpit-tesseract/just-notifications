@@ -26,13 +26,25 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 # =================================================
 # Residential 
 # =================================================
+
+# ========== Glob ==========
 class GlobSerializer(DynamicFieldsModelSerializer):
     class Meta:
         model = Glob
         fields = '__all__'
         read_only_fields = ['id']
-    
 
+class GlobIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Glob
+        fields = ["id", "name"] 
+
+
+# ========== Continent ==========
+class ContinentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Continent
+        fields = ["id", "name"]
 
 class ContinentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,6 +75,12 @@ class ContinentDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
+# ========== Country ==========
+class CountryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Country
+        fields = ["id", "name"]
+        
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:
         model = Country
@@ -91,6 +109,12 @@ class CountryDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
+# ========== State ==========
+class StateIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = State
+        fields = ["id", "name"]
+        
 class StateSerializer(serializers.ModelSerializer):
     class Meta:
         model = State
@@ -120,6 +144,12 @@ class StateDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
     
     
+# ========== District ==========
+class DistrictIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = District
+        fields = ["id", "name"]
+        
 class DistrictSerializer(serializers.ModelSerializer):
     class Meta:
         model = District
@@ -149,6 +179,12 @@ class DistrictDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
+# ========== Taluka ==========
+class TalukaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Taluka
+        fields = ["id", "name"]
+        
 class TalukaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Taluka
@@ -178,6 +214,12 @@ class TalukaDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
+# ========== CityVillage ==========
+class CityVillageIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CityVillage
+        fields = ["id", "name"]
+        
 class CityVillageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CityVillage
@@ -206,12 +248,41 @@ class CityVillageDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
-    
-class WardSerializer(serializers.ModelSerializer):
+class ProductIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ["id", "name"]
+
+# ========== Ward ==========
+class WardIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ward
-        fields = '__all__'
-        read_only_fields = ['id']
+        fields = ["id", "name"]
+
+class WardFlashOutputSerializer(serializers.ModelSerializer):
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = WardFlash
+        fields = ['id', 'product', 'value']
+
+class WardFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False, allow_null=True)
+    class Meta:
+        model = WardFlash
+        fields = ['existing_id', 'product', 'value']
+
+class WardFlashBulkInputSerializer(serializers.Serializer):
+    flashes = WardFlashSerializer(many=True)
+    
+class WardSerializer(serializers.ModelSerializer):
+    flashes = WardFlashSerializer(
+        required=False, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Ward
+        fields = ['city_village', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
         validators = [
             UniqueTogetherValidator(
                 queryset=Ward.objects.all(),
@@ -219,19 +290,64 @@ class WardSerializer(serializers.ModelSerializer):
                 message="A ward with this name already exists in the selected city/village.",
             )
         ]
+    
+    def create(self, validated_data):
+        flashes = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            ward = Ward.objects.create(**validated_data)
+            for flash in flashes:
+                flash.pop("existing_id", None)
+                WardFlash.objects.create(ward=ward, **flash)
+            return ward
 
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        
+        with transaction.atomic():
+            # update ward
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                WardFlash.objects.filter(ward=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        try:
+                            obj = WardFlash.objects.get(id=flash_id, ward=instance)
+                        except WardFlash.DoesNotExist:
+                            raise serializers.ValidationError(
+                                f"Flash with id {flash_id} does not exist."
+                            )
+                            
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        WardFlash.objects.create(ward=instance, **flash)
+
+            return instance
 
 class WardDetailSerializer(DynamicFieldsModelSerializer):
     city_village = serializers.SerializerMethodField()
+    flashes = WardFlashOutputSerializer(source="ward_flashes", many=True)
     class Meta:
         model = Ward
         fields = '__all__'
         read_only_fields = [f for f in Ward._meta.fields]
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Ensure our method field overrides model FK field
-        self.fields['city_village'] = serializers.SerializerMethodField()
     
     def get_city_village(self, obj):
         if not obj.city_village:
@@ -243,15 +359,84 @@ class WardDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
-class SocietySerializer(serializers.ModelSerializer):
+# ========== Society ==========
+class SocietyIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Society
-        fields = '__all__'
-        read_only_fields = ['id']
+        fields = ["id", "name"]
 
+class SocietyFlashOutputSerializer(serializers.ModelSerializer):
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = SocietyFlash
+        fields = ['id', 'product', 'value']
+        
+class SocietyFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = SocietyFlash
+        fields = ['existing_id', 'product', 'value']
+
+class SocietyFlashBulkInputSerializer(serializers.Serializer):
+    flashes = SocietyFlashSerializer(many=True)
+
+class SocietySerializer(serializers.ModelSerializer):
+    flashes = SocietyFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Society
+        fields = ['id', 'ward', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
+        read_only_fields = ['id']
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            society = Society.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                SocietyFlash.objects.create(society=society, **flash)
+            return society
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update society
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                SocietyFlash.objects.filter(society=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = SocietyFlash.objects.get(id=flash_id, society=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        SocietyFlash.objects.create(society=instance, **flash)
+
+            return instance
 
 class SocietyDetailSerializer(DynamicFieldsModelSerializer):
     ward = serializers.SerializerMethodField()
+    flashes = SocietyFlashOutputSerializer(source="society_flashes", many=True)
     class Meta:
         model = Society
         fields = '__all__'
@@ -268,10 +453,36 @@ class SocietyDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
-class BlockSerializer(serializers.ModelSerializer):
+# ========== Block ==========
+class BlockIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Block
-        fields = '__all__'
+        fields = ["id", "name"]
+
+class BlockFlashOutputSerializer(serializers.ModelSerializer):
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = BlockFlash
+        fields = ['id', 'product', 'value']
+        
+class BlockFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = BlockFlash
+        fields = ['existing_id', 'product', 'value']
+
+class BlockFlashBulkInputSerializer(serializers.Serializer):
+    flashes = BlockFlashSerializer(many=True)
+
+class BlockSerializer(serializers.ModelSerializer):
+    flashes = BlockFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Block
+        fields = ['id', 'society', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
         read_only_fields = ['id']
         validators = [
             UniqueTogetherValidator(
@@ -280,9 +491,53 @@ class BlockSerializer(serializers.ModelSerializer):
                 message="A block with this name already exists in the selected society.",
             )
         ]
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            block = Block.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                BlockFlash.objects.create(block=block, **flash)
+            return block
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update block
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
 
+                # Delete existing flashes which are not included in new request
+                BlockFlash.objects.filter(block=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = BlockFlash.objects.get(id=flash_id, block=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        BlockFlash.objects.create(block=instance, **flash)
+
+            return instance
+        
 class BlockDetailSerializer(DynamicFieldsModelSerializer):
     society = serializers.SerializerMethodField()
+    flashes = BlockFlashOutputSerializer(source="block_flashes", many=True)
     class Meta:
         model = Block
         fields = '__all__'
@@ -297,10 +552,37 @@ class BlockDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
-class FloorSerializer(serializers.ModelSerializer):
+
+# ========== Floor ==========
+class FloorIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Floor
-        fields = '__all__'
+        fields = ["id", "no"]
+
+class FloorFlashOutputSerializer(serializers.ModelSerializer):
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = FloorFlash
+        fields = ['id', 'product', 'value']
+        
+class FloorFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = FloorFlash
+        fields = ['existing_id', 'product', 'value']
+
+class FloorFlashBulkInputSerializer(serializers.Serializer):
+    flashes = FloorFlashSerializer(many=True)
+        
+class FloorSerializer(serializers.ModelSerializer):
+    flashes = FloorFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Floor
+        fields = ['id', 'block', 'no', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
         read_only_fields = ['id']
         validators = [
             UniqueTogetherValidator(
@@ -309,10 +591,54 @@ class FloorSerializer(serializers.ModelSerializer):
                 message="A floor with this name already exists in the selected block.",
             )
         ]
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            floor = Floor.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                FloorFlash.objects.create(floor=floor, **flash)
+            return floor
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update floor
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                FloorFlash.objects.filter(floor=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = FloorFlash.objects.get(id=flash_id, floor=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        FloorFlash.objects.create(floor=instance, **flash)
+
+            return instance
 
 
 class FloorDetailSerializer(DynamicFieldsModelSerializer):
     block = serializers.SerializerMethodField()
+    flashes = FloorFlashOutputSerializer(source="floor_flashes", many=True)
     class Meta:
         model = Floor
         fields = '__all__'
@@ -328,10 +654,36 @@ class FloorDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
-class HouseSerializer(serializers.ModelSerializer):
+# ========== House ==========
+class HouseIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = House
-        fields = ['floor', 'no', 'code', 'is_hidden', 'on_hold', 'hold_date']
+        fields = ["id", "no"]
+
+class HouseFlashOutputSerializer(serializers.ModelSerializer):
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = HouseFlash
+        fields = ['id', 'product', 'value']
+        
+class HouseFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = HouseFlash
+        fields = ['existing_id', 'product', 'value']
+
+class HouseFlashBulkInputSerializer(serializers.Serializer):
+    flashes = HouseFlashSerializer(many=True)
+
+class HouseSerializer(serializers.ModelSerializer):
+    flashes = HouseFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = House
+        fields = ['floor', 'no', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
         read_only_fields = ['id']
         validators = [
             UniqueTogetherValidator(
@@ -340,9 +692,53 @@ class HouseSerializer(serializers.ModelSerializer):
                 message="A house with this name already exists in the selected block.",
             )
         ]
+        
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            house = House.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                HouseFlash.objects.create(house=house, **flash)
+            return house
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update house
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                HouseFlash.objects.filter(house=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = HouseFlash.objects.get(id=flash_id, house=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        HouseFlash.objects.create(house=instance, **flash)
+
+            return instance
 
 class HouseDetailSerializer(DynamicFieldsModelSerializer):
     floor = serializers.SerializerMethodField()
+    flashes = HouseFlashOutputSerializer(source="house_flashes", many=True)
     class Meta:
         model = House
         fields = '__all__'
@@ -357,14 +753,84 @@ class HouseDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
-class RoomSerializer(serializers.ModelSerializer):
+# ========== Room ==========
+class RoomIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
-        fields = '__all__'
+        fields = ["id", "no"]
+
+class RoomFlashOutputSerializer(serializers.ModelSerializer):
+    product = ProductIdNameSerializer()
+    class Meta:
+        model = RoomFlash
+        fields = ['id', 'product', 'value']
+        
+class RoomFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = RoomFlash
+        fields = ['existing_id', 'product', 'value']
+
+class RoomFlashBulkInputSerializer(serializers.Serializer):
+    flashes = RoomFlashSerializer(many=True)
+        
+class RoomSerializer(serializers.ModelSerializer):
+    flashes = RoomFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Room
+        fields = ['id', 'house', 'no', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
         read_only_fields = ['id']
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            room = Room.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                RoomFlash.objects.create(room=room, **flash)
+            return room
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update room
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                RoomFlash.objects.filter(room=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = RoomFlash.objects.get(id=flash_id, room=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        RoomFlash.objects.create(room=instance, **flash)
+
+            return instance
 
 class RoomDetailSerializer(DynamicFieldsModelSerializer):
     house = serializers.SerializerMethodField()
+    flashes = RoomFlashOutputSerializer(source="room_flashes", many=True)
     class Meta:
         model = Room
         fields = '__all__'
@@ -1043,7 +1509,6 @@ class ModelAndRecordRuleAccessOutputSerializer(serializers.Serializer):
         return result
 
 
-
 class ResidentialSearchInputSerializer(serializers.Serializer):
     glob = serializers.CharField(required=False, allow_blank=True)
     continent = serializers.CharField(required=False, allow_blank=True)
@@ -1059,70 +1524,6 @@ class ResidentialSearchInputSerializer(serializers.Serializer):
     house = serializers.CharField(required=False, allow_blank=True)
     search_key = serializers.CharField()
 
-class GlobIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Glob
-        fields = ["id", "name"]
-
-class ContinentIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Continent
-        fields = ["id", "name"]
-
-class CountryIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Country
-        fields = ["id", "name"]
-
-class StateIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = State
-        fields = ["id", "name"]
-
-class DistrictIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = District
-        fields = ["id", "name"]
-
-class TalukaIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Taluka
-        fields = ["id", "name"]
-
-class CityVillageIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CityVillage
-        fields = ["id", "name"]
-
-class WardIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Ward
-        fields = ["id", "name"]
-
-class SocietyIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Society
-        fields = ["id", "name"]
-
-class FloorIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Floor
-        fields = ["id", "no"]
-
-class BlockIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Block
-        fields = ["id", "name"]
-
-class HouseIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = House
-        fields = ["id", "no"]
-
-class RoomIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Room
-        fields = ["id", "no"]
     
 # Residential Unified Output Serializer (always same structure)
 class ResidentialOutputSerializer(serializers.Serializer):
@@ -1284,16 +1685,23 @@ class BrandIdNameSerializer(serializers.ModelSerializer):
         model = Brand
         fields = ["id", "name"]
 
-class ProductIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ["id", "name"]
         
         
 # class PostModelIdNameSerializer(serializers.ModelSerializer):
 #     class Meta:
 #         model = PostModel
 #         fields = ["id", "name"]
+
+class ProductSearchInputSerializer(serializers.Serializer):
+    sector = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    brand = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    product = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+class ProductSearchOutputSerializer(serializers.Serializer):
+    sector = SectorIdNameSerializer()
+    brand = BrandIdNameSerializer()
+    product = ProductIdNameSerializer()
 
 class ProfessionalInputSerializer(serializers.Serializer):
     section = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1406,84 +1814,3 @@ class DesignationGetSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-# ============================================
-# Flash serializers
-# ============================================
-class WardFlashInputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WardFlash
-        fields = '__all__'
-
-class WardFlashOutputSerializer(serializers.ModelSerializer):
-    ward = WardIdNameSerializer()
-    product = ProductIdNameSerializer()
-    class Meta:
-        model = WardFlash
-        fields = '__all__'
-
-
-class SocietyFlashInputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SocietyFlash
-        fields = '__all__'
-
-class SocietyFlashOutputSerializer(serializers.ModelSerializer):
-    society = SocietyIdNameSerializer()
-    product = ProductIdNameSerializer()
-    class Meta:
-        model = SocietyFlash
-        fields = '__all__'
-
-
-class BlockFlashInputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BlockFlash
-        fields = '__all__'
-
-
-class BlockFlashOutputSerializer(serializers.ModelSerializer):
-    block = BlockIdNameSerializer()
-    product = ProductIdNameSerializer()
-    class Meta:
-        model = BlockFlash
-        fields = '__all__'
-
-
-class FloorFlashInputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FloorFlash
-        fields = '__all__'
-
-
-class FloorFlashOutputSerializer(serializers.ModelSerializer):
-    floor = FloorIdNameSerializer()
-    product = ProductIdNameSerializer()
-    class Meta:
-        model = FloorFlash
-        fields = '__all__'
-
-
-class HouseFlashInputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HouseFlash
-        fields = '__all__'
-
-class HouseFlashOutputSerializer(serializers.ModelSerializer):
-    house = HouseIdNameSerializer()
-    product = ProductIdNameSerializer()
-    class Meta:
-        model = HouseFlash
-        fields = '__all__'
-
-
-class RoomFlashInputSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RoomFlash
-        fields = '__all__'
-
-class RoomFlashOutputSerializer(serializers.ModelSerializer):
-    room = RoomIdNameSerializer()
-    product = ProductIdNameSerializer()
-    class Meta:
-        model = RoomFlash
-        fields = '__all__'
