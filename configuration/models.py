@@ -339,8 +339,16 @@ class Panth(OrderByMixin, HoldableMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Varna(OrderByMixin, HoldableMixin):
+class Awastha(OrderByMixin, HoldableMixin):
     panth = models.ForeignKey(Panth, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+    code = models.PositiveIntegerField(unique=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class Varna(OrderByMixin, HoldableMixin):
+    awastha = models.ForeignKey(Awastha, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
     code = models.PositiveIntegerField(unique=True)
 

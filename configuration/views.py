@@ -420,7 +420,29 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         if self.action in ["create", "update", "partial_update"]:
             return PanthSerializer   # For POST, PUT, PATCH
         return PanthDetailSerializer
-    
+
+
+class AwasthaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Awastha
+    queryset = Awastha.objects.all()
+    serializer_class = AwasthaSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'panth': 'panth__id',
+        'sampraday': 'panth__sampraday__id',
+        'religion': 'panth__sampraday__religion__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    def get_base_queryset(self):
+        return get_regular_query(self.model)
+
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return AwasthaSerializer   # For POST, PUT, PATCH
+        return AwasthaDetailSerializer
 
 class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Varna
@@ -429,9 +451,10 @@ class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
-        'panth': 'panth__id',
-        'sampraday': 'panth__sampraday__id',
-        'religion': 'panth__sampraday__religion__id',
+        'awasha': 'awasha__id',
+        'panth': 'awasha__panth__id',
+        'sampraday': 'awasha__panth__sampraday__id',
+        'religion': 'awasha__panth__sampraday__religion__id',
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold',
         'search': 'name'
@@ -5183,6 +5206,7 @@ class PersonalSearchView(APIView):
         religion_name = data.get('religion')
         sampraday_name = data.get('sampraday')
         panth_name = data.get('panth')
+        awastha_name = data.get('awastha')
         varna_name = data.get('varna')
         caste_name = data.get('caste')
         subcaste_name = data.get('subcaste')
@@ -5194,7 +5218,7 @@ class PersonalSearchView(APIView):
         pidhi_name = data.get('pidhi')
         
         
-        
+        filters = {}
         if search_key == "religion":
             qs = get_regular_query(Religion)
             if religion_name:
@@ -5205,6 +5229,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj).data,
                     "sampraday": None,
                     "panth": None,
+                    "awastha": None,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -5221,9 +5246,11 @@ class PersonalSearchView(APIView):
         elif search_key == "sampraday":
             qs = get_regular_query(Sampraday)
             if religion_name:
-                qs = qs.filter(religion__name__icontains=religion_name)
+                filters['religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(name__icontains=sampraday_name)
+                filters['name__icontains'] = sampraday_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -5231,6 +5258,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj).data,
                     "panth": None,
+                    "awastha": None,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -5247,11 +5275,13 @@ class PersonalSearchView(APIView):
         elif search_key == "panth":
             qs = get_regular_query(Panth)
             if religion_name:
-                qs = qs.filter(sampraday__religion__name__icontains=religion_name)
+                filters['sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(sampraday__name__icontains=sampraday_name)
+                filters['sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(name__icontains=panth_name)
+                filters['name__icontains'] = panth_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -5259,6 +5289,39 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.sampraday).data,
                     "panth": PanthIdNameSerializer(obj).data,
+                    "awastha": None,
+                    "varna": None,
+                    "caste": None,
+                    "subcaste": None,
+                    "gotra": None,
+                    "subgotra": None,
+                    "kul": None,
+                    "vansh": None,
+                    "family": None,
+                    "pidhi": None,
+                }
+                for obj in qs
+            ]
+        elif search_key == "awastha":
+            qs = get_regular_query(Awastha)
+            if religion_name:
+                filters['panth__sampraday__religion__name__icontains'] = religion_name
+            if sampraday_name:
+                filters['panth__sampraday__name__icontains'] = sampraday_name
+            if panth_name:
+                filters['panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['name__icontains'] = awastha_name
+            
+            qs = qs.filter(**filters)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj).data,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -5275,20 +5338,25 @@ class PersonalSearchView(APIView):
         elif search_key == "varna":
             qs = get_regular_query(Varna)
             if religion_name:
-                qs = qs.filter(panth__sampraday__religion__name__icontains=religion_name)
+                filters['awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(panth__sampraday__name__icontains=sampraday_name)
+                filters['awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(panth__name__icontains=panth_name)
+                filters['awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(name__icontains=varna_name)
+                filters['name__icontains'] = varna_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.awastha).data,
                     "varna": VarnaIdNameSerializer(obj).data,
                     "caste": None,
                     "subcaste": None,
@@ -5306,22 +5374,27 @@ class PersonalSearchView(APIView):
         elif search_key == "caste":
             qs = get_regular_query(Caste)
             if religion_name:
-                qs = qs.filter(varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(varna__panth__name__icontains=panth_name)
+                filters['varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(varna__name__icontains=varna_name)
+                filters['varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(name__icontains=caste_name)
+                filters['name__icontains'] = caste_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.varna).data,
                     "caste": CasteIdNameSerializer(obj).data,
                     "subcaste": None,
@@ -5339,24 +5412,29 @@ class PersonalSearchView(APIView):
         elif search_key == "subcaste":
             qs = get_regular_query(SubCaste)
             if religion_name:
-                qs = qs.filter(caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(caste__varna__panth__name__icontains=panth_name)
+                filters['caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(caste__varna__name__icontains=varna_name)
+                filters['caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(caste__name__icontains=caste_name)
+                filters['caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(name__icontains=subcaste_name)
+                filters['name__icontains'] = subcaste_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj).data,
@@ -5374,26 +5452,31 @@ class PersonalSearchView(APIView):
         elif search_key == "gotra":
             qs = get_regular_query(Gotra)
             if religion_name:
-                qs = qs.filter(subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['subcaste__caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(subcaste__caste__varna__name__icontains=varna_name)
+                filters['subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(subcaste__caste__name__icontains=caste_name)
+                filters['subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(subcaste__name__icontains=subcaste_name)
+                filters['subcaste__name__icontains'] = subcaste_name
             if gotra_name:
-                qs = qs.filter(name__icontains=gotra_name)
+                filters['name__icontains'] = gotra_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.subcaste.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.subcaste.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.subcaste.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.subcaste.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.subcaste).data,
@@ -5411,28 +5494,33 @@ class PersonalSearchView(APIView):
         elif search_key == "subgotra":
             qs = get_regular_query(SubGotra)
             if religion_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(gotra__subcaste__caste__name__icontains=caste_name)
+                filters['gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(gotra__subcaste__name__icontains=subcaste_name)
+                filters['gotra__subcaste__name__icontains'] = subcaste_name
             if gotra_name:
-                qs = qs.filter(gotra__name__icontains=gotra_name)
+                filters['gotra__name__icontains'] = gotra_name
             if subgotra_name:
-                qs = qs.filter(name__icontains=subgotra_name)
+                filters['name__icontains'] = subgotra_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.gotra.subcaste.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.gotra.subcaste.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.gotra.subcaste.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.gotra.subcaste).data,
@@ -5449,30 +5537,35 @@ class PersonalSearchView(APIView):
         elif search_key == "kul":
             qs = get_regular_query(Kul)
             if religion_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)       
+                filters['subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(subgotra__gotra__subcaste__name__icontains=subcaste_name)
+                filters['subgotra__gotra__subcaste__name__icontains'] = subcaste_name
             if gotra_name:
-                qs = qs.filter(subgotra__gotra__name__icontains=gotra_name)
+                filters['subgotra__gotra__name__icontains'] = gotra_name
             if subgotra_name:
-                qs = qs.filter(subgotra__name__icontains=subgotra_name) 
+                filters['subgotra__name__icontains'] = subgotra_name
             if kul_name:
-                qs = qs.filter(name__icontains=kul_name)
+                filters['name__icontains'] = kul_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.subgotra.gotra.subcaste).data,
@@ -5489,32 +5582,37 @@ class PersonalSearchView(APIView):
         elif search_key == "vansh":
             qs = get_regular_query(Vansh)
             if religion_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
-            if gotra_name:  
-                qs = qs.filter(kul__subgotra__gotra__name__icontains=gotra_name)
-            if subgotra_name:  
-                qs = qs.filter(kul__subgotra__name__icontains=subgotra_name)                  
+                filters['kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+            if gotra_name:
+                filters['kul__subgotra__gotra__name__icontains'] = gotra_name  
+            if subgotra_name:
+                filters['kul__subgotra__name__icontains'] = subgotra_name  
             if kul_name:
-                qs = qs.filter(kul__name__icontains=kul_name)
+                filters['kul__name__icontains'] = kul_name
             if vansh_name:
-                qs = qs.filter(name__icontains=vansh_name)
+                filters['name__icontains'] = vansh_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste).data,
@@ -5531,34 +5629,39 @@ class PersonalSearchView(APIView):
         elif search_key == "family":
             qs = get_regular_query(Family)
             if religion_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
-            if gotra_name:  
-                qs = qs.filter(vansh__kul__subgotra__gotra__name__icontains=gotra_name)
-            if subgotra_name:  
-                qs = qs.filter(vansh__kul__subgotra__name__icontains=subgotra_name)                  
+                filters['vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+            if gotra_name:
+                filters['vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
+            if subgotra_name:
+                filters['vansh__kul__subgotra__name__icontains'] = subgotra_name  
             if kul_name:
-                qs = qs.filter(vansh__kul__name__icontains=kul_name)
+                filters['vansh__kul__name__icontains'] = kul_name
             if vansh_name:    
-                qs = qs.filter(vansh__name__icontains=vansh_name)
+                filters['vansh__name__icontains'] = vansh_name
             if family_name:
-                qs = qs.filter(name__icontains=family_name)
+                filters['name__icontains'] = family_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste).data,
@@ -5576,36 +5679,41 @@ class PersonalSearchView(APIView):
         elif search_key == "pidhi":
             qs = get_regular_query(Pidhi)
             if religion_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if awastha_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
             if varna_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
-            if gotra_name:  
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__name__icontains=gotra_name)
-            if subgotra_name:  
-                qs = qs.filter(family__vansh__kul__subgotra__name__icontains=subgotra_name)                  
+                filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+            if gotra_name:
+                filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
+            if subgotra_name:
+                filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
             if kul_name:
-                qs = qs.filter(family__vansh__kul__name__icontains=kul_name)
-            if vansh_name:    
-                qs = qs.filter(family__vansh__name__icontains=vansh_name)
+                filters['family__vansh__kul__name__icontains'] = kul_name
+            if vansh_name:
+                filters['family__vansh__name__icontains'] = vansh_name    
             if family_name:
-                qs = qs.filter(family__name__icontains=family_name)    
+                filters['family__name__icontains'] = family_name
             if pidhi_name:
-                qs = qs.filter(name__icontains=pidhi_name)
+                filters['name__icontains'] = pidhi_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
                 {
-                    "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+                    "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
+                    "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth).data,
+                    "awastha": AwasthaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
                     "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
@@ -5628,6 +5736,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj).data,
                     "sampraday": None,
                     "panth": None,
+                    "awastha": None,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,

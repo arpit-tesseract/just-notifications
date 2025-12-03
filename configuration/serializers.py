@@ -897,6 +897,26 @@ class PanthDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
+class AwasthaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Awastha
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class AwasthaDetailSerializer(DynamicFieldsModelSerializer):
+    panth = serializers.SerializerMethodField()
+    class Meta:
+        model = Awastha
+        fields = '__all__'
+        read_only_fields = [f for f in Awastha._meta.fields]
+    
+    def get_panth(self, obj):
+        serializer = PanthDetailSerializer(
+            obj.panth,
+            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+        )
+        return serializer.data
+
 class VarnaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Varna
@@ -904,15 +924,15 @@ class VarnaSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class VarnaDetailSerializer(DynamicFieldsModelSerializer):
-    panth = serializers.SerializerMethodField()
+    awastha = serializers.SerializerMethodField()
     class Meta:
         model = Varna
         fields = '__all__'
         read_only_fields = [f for f in Varna._meta.fields]
     
-    def get_panth(self, obj):
+    def get_awastha(self, obj):
         serializer = PanthDetailSerializer(
-            obj.panth,
+            obj.awastha,
             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
         )
         return serializer.data
@@ -1560,6 +1580,11 @@ class PanthIdNameSerializer(serializers.ModelSerializer):
         model = Panth
         fields = ["id", "name"]
 
+class AwasthaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Awastha
+        fields = ["id", "name"]
+
 class VarnaIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Varna
@@ -1609,6 +1634,7 @@ class PersonalInputSerializer(serializers.Serializer):
     religion = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     sampraday = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     panth = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    awastha = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     varna = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     caste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     subcaste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1624,6 +1650,7 @@ class PersonalOutputSerializer(serializers.Serializer):
     religion = ReligionIdNameSerializer(allow_null=True)
     sampraday = SampradayIdNameSerializer(allow_null=True)
     panth = PanthIdNameSerializer(allow_null=True)
+    awastha = AwasthaIdNameSerializer(allow_null=True)
     varna = VarnaIdNameSerializer(allow_null=True)
     caste = CasteIdNameSerializer(allow_null=True)
     subcaste = SubCasteIdNameSerializer(allow_null=True)
