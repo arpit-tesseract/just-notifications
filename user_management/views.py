@@ -20,6 +20,8 @@ from configuration.mixins import RecordRuleMixin, FilteredQuerysetMixin
 from configuration.permissions import HasModelAccessPermission
 from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
 from .utils import assign_system_admin_role_if_brand_is_shashan
+from django.db.models import Subquery
+
 
 class LoginWithEmailPasswordView(APIView):
     def post(self, request):
@@ -772,35 +774,114 @@ class GetUserRoleView(APIView):
         serializer = UserRoleSerializer(user_roles, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
 class UserListView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     model = CustomUser
     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
     pagination_class = UserManagementPagination
     def get(self, request):
-        user_role = request.query_params.get('user_role', None)
-        if user_role is not None:
+        user_role = request.query_params.get('user_role', "").strip()
+        if not user_role:
+            return Response({"error": "User role is required."}, status=status.HTTP_400_BAD_REQUEST)
+        else:
             try:
                 UserRole.objects.get(name=user_role)
             except UserRole.DoesNotExist:
                 return Response({"error": "Invalid user role."}, status=status.HTTP_400_BAD_REQUEST)
             
-            users = CustomUser.objects.filter(
+            distinct_from_user_objs = CustomUser.objects.filter(
+                id__in=Subquery(Relation.objects.values("from_user").distinct()),
                 is_superuser=False,
                 is_archive=False,
                 user_role__name=user_role
             )
-            serializer = UserListSerializer(users, many=True)
+            serializer = UserListSerializer(distinct_from_user_objs, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         
-        users = CustomUser.objects.filter(
-            is_superuser=False, 
+        from_user_ids = Relation.objects.values_list("from_user", flat=True).distinct()
+        distinct_from_user_objs = CustomUser.objects.filter(
+            is_superuser=False,
             is_archive=False,
-            user_role__name="user")
-        serializer = UserListSerializer(users, many=True)
+            user_role__name="user"
+        ).filter(
+            Q(id__in=from_user_ids) | ~Q(id__in=from_user_ids)
+        )
+        serializer = UserListSerializer(distinct_from_user_objs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class UserFilterationView(FilteredQuerysetMixin, APIView):
+    model = CustomUser
+    permission_classes = [IsAuthenticated, SystemAdminPermission]
+    pagination_class = UserManagementPagination
+    
+    def post(self, request):
+        serializer = UserFilterInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user_role = request.query_params.get('user_role', "").strip()
+        if user_role:
+            try:
+                UserRole.objects.get(name=user_role)
+            except UserRole.DoesNotExist:
+                return Response({"error": "Invalid user role."}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            user_role = "user"
+        
+        validated_data = serializer.validated_data
+        resident_type = validated_data.get('resident_type')
+        residetial_details = validated_data.get('residential_details')
+        personal_details = validated_data.get('personal_details')
+        bussiness_details = validated_data.get('bussiness_details')
+        
+        query = Q()
+        # 1. Filter by Residential Details 
+        # (Assuming you are filtering by 'current_residential_details')
+        if residetial_details:
+            for key, value in residetial_details.items():
+                if value is not None and value != '':
+                    # Use double underscore for related field lookup
+                    lookup = f"current_residential_details__{key}"
+                    query &= Q(**{lookup: value})
+                    
+        # 2. Filter by Personal Details
+        # (OneToOne relationship)
+        if personal_details:
+            for key, value in personal_details.items():
+                if value is not None and value != '':
+                    lookup = f"personal_details__{key}"
+                    query &= Q(**{lookup: value})
+        
+        # 3. Filter by Professional/Business Details
+        # (Reverse ForeignKey relationship: CustomUser <- ProfessionalDetail)
+        if bussiness_details:
+            for key, value in bussiness_details.items():
+                if value is not None and value != '':
+                    # Note: Django lowercases the model name for reverse lookup by default
+                    # unless related_name is defined. Assuming no related_name="xyz":
+                    if key == "residential_details":
+                        lookup = f"professionaldetail__residential_details__{key}"
+                        query &= Q(**{lookup: value})
+                        continue
+                    
+                    lookup = f"professionaldetail__{key}"
+                    query &= Q(**{lookup: value})
+        
+        # Execute Query
+        # .distinct() is CRITICAL here because filtering on ProfessionalDetail (One-to-Many)
+        # might return the same user multiple times if they match multiple criteria.
+        user_objs = CustomUser.objects.filter(
+            query,
+            id__in=Subquery(Relation.objects.values("from_user")),
+            is_superuser=False,
+            is_archive=False,
+            user_role__name=user_role
+        ).distinct()
+        
+        return Response(
+            UserListSerializer(user_objs, many=True).data,
+            status=status.HTTP_200_OK
+        )
+                
 class ModelAccessView(APIView):
     model = ModelAccess
     permission_classes = [IsAuthenticated, SystemAdminPermission, HasModelAccessPermission]
@@ -1230,4 +1311,51 @@ class RecordRuleView(APIView):
                     "details": str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-                
+
+
+class PersonalDetailsGetView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user_id = request.query_params.get("user_id", "").strip()
+        if user_id == "":
+            return Response(
+                {"error": "'user_id' is required in query params."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        personal_details_obj = get_object_or_404(PersonalDetail, user_id=user_id)
+        serializer = PersonalDetailGetSerializer(personal_details_obj)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BussinessDetailsGetView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user_id = request.query_params.get("user_id", "").strip()
+        if user_id == "":
+            return Response(
+                {"error": "'user_id' is required in query params."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        professional_details_obj = get_object_or_404(ProfessionalDetail, user_id=user_id)
+        bussiness_details_output = BussinessDetailsGetSerializer(professional_details_obj).data
+        return Response(bussiness_details_output, status=status.HTTP_200_OK)
+
+
+class ResidentialDetailsGetView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user_id = request.query_params.get("user_id", "").strip()
+        if user_id == "":
+            return Response(
+                {"error": "'user_id' is required in query params."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        user_obj = get_object_or_404(CustomUser, id=user_id)
+        residential_details_output = ResidentialDetailGetSerializer(user_obj.current_residential_details).data
+        return Response(residential_details_output, status=status.HTTP_200_OK)

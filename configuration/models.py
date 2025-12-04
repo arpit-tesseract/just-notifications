@@ -221,7 +221,6 @@ class Floor(OrderByMixin, HoldableMixin):
 class House(OrderByMixin, HoldableMixin):
     floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="houses")
     no = models.CharField(max_length=200, db_index=True)
-    total_rooms = models.PositiveIntegerField(null=True, blank=True)
     code = models.PositiveIntegerField(unique=True)
     
     class Meta:

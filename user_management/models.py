@@ -183,13 +183,11 @@ class ResidentialDetail(models.Model):
     taluka = models.ForeignKey(configm.Taluka, on_delete=models.SET_NULL, null=True, blank=True)
     city_village = models.ForeignKey(configm.CityVillage, on_delete=models.SET_NULL, null=True, blank=True)
     ward = models.ForeignKey(configm.Ward, on_delete=models.SET_NULL, null=True, blank=True)
-    society = models.CharField(max_length=255, null=True, blank=True)
-    block = models.CharField(max_length=20, null=True, blank=True)
-    floor = models.CharField(max_length=20, null=True, blank=True)
-    house_no = models.CharField(max_length=20, null=True, blank=True)
+    society = models.ForeignKey(configm.Society, on_delete=models.SET_NULL, null=True, blank=True)
+    block = models.ForeignKey(configm.Block, on_delete=models.SET_NULL, null=True, blank=True)
+    floor = models.ForeignKey(configm.Floor, on_delete=models.SET_NULL, null=True, blank=True)
+    house = models.ForeignKey(configm.House, on_delete=models.SET_NULL, null=True, blank=True)
     total_no_of_rooms = models.IntegerField(default=1)
-    room_details = models.JSONField(null=True, blank=True)
-    pending_rooms_to_allocate = models.JSONField(null=True, blank=True)
     residential_code = models.CharField(max_length=255,blank=True, null=True, unique=True)
     is_verified = models.BooleanField(default=False)
 
@@ -214,7 +212,12 @@ class ResidentialDetail(models.Model):
                    f"{self.district.code if self.district else '00'}-" \
                    f"{self.taluka.code if self.taluka else '00'}-" \
                    f"{self.city_village.code if self.city_village else '00'}-" \
-                   f"{self.ward.code if self.ward else '00'}-"
+                   f"{self.ward.code if self.ward else '00'}-" \
+                   f"{self.society.code if self.society else '00'}-" \
+                   f"{self.block.code if self.block else '00'}-" \
+                   f"{self.floor.code if self.floor else '00'}-" \
+                   f"{self.house.code if self.house else '00'}-" \
+                   f"{self.total_no_of_rooms}"
 
         # Only save again if the code has actually changed.
         # This prevents an infinite loop on updates.
@@ -291,6 +294,7 @@ class PersonalDetail(models.Model):
     religion = models.ForeignKey(configm.Religion, on_delete=models.SET_NULL, null=True, blank=True)
     sampraday = models.ForeignKey(configm.Sampraday, on_delete=models.SET_NULL, null=True, blank=True)
     panth = models.ForeignKey(configm.Panth, on_delete=models.SET_NULL, null=True, blank=True)
+    awastha = models.ForeignKey(configm.Awastha, on_delete=models.SET_NULL, null=True, blank=True)
     varna = models.ForeignKey(configm.Varna, on_delete=models.SET_NULL, null=True, blank=True)
     caste = models.ForeignKey(configm.Caste, on_delete=models.SET_NULL, null=True, blank=True)
     subcaste = models.ForeignKey(configm.SubCaste, on_delete=models.SET_NULL, null=True, blank=True)

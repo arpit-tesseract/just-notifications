@@ -26,6 +26,10 @@ urlpatterns = [
     
     # path('', views.CustomUserViewSet.as_view(), name='users'),
     path('user-lst/', views.UserListView.as_view(), name='user_lst'),
+    path('filters/', views.UserFilterationView.as_view(), name='user_filters'),
+    path('personal-details/', views.PersonalDetailsGetView.as_view(), name='personal_details'),
+    path('bussiness-details/', views.BussinessDetailsGetView.as_view(), name='professional_details'),
+    path('residential-details/', views.ResidentialDetailsGetView.as_view(), name='residential_details'),
     
     path('roles/', views.GetUserRoleView.as_view(), name='user_roles'),
     path('roles/<int:user_id>/', views.GetUserRoleView.as_view(), name='user_roles'),

@@ -315,7 +315,12 @@ class UserSerializerForPost(serializers.ModelSerializer):
                 
         return attrs
         
-      
+
+class UserFilterSerializer(serializers.Serializer):
+    residential_details = ResidentialDetailSerializer(many=False, required=True, allow_null=True)
+    personal_details = PersonalDetailSerializer(many=False, required=True, allow_null=True)
+    bussiness_details = BussinessDetailSerializer(many=True, required=True, allow_null=True)
+        
 
 class PostSerializer(serializers.Serializer):
     user_details = UserSerializerForPost(many=False)
@@ -480,6 +485,10 @@ class ResidentialDetailGetSerializer(serializers.ModelSerializer):
     taluka = TalukaIdNameSerializer()
     city_village = CityVillageIdNameSerializer()
     ward = WardIdNameSerializer()
+    society = SocietyIdNameSerializer()
+    block = BlockIdNameSerializer()
+    floor = FloorIdNameSerializer()
+    house = HouseIdNameSerializer()
 
     class Meta:
         model = ResidentialDetail
@@ -495,15 +504,16 @@ class ResidentialDetailGetSerializer(serializers.ModelSerializer):
             'society',
             'block',
             'floor',
-            'house_no',
+            'house',
             'total_no_of_rooms',
-            'room_details',
+            'residential_type'
         ]    
 
 class PersonalDetailGetSerializer(serializers.ModelSerializer):
     religion = ReligionIdNameSerializer()
     sampraday = SampradayIdNameSerializer()
     panth = PanthIdNameSerializer()
+    awastha = AwasthaIdNameSerializer()
     varna = VarnaIdNameSerializer()
     caste = CasteIdNameSerializer()
     subcaste = SubCasteIdNameSerializer()
@@ -519,6 +529,7 @@ class PersonalDetailGetSerializer(serializers.ModelSerializer):
             'religion',
             'sampraday',
             'panth',
+            'awastha',
             'varna',
             'caste',
             'subcaste',
@@ -572,6 +583,40 @@ class DocumentSerializerForGet(serializers.ModelSerializer):
             'driving_licence_file',
             'ration_card_file',
         ]
+
+
+class BussinessDetailsGetSerializer(serializers.ModelSerializer):
+    section = SectionIdNameSerializer()
+    profclass = ClassIdNameSerializer()
+    category = ProfCategoryIdNameSerializer()
+    subcategory = ProfSubCategoryIdNameSerializer()
+    sector = SectorIdNameSerializer()
+    subsector = SubSectorIdNameSerializer()
+    department = DepartmentIdNameSerializer()
+    subdepartment = SubDepartmentIdNameSerializer()
+    type = TypeIdNameSerializer()
+    brand = BrandIdNameSerializer()
+    residential_details = ResidentialDetailGetSerializer()
+    class Meta:
+        model = ProfessionalDetail
+        fields = [
+            'section',
+            'profclass',
+            'category',
+            'subcategory',
+            'sector',
+            'subsector',
+            'department',
+            'subdepartment',
+            'type',
+            'brand',
+            'designation',
+            'pay_scale',
+            'mfg_dt_time',
+            'mfg_life',
+            'residential_details',
+        ]
+
         
 class UserSerializerForGet(serializers.ModelSerializer):
     user_id = serializers.SerializerMethodField()
@@ -686,6 +731,44 @@ class UserSerializerForGet(serializers.ModelSerializer):
             professional_details_lst.append(bussiness_item)
             
         return professional_details_lst
+
+class BussinessDetailSerializer(serializers.ModelSerializer):
+    residential_details = ResidentialDetailSerializer(many=False, required=True, allow_null=True)
+    class Meta:
+        model = ProfessionalDetail
+        fields = [
+            'section',
+            'profclass',
+            'category',
+            'subcategory',
+            'sector',
+            'subsector',
+            'department',
+            'subdepartment',
+            'type',
+            'brand',
+            'designation',
+            'pay_scale',
+            'mfg_dt_time',
+            'mfg_life',
+            'residential_details',
+        ]
+
+
+class UserFilterInputSerializer(serializers.Serializer):
+    resident_type = serializers.CharField(required=False, allow_null=True)
+    residential_details = ResidentialDetailSerializer(many=False, required=True, allow_null=True)
+    personal_details = PersonalDetailSerializer(many=False, required=True, allow_null=True)
+    bussiness_details = BussinessDetailSerializer(many=False, required=True, allow_null=True)
+    
+    def validate(self, attrs):
+        resident_type = attrs.get('resident_type')
+        if resident_type is not None:
+            resident_type = resident_type.strip().lower()
+            if resident_type not in ['current', 'owner', 'permanent', 'native', 'inlaws', 'maternal', 'business']:
+                raise serializers.ValidationError(f"Invalid resident type: {resident_type}")
+            
+        return attrs
 
 class ResidentialDetailsForUserSugesionInputSerializer(serializers.ModelSerializer):
     class Meta:
