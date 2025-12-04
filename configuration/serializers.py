@@ -248,6 +248,16 @@ class CityVillageDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
+class SectorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sector
+        fields = ["id", "name"]
+
+class BrandIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ["id", "name"]
+
 class ProductIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
@@ -260,10 +270,13 @@ class WardIdNameSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 class WardFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
     product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
     class Meta:
         model = WardFlash
-        fields = ['id', 'product', 'value']
+        fields = ['id', 'sector', 'brand', 'product', 'value']
 
 class WardFlashSerializer(serializers.ModelSerializer):
     existing_id = serializers.IntegerField(required=False, allow_null=True)
@@ -366,10 +379,13 @@ class SocietyIdNameSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 class SocietyFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
     product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
     class Meta:
         model = SocietyFlash
-        fields = ['id', 'product', 'value']
+        fields = ['id', 'sector', 'brand', 'product', 'value']
         
 class SocietyFlashSerializer(serializers.ModelSerializer):
     existing_id = serializers.IntegerField(required=False)
@@ -460,10 +476,13 @@ class BlockIdNameSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 class BlockFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
     product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
     class Meta:
         model = BlockFlash
-        fields = ['id', 'product', 'value']
+        fields = ['id', 'sector', 'brand', 'product', 'value']
         
 class BlockFlashSerializer(serializers.ModelSerializer):
     existing_id = serializers.IntegerField(required=False)
@@ -560,10 +579,13 @@ class FloorIdNameSerializer(serializers.ModelSerializer):
         fields = ["id", "no"]
 
 class FloorFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
     product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
     class Meta:
         model = FloorFlash
-        fields = ['id', 'product', 'value']
+        fields = ['id', 'sector', 'brand', 'product', 'value']
         
 class FloorFlashSerializer(serializers.ModelSerializer):
     existing_id = serializers.IntegerField(required=False)
@@ -661,10 +683,13 @@ class HouseIdNameSerializer(serializers.ModelSerializer):
         fields = ["id", "no"]
 
 class HouseFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
     product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
     class Meta:
         model = HouseFlash
-        fields = ['id', 'product', 'value']
+        fields = ['id', 'sector', 'brand', 'product', 'value']
         
 class HouseFlashSerializer(serializers.ModelSerializer):
     existing_id = serializers.IntegerField(required=False)
@@ -760,10 +785,13 @@ class RoomIdNameSerializer(serializers.ModelSerializer):
         fields = ["id", "no"]
 
 class RoomFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
     product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
     class Meta:
         model = RoomFlash
-        fields = ['id', 'product', 'value']
+        fields = ['id', 'sector', 'brand', 'product', 'value']
         
 class RoomFlashSerializer(serializers.ModelSerializer):
     existing_id = serializers.IntegerField(required=False)
