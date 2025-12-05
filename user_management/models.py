@@ -187,7 +187,7 @@ class ResidentialDetail(models.Model):
     block = models.ForeignKey(configm.Block, on_delete=models.SET_NULL, null=True, blank=True)
     floor = models.ForeignKey(configm.Floor, on_delete=models.SET_NULL, null=True, blank=True)
     house = models.ForeignKey(configm.House, on_delete=models.SET_NULL, null=True, blank=True)
-    total_no_of_rooms = models.IntegerField(default=1)
+    pending_to_allocated_rooms = models.ManyToManyField(configm.Room, blank=True, null=True, related_name='pending_to_allocated_rooms')
     residential_code = models.CharField(max_length=255,blank=True, null=True, unique=True)
     is_verified = models.BooleanField(default=False)
 
@@ -216,8 +216,7 @@ class ResidentialDetail(models.Model):
                    f"{self.society.code if self.society else '00'}-" \
                    f"{self.block.code if self.block else '00'}-" \
                    f"{self.floor.code if self.floor else '00'}-" \
-                   f"{self.house.code if self.house else '00'}-" \
-                   f"{self.total_no_of_rooms}"
+                   f"{self.house.code if self.house else '00'}-"
 
         # Only save again if the code has actually changed.
         # This prevents an infinite loop on updates.
@@ -264,8 +263,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
     maternal_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='maternal_residential_details')
     business_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='business_residential_details')
     
+    allocated_rooms = models.ManyToManyField(configm.Room, related_name='allocated_rooms', null=True, blank=True)
     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
-    allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
+    # allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -339,6 +339,11 @@ class PersonalDetail(models.Model):
     def __str__(self):
         return f"{self.user} - {self.personal_code}"
 
+class PersonalCalibration(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    calibration = models.ForeignKey(configm.Calibration, on_delete=models.SET_NULL, null=True, blank=True)
+    value = models.FloatField(null=True, blank=True)
+    
 # class Relation(models.Model):
 #     relation_category_choices = [
 #         ('current','Current'),

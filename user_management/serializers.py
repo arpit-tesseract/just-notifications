@@ -78,9 +78,8 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
                 'society',
                 'block',
                 'floor',
-                'house_no',
+                'house',
                 'total_no_of_rooms',
-                'room_details',
             ]
         # read_only_fields = ['id','user', 'residential_code', 'residential_type']
         # extra_kwargs = {
@@ -753,22 +752,38 @@ class BussinessDetailSerializer(serializers.ModelSerializer):
             'mfg_life',
             'residential_details',
         ]
-
+class BussinessDetailSerializerForFilteration(serializers.ModelSerializer):
+    residential_details = ResidentialDetailSerializer(many=False, required=False, allow_null=True)
+    class Meta:
+        model = ProfessionalDetail
+        fields = [
+            'section',
+            'profclass',
+            'category',
+            'subcategory',
+            'sector',
+            'subsector',
+            'department',
+            'subdepartment',
+            'type',
+            'brand',
+            'designation',
+            'pay_scale',
+            'mfg_dt_time',
+            'mfg_life',
+            'residential_details',
+        ]
+        
+        extra_kwargs = {
+            "pay_scale": {"required": False, "allow_null": True},
+            "mfg_dt_time": {"required": False, "allow_null": True},
+            "mfg_life": {"required": False, "allow_null": True},
+        }
 
 class UserFilterInputSerializer(serializers.Serializer):
-    resident_type = serializers.CharField(required=False, allow_null=True)
     residential_details = ResidentialDetailSerializer(many=False, required=True, allow_null=True)
     personal_details = PersonalDetailSerializer(many=False, required=True, allow_null=True)
-    bussiness_details = BussinessDetailSerializer(many=False, required=True, allow_null=True)
-    
-    def validate(self, attrs):
-        resident_type = attrs.get('resident_type')
-        if resident_type is not None:
-            resident_type = resident_type.strip().lower()
-            if resident_type not in ['current', 'owner', 'permanent', 'native', 'inlaws', 'maternal', 'business']:
-                raise serializers.ValidationError(f"Invalid resident type: {resident_type}")
-            
-        return attrs
+    bussiness_details = BussinessDetailSerializerForFilteration(many=False, required=True, allow_null=True, partial=True)
 
 class ResidentialDetailsForUserSugesionInputSerializer(serializers.ModelSerializer):
     class Meta:

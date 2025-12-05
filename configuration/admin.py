@@ -31,6 +31,7 @@ admin.site.register(Kul)
 admin.site.register(Vansh)
 admin.site.register(Family)
 admin.site.register(Pidhi)
+admin.site.register(Calibration)
 
 
 admin.site.register(Section)

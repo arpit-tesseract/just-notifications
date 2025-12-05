@@ -780,31 +780,52 @@ class UserListView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
     pagination_class = UserManagementPagination
     def get(self, request):
         user_role = request.query_params.get('user_role', "").strip()
-        if not user_role:
-            return Response({"error": "User role is required."}, status=status.HTTP_400_BAD_REQUEST)
-        else:
+        if user_role:
             try:
                 UserRole.objects.get(name=user_role)
             except UserRole.DoesNotExist:
                 return Response({"error": "Invalid user role."}, status=status.HTTP_400_BAD_REQUEST)
+            except UserRole.MultipleObjectsReturned:
+                return Response(
+                    {
+                        "error": "Something went wrong.",
+                        "details": "Multiple user roles found with the same name."
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        else:
+            user_role = "user"
             
+            # distinct_from_user_objs = CustomUser.objects.filter(
+            #     id__in=Subquery(Relation.objects.values("from_user").distinct()),
+            #     is_superuser=False,
+            #     is_archive=False,
+            #     user_role__name=user_role
+            # )
+            # serializer = UserListSerializer(distinct_from_user_objs, many=True)
+            # return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        try:
+            from_user_ids = Relation.objects.values_list("from_user", flat=True).distinct()
             distinct_from_user_objs = CustomUser.objects.filter(
-                id__in=Subquery(Relation.objects.values("from_user").distinct()),
                 is_superuser=False,
                 is_archive=False,
-                user_role__name=user_role
+                user_role__name=user_role   
+            ).filter(
+                Q(id__in=from_user_ids) | ~Q(id__in=from_user_ids)
+            ).select_related(
+                "current_residential_details",
+                "current_residential_details__country",
+                "current_residential_details__state",
+                "current_residential_details__city_village"
             )
-            serializer = UserListSerializer(distinct_from_user_objs, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        from_user_ids = Relation.objects.values_list("from_user", flat=True).distinct()
-        distinct_from_user_objs = CustomUser.objects.filter(
-            is_superuser=False,
-            is_archive=False,
-            user_role__name="user"
-        ).filter(
-            Q(id__in=from_user_ids) | ~Q(id__in=from_user_ids)
-        )
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Something went wrong.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
         serializer = UserListSerializer(distinct_from_user_objs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -824,61 +845,86 @@ class UserFilterationView(FilteredQuerysetMixin, APIView):
                 UserRole.objects.get(name=user_role)
             except UserRole.DoesNotExist:
                 return Response({"error": "Invalid user role."}, status=status.HTTP_400_BAD_REQUEST)
+            except UserRole.MultipleObjectsReturned:
+                return Response(
+                    {
+                        "error": "Something went wrong.",
+                        "details": "Multiple user roles found with the same name."
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         else:
             user_role = "user"
         
         validated_data = serializer.validated_data
-        resident_type = validated_data.get('resident_type')
         residetial_details = validated_data.get('residential_details')
         personal_details = validated_data.get('personal_details')
         bussiness_details = validated_data.get('bussiness_details')
+        if bussiness_details:
+            professional_residetial_details = bussiness_details.get('residential_details')
         
         query = Q()
-        # 1. Filter by Residential Details 
-        # (Assuming you are filtering by 'current_residential_details')
-        if residetial_details:
-            for key, value in residetial_details.items():
-                if value is not None and value != '':
-                    # Use double underscore for related field lookup
-                    lookup = f"current_residential_details__{key}"
-                    query &= Q(**{lookup: value})
-                    
-        # 2. Filter by Personal Details
-        # (OneToOne relationship)
-        if personal_details:
-            for key, value in personal_details.items():
-                if value is not None and value != '':
-                    lookup = f"personal_details__{key}"
-                    query &= Q(**{lookup: value})
-        
-        # 3. Filter by Professional/Business Details
-        # (Reverse ForeignKey relationship: CustomUser <- ProfessionalDetail)
-        if bussiness_details:
-            for key, value in bussiness_details.items():
-                if value is not None and value != '':
-                    # Note: Django lowercases the model name for reverse lookup by default
-                    # unless related_name is defined. Assuming no related_name="xyz":
-                    if key == "residential_details":
-                        lookup = f"professionaldetail__residential_details__{key}"
+        try:
+            # 1. Filter by Residential Details 
+            # (Assuming you are filtering by 'current_residential_details')
+            if residetial_details:
+                for key, value in residetial_details.items():
+                    if value is not None and value != '':
+                        # Use double underscore for related field lookup
+                        lookup = f"current_residential_details__{key}"
                         query &= Q(**{lookup: value})
-                        continue
-                    
-                    lookup = f"professionaldetail__{key}"
-                    query &= Q(**{lookup: value})
-        
-        # Execute Query
-        # .distinct() is CRITICAL here because filtering on ProfessionalDetail (One-to-Many)
-        # might return the same user multiple times if they match multiple criteria.
-        user_objs = CustomUser.objects.filter(
-            query,
-            id__in=Subquery(Relation.objects.values("from_user")),
-            is_superuser=False,
-            is_archive=False,
-            user_role__name=user_role
-        ).distinct()
+                        
+            # 2. Filter by Personal Details
+            # (OneToOne relationship)
+            if personal_details:
+                for key, value in personal_details.items():
+                    if value is not None and value != '':
+                        lookup = f"personal_details__{key}"
+                        query &= Q(**{lookup: value})
+            
+            # 3. Filter by Professional/Business Details
+            # (Reverse ForeignKey relationship: CustomUser <- ProfessionalDetail)
+            if bussiness_details:
+                for key, value in bussiness_details.items():
+                    if value is not None and value != '':
+                        # Note: Django lowercases the model name for reverse lookup by default
+                        # unless related_name is defined. Assuming no related_name="xyz":
+                        if key == "residential_details":
+                            for bkey, bvalue in professional_residetial_details.items():
+                                if bvalue is not None and bvalue != '':
+                                    lookup = f"professionaldetail__residential_details__{bkey}"
+                                    query &= Q(**{lookup: bvalue})
+                            continue
+                        
+                        lookup = f"professionaldetail__{key}"
+                        query &= Q(**{lookup: value})
+            
+            # print("query:", query)
+            
+            # Execute Query
+            from_user_ids = Relation.objects.values_list("from_user", flat=True).distinct()
+            distinct_from_user_objs = CustomUser.objects.filter(
+                query,
+                is_superuser=False,
+                is_archive=False,
+                user_role__name=user_role   
+            ).filter(
+                Q(id__in=from_user_ids) | ~Q(id__in=from_user_ids)
+            ).select_related(
+                "current_residential_details",
+                "current_residential_details__country",
+                "current_residential_details__state",
+                "current_residential_details__city_village"
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Something went wrong",
+                    "detail": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response(
-            UserListSerializer(user_objs, many=True).data,
+            UserListSerializer(distinct_from_user_objs, many=True).data,
             status=status.HTTP_200_OK
         )
                 
@@ -1359,3 +1405,156 @@ class ResidentialDetailsGetView(APIView):
         user_obj = get_object_or_404(CustomUser, id=user_id)
         residential_details_output = ResidentialDetailGetSerializer(user_obj.current_residential_details).data
         return Response(residential_details_output, status=status.HTTP_200_OK)
+
+class GetSearchKeyView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    PARENT_FIELD = {
+        "room": "house",
+        "house": "floor",
+        "floor": "block",
+        "block": "society",
+        "society": "ward",
+        "ward": "city_village",
+        "city_village": "taluka",
+        "taluka": "district",
+        "district": "state",
+        "state": "country",
+        "country": "continent",
+        "continent": "glob",
+        "glob": None
+    }
+    
+    MODEL_MAP = {
+        "glob": Glob,
+        "continent": Continent,
+        "country": Country,
+        "state": State,
+        "district": District,
+        "taluka": Taluka,
+        "city_village": CityVillage,
+        "ward": Ward,
+        "society": Society,
+        "block": Block,
+        "floor": Floor,
+        "house": House,
+        "room": Room,
+    }
+    
+    def build_chain(self, obj):
+        print("function called")
+        chain_items = []
+        current = obj
+        
+        print("current:", current)
+        
+        while current:
+            model_name = current.__class__.__name__  # e.g. Country
+            key = model_name.lower()
+
+            if model_name == "CityVillage":
+                key = "city_village"
+
+            chain_items.append(
+                (key, {"id": current.id, "name": current.name})
+            )
+            
+            print(chain_items)
+            
+            parent_field = self.PARENT_FIELD[key]
+            # fun will break when parent_field = None
+            if not parent_field: # "glob"
+                break
+            
+            # for eg current = Country object
+            current = getattr(current, parent_field)    # current = current.continent
+            print("current - 2:", current)
+        
+        chain_items.reverse()
+        return dict(chain_items)
+    
+    def get_hierarchy(self, search_key, record_rules):
+        # Find record rule for this level
+        rule = record_rules.filter(model__model__iexact=search_key.capitalize()).first()
+        if not rule:
+            return []
+
+        ids = rule.domain_filter.get("id__in", [])
+        if not ids:
+            return []
+
+        model_class = self.MODEL_MAP[search_key]
+        objs = model_class.objects.filter(id__in=ids)
+
+        # call function for each objects
+        # for eg objs = [country1, country2, country3], then function will be called 3 times
+        return [self.build_chain(obj) for obj in objs]
+    
+
+    def get(self, request):
+        logged_user = request.user
+        
+        # Model priority (lowest first)
+        LEVEL_ORDER = [
+            "room",
+            "house",
+            "floor",
+            "block",
+            "society",
+            "ward",
+            "city_village",
+            "taluka",
+            "district",
+            "state",
+            "country",
+            "continent",
+            "glob",
+        ]
+        
+        # Mapping between db model name → search_key
+        MODEL_MAP = {
+            "Glob": "glob",
+            "Continent": "continent",
+            "Country": "country",
+            "State": "state",
+            "District": "district",
+            "Taluka": "taluka",
+            "CityVillage": "city_village",
+            "Ward": "ward",
+            "Society": "society",
+            "Block": "block",
+            "Floor": "floor",
+            "House": "house",
+            "Room": "room",
+        }
+
+        record_rules = RecordRule.objects.filter(user=logged_user)
+
+        # No rules → return blank
+        if not record_rules.exists():
+            return Response({"search_key": ""}, status=status.HTTP_200_OK)
+
+        # Must have Glob access, otherwise deny
+        if not record_rules.filter(model__model="Glob").exists():
+            return Response({"search_key": ""}, status=status.HTTP_200_OK)
+
+        # Get list of model names assigned to user
+        assigned_model_names = list(record_rules.values_list("model__model", flat=True))
+        print("assigned_model_names:", assigned_model_names)
+        
+        # Convert assigned models to search keys
+        assigned_levels = {MODEL_MAP[m] for m in assigned_model_names}
+        print("assigned_levels:", assigned_levels)
+
+        # Select the lowest level user has
+        for level in LEVEL_ORDER:
+            if level in assigned_levels:
+                hierarchy = self.get_hierarchy(level, record_rules)
+                return Response(
+                    {
+                        "search_key": level,
+                        "hierarchy": hierarchy
+                    }, status=status.HTTP_200_OK)
+
+        # Fallback (should not happen)
+        return Response({"search_key": ""}, status=status.HTTP_200_OK)

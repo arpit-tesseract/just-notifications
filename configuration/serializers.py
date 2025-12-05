@@ -1133,6 +1133,13 @@ class PidhiDetailSerializer(DynamicFieldsModelSerializer):
         )
         return serializer.data
 
+
+class CalibrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Calibration
+        fields = '__all__'
+        read_only_fields = ['id']
+
 # ===================================================
 # Professional 
 # ===================================================

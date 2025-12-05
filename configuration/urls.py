@@ -32,6 +32,7 @@ router.register(r'kuls', KulViewSet)
 router.register(r'vanshes', VanshViewSet)
 router.register(r'families', FamilyViewSet)
 router.register(r'pidhis', PidhiViewSet)
+router.register(r'calibrations', CalibrationViewSet)
 
 router.register(r'sections', SectionViewSet)
 router.register(r'profclasses', ClassViewSet)
@@ -101,6 +102,7 @@ urlpatterns = [
     path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
     path("brand-lst/", BrandListView.as_view(), name="brand_lst"),
     path("product-lst/", ProductListView.as_view(), name="product_lst"),
+    path("calibration-lst/", CalibrationListView.as_view(), name="calibration_lst"),
     
     path("ward-flashes/", WardFlashView.as_view(), name="ward_flashes"),
     path("society-flashes/", SocietyFlashView.as_view(), name="society_flashes"),

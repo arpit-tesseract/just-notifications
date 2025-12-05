@@ -42,4 +42,5 @@ urlpatterns = [
     
     path('record-rules/', views.RecordRuleView.as_view(), name='record_rules'),
     path('record-rule-lst/', views.RecordRuleListView.as_view(), name='record_rules'),
+    path('search-key/', views.GetSearchKeyView.as_view(), name='search_key'),
 ]

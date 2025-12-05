@@ -426,6 +426,15 @@ class Pidhi(OrderByMixin, HoldableMixin):
         return f"{self.name} - {self.code}"
 
 
+class Calibration(OrderByMixin, HoldableMixin):
+    name = models.CharField(max_length=200, unique=True)
+    code = models.PositiveIntegerField(unique=True)
+    unit = models.CharField(max_length=50, null=True, blank=True) # e.g: cm, kg
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
 # ----------------------------------------------------------------------------------------------
 # Professional ->
 # ----------------------------------------------------------------------------------------------

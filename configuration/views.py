@@ -686,7 +686,18 @@ class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
             return PidhiSerializer   # For POST, PUT, PATCH
         return PidhiDetailSerializer
     
+class CalibrationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Calibration
+    queryset = Calibration.objects.all()
+    serializer_class = CalibrationSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
     
+class CalibrationListView(APIView):
+    def get(self, request):
+        calibration_objs = get_regular_query(Calibration)
+        serializer = CalibrationSerializer(calibration_objs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 # ========================================
 # Professional 
 # ========================================
@@ -6222,7 +6233,7 @@ class ProductSearchView(RecordRuleMixin, APIView):
             
             results = [
                 {
-                    "sector": SectorIdNameSerializer(obj.subdepartment.department.subsector.sector).data,
+                    "sector": SectorIdNameSerializer(obj.type.subdepartment.department.subsector.sector).data,
                     "brand": BrandIdNameSerializer(obj).data,
                     "product": None,
                 }
