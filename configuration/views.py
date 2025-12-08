@@ -4679,7 +4679,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "continent":
-            qs = get_regular_query(Continent)
+            qs = get_regular_query(Continent).select_related('glob')
             if glob_name:
                 filters['glob__name__icontains']=glob_name
             if continent_name:
@@ -4709,7 +4709,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "country":
-            qs = get_regular_query(Country)
+            qs = get_regular_query(Country).select_related('continent__glob')
             if glob_name:
                 filters['continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -4741,7 +4741,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "state":
-            qs = get_regular_query(State)
+            qs = get_regular_query(State).select_related('country__continent__glob')
             if glob_name:
                 filters['country__continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -4775,7 +4775,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "district":
-            qs = get_regular_query(District)
+            qs = get_regular_query(District).select_related('state__country__continent__glob')
             if glob_name:
                 filters['state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -4811,7 +4811,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "taluka":
-            qs = get_regular_query(Taluka)
+            qs = get_regular_query(Taluka).select_related('district__state__country__continent__glob')
             if glob_name:
                 filters['district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -4849,7 +4849,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "city_village":
-            qs = get_regular_query(CityVillage)
+            qs = get_regular_query(CityVillage).select_related('taluka__district__state__country__continent__glob')
             if glob_name:
                 filters['taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -4889,7 +4889,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
         
         elif search_key == "ward":
-            qs = get_regular_query(Ward)
+            qs = get_regular_query(Ward).select_related('city_village__taluka__district__state__country__continent__glob')
             if glob_name:
                 filters['city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -4931,7 +4931,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
         
         elif search_key == "society":
-            qs = get_regular_query(Society)
+            qs = get_regular_query(Society).select_related('ward__city_village__taluka__district__state__country__continent__glob')
             
             if glob_name:
                 filters['ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
@@ -4976,7 +4976,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
         
         elif search_key == "block":
-            qs = get_regular_query(Block)
+            qs = get_regular_query(Block).select_related('society__ward__city_village__taluka__district__state__country__continent__glob')
             
             if glob_name:
                 filters['society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
@@ -5023,7 +5023,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
         
         elif search_key == "floor":
-            qs = get_regular_query(Floor)
+            qs = get_regular_query(Floor).select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob')
             
             if glob_name:
                 filters['block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
@@ -5072,7 +5072,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         elif search_key == "house":
-            qs = get_regular_query(House)
+            qs = get_regular_query(House).select_related('floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
             
             if glob_name:
                 filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
@@ -5123,7 +5123,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
         
         elif search_key == "room":
-            qs = get_regular_query(Room)
+            qs = get_regular_query(Room).select_related('house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
             
             if glob_name:
                 filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
@@ -5255,7 +5255,7 @@ class PersonalSearchView(APIView):
             ]
 
         elif search_key == "sampraday":
-            qs = get_regular_query(Sampraday)
+            qs = get_regular_query(Sampraday).select_related('religion')
             if religion_name:
                 filters['religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5284,7 +5284,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "panth":
-            qs = get_regular_query(Panth)
+            qs = get_regular_query(Panth).select_related('sampraday__religion')
             if religion_name:
                 filters['sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5314,7 +5314,7 @@ class PersonalSearchView(APIView):
                 for obj in qs
             ]
         elif search_key == "awastha":
-            qs = get_regular_query(Awastha)
+            qs = get_regular_query(Awastha).select_related('panth__sampraday__religion')
             if religion_name:
                 filters['panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5347,7 +5347,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "varna":
-            qs = get_regular_query(Varna)
+            qs = get_regular_query(Varna).select_related('awastha__panth__sampraday__religion')
             if religion_name:
                 filters['awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5383,7 +5383,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "caste":
-            qs = get_regular_query(Caste)
+            qs = get_regular_query(Caste).select_related('varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5421,7 +5421,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "subcaste":
-            qs = get_regular_query(SubCaste)
+            qs = get_regular_query(SubCaste).select_related('caste__varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5461,7 +5461,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "gotra":
-            qs = get_regular_query(Gotra)
+            qs = get_regular_query(Gotra).select_related('subcaste__caste__varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5503,7 +5503,7 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "subgotra":
-            qs = get_regular_query(SubGotra)
+            qs = get_regular_query(SubGotra).select_related('gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5546,7 +5546,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "kul":
-            qs = get_regular_query(Kul)
+            qs = get_regular_query(Kul).select_related('subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5591,7 +5591,7 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "vansh":
-            qs = get_regular_query(Vansh)
+            qs = get_regular_query(Vansh).select_related('kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5638,7 +5638,7 @@ class PersonalSearchView(APIView):
             ]  
             
         elif search_key == "family":
-            qs = get_regular_query(Family)
+            qs = get_regular_query(Family).select_related('vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
             if religion_name:
                 filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
@@ -5688,33 +5688,33 @@ class PersonalSearchView(APIView):
 
         
         elif search_key == "pidhi":
-            qs = get_regular_query(Pidhi)
-            if religion_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
-            if awastha_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
-            if varna_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
-            if gotra_name:
-                filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
-            if subgotra_name:
-                filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
-            if kul_name:
-                filters['family__vansh__kul__name__icontains'] = kul_name
-            if vansh_name:
-                filters['family__vansh__name__icontains'] = vansh_name    
-            if family_name:
-                filters['family__name__icontains'] = family_name
+            qs = get_regular_query(Pidhi).select_related('family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
             if pidhi_name:
                 filters['name__icontains'] = pidhi_name
+            if family_name:
+                filters['family__name__icontains'] = family_name
+            if vansh_name:
+                filters['family__vansh__name__icontains'] = vansh_name    
+            if kul_name:
+                filters['family__vansh__kul__name__icontains'] = kul_name
+            if subgotra_name:
+                filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
+            if gotra_name:
+                filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
+            if subcaste_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+            if caste_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
+            if varna_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
+            if awastha_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
+            if panth_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+            if sampraday_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
+            if religion_name:
+                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             
             qs = qs.filter(**filters)
             qs = qs[:10]
@@ -5811,7 +5811,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "profclass":
-            qs = get_regular_query(Class)
+            qs = get_regular_query(Class).select_related("section")
             if profclass_name:
                 qs = qs.filter(name__icontains=profclass_name)
             if section_name:
@@ -5835,7 +5835,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "category":
-            qs = get_regular_query(ProfCategory)
+            qs = get_regular_query(ProfCategory).select_related("profclass__section")
             if category_name:
                 qs = qs.filter(name__icontains=category_name)
             if profclass_name:
@@ -5861,7 +5861,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subcategory":
-            qs = get_regular_query(ProfSubCategory)
+            qs = get_regular_query(ProfSubCategory).select_related("category__profclass__section")
             if subcategory_name:
                 qs = qs.filter(name__icontains=subcategory_name)
             if category_name:
@@ -5889,7 +5889,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "sector":
-            qs = get_regular_query(Sector)
+            qs = get_regular_query(Sector).select_related("subcategory__category__profclass__section")
             if sector_name:
                 qs = qs.filter(name__icontains=sector_name)
             if subcategory_name:
@@ -5919,7 +5919,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subsector":
-            qs = get_regular_query(SubSector)
+            qs = get_regular_query(SubSector).select_related("sector__subcategory__category__profclass__section")
             if subsector_name:
                 qs = qs.filter(name__icontains=subsector_name)
             if sector_name:
@@ -5951,7 +5951,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "department":
-            qs = get_regular_query(Department)
+            qs = get_regular_query(Department).select_related("subsector__sector__subcategory__category__profclass__section")
             if department_name:
                 qs = qs.filter(name__icontains=department_name)
             if subsector_name:
@@ -5985,7 +5985,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subdepartment":
-            qs = get_regular_query(SubDepartment)
+            qs = get_regular_query(SubDepartment).select_related("department__subsector__sector__subcategory__category__profclass__section")
             if subdepartment_name:
                 qs = qs.filter(name__icontains=subdepartment_name)
             if department_name:
@@ -6021,7 +6021,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "type":
-            qs = get_regular_query(Type)
+            qs = get_regular_query(Type).select_related("subdepartment__department__subsector__sector__subcategory__category__profclass__section")
             if type_name:
                 qs = qs.filter(name__icontains=type_name)
             if subdepartment_name:
@@ -6059,7 +6059,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "brand":
-            qs = get_regular_query(Brand)
+            qs = get_regular_query(Brand).select_related("type__subdepartment__department__subsector__sector__subcategory__category__profclass__section")
             if brand_name:
                 qs = qs.filter(name__icontains=brand_name)
             if type_name:
