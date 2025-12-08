@@ -1910,8 +1910,8 @@ class UploadWardsView(APIView):
         )
 
 
-class UploadRoomFlashesView(APIView):
-    model = RoomFlash
+class UploadSocietiesView(APIView):
+    model = Society
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
@@ -1921,7 +1921,7 @@ class UploadRoomFlashesView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["room_flash", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -1931,6 +1931,20 @@ class UploadRoomFlashesView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
+        ward_cache = {
+            (
+                w.name,
+                w.city_village.name,
+                w.city_village.taluka.name,
+                w.city_village.taluka.district.name,
+                w.city_village.taluka.district.state.name,
+                w.city_village.taluka.district.state.country.name,
+                w.city_village.taluka.district.state.country.continent.name,
+                w.city_village.taluka.district.state.country.continent.glob.name
+            ): w
+            for w in Ward.objects.select_related('city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
         objs = []
         invalid_rows = []
         
@@ -1939,60 +1953,647 @@ class UploadRoomFlashesView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
+                
                 # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
                 
                 # Calculate hidden and on_hold values
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                room_flash_name = clean(row.get("room_flash"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([room_flash_name, code]):
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                 
-                objs.append(RoomFlash(
-                    name=room_flash_name, 
+                ward_obj = ward_cache.get((ward, city_village, taluka, district, state, country, continent, glob))
+                if not ward_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Ward '{ward}' not found for city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
+                    continue
+                
+                objs.append(Society(
+                    ward=ward_obj, 
+                    name=society, 
                     code=code, 
                     is_hidden = is_hidden, 
                     on_hold = on_hold, 
                     hold_date = hold_date
                 ))
-                   
             except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+                
         if not objs:
             return Response({
                 "error": "No valid records found in the file.",
                 "invalid_rows": invalid_rows
                 }, status=status.HTTP_400_BAD_REQUEST
             )
-
         try:
             with transaction.atomic():
-                RoomFlash.objects.bulk_create(
+                Society.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["ward", "name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Societies uploaded successfully",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadBlocksView(APIView):
+    model = Block
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        society_cache = {
+            (
+                s.name,
+                s.ward.name,
+                s.ward.city_village.name,
+                s.ward.city_village.taluka.name,
+                s.ward.city_village.taluka.district.name,
+                s.ward.city_village.taluka.district.state.name,
+                s.ward.city_village.taluka.district.state.country.name,
+                s.ward.city_village.taluka.district.state.country.continent.name,
+                s.ward.city_village.taluka.district.state.country.continent.glob.name,
+             ): s
+            for s in Society.objects.select_related('ward__city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                
+                # Normalize boolean fields    
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                society_obj = society_cache.get((society, ward, city_village, taluka, district, state, country, continent, glob))
+                if not society_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Society '{society}' not found for ward: {ward}, city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
+                    continue
+                
+                objs.append(
+                    Block(
+                        society=society_obj,
+                        name=block,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+            
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                Block.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["society", "name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Blocks uploaded successfully",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+class UploadFloorsView(APIView):
+    model = Floor
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        block_cache = {
+            (
+                b.name,
+                b.society.name,
+                b.society.ward.name,
+                b.society.ward.city_village.name,
+                b.society.ward.city_village.taluka.name,
+                b.society.ward.city_village.taluka.district.name,
+                b.society.ward.city_village.taluka.district.state.name,
+                b.society.ward.city_village.taluka.district.state.country.name,
+                b.society.ward.city_village.taluka.district.state.country.continent.name,
+                b.society.ward.city_village.taluka.district.state.country.continent.glob.name,
+             ): b
+            for b in Block.objects.select_related('society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                
+                # Normalize boolean fields
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                floor_no = clean(row.get("floor_no") or "")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                block_obj = block_cache.get((block, society, ward, city_village, taluka, district, state, country, continent, glob))
+                if not block_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Block '{block}' not found for society: {society}, ward: {ward}, city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}."})
+                    continue
+                
+                objs.append(
+                    Floor(
+                        block=block_obj,
+                        no=floor_no,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response(
+                {
+                    "error": "No valid rows found in the file.",
+                    "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            with transaction.atomic():
+                Floor.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["block", "no", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Floors uploaded successfully",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadHousesView(APIView):
+    model = House
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "house_no", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        floor_cache = {
+            (
+                f.no,
+                f.block.name,
+                f.block.society.name,
+                f.block.society.ward.name,
+                f.block.society.ward.city_village.name,
+                f.block.society.ward.city_village.taluka.name,
+                f.block.society.ward.city_village.taluka.district.name,
+                f.block.society.ward.city_village.taluka.district.state.name,
+                f.block.society.ward.city_village.taluka.district.state.country.name,
+                f.block.society.ward.city_village.taluka.district.state.country.continent.name,
+                f.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
+                f.block.name,
+             ): f
+            for f in Floor.objects.select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                
+                # Normalize boolean fields
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                floor_no = clean(row.get("floor_no") or "")
+                house_no = clean(row.get("house_no") or "")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, house_no, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                floor_obj = floor_cache.get((floor_no, block, society, ward, city_village, taluka, district, state, country, continent, glob))
+                if not floor_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Floor '{floor_no}' not found for block {block}, society {society}, ward {ward}, city_village {city_village}, taluka {taluka}, district {district}, state {state}, country {country}, continent {continent}, glob {glob}."})
+                    continue
+                
+                objs.append(
+                    House(
+                        floor=floor_obj,
+                        no=house_no,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response(
+                {
+                    "error": "No valid rows found in the file.",
+                    "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                House.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["floor","no", "is_hidden", "on_hold", "hold_date"]
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
-                "message": f"{len(objs)} RoomFlash uploaded successfully",
-                "invalid_rows": invalid_rows,
+                "message": f"{len(objs)} Houses uploaded successfully",
+                "invalid_rows": invalid_rows
             }, status=status.HTTP_201_CREATED
         )
+
+
+class UploadRoomsView(APIView):
+    model = Room
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "house_no", "room_no", "room_type", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        house_cache = {
+            (
+                h.no,
+                h.floor.no,
+                h.floor.block.name,
+                h.floor.block.society.name,
+                h.floor.block.society.ward.name,
+                h.floor.block.society.ward.city_village.name,
+                h.floor.block.society.ward.city_village.taluka.name,
+                h.floor.block.society.ward.city_village.taluka.district.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.country.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.country.continent.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
+             ): h
+            for h in House.objects.all()
+        }
+        
+        room_type_objs =  RoomType.objects.all()
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                
+                # Normalize boolean fields
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                floor_no = clean(row.get("floor_no") or "")
+                house_no = clean(row.get("house_no") or "")
+                room_no = clean(row.get("room_no") or "")
+                room_type = clean(row.get("room_type") or "")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, house_no, room_no,code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                house_obj = house_cache[(house_no, floor_no, block, society, ward, city_village, taluka, district, state, country, continent, glob)]
+                if not house_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"House '{house_no}' not found for floor {floor_no}, block {block}, society {society}, ward {ward}, city_village {city_village}, taluka {taluka}, district {district}, state {state}, country {country}, continent {continent}, glob {glob}."})
+                    continue
+                
+                if room_type:
+                    room_type_obj = room_type_objs.filter(name=room_type).first()
+                    if not room_type_obj:
+                        invalid_rows.append({"row": idx + 2, "error": "Room type not found."})
+                        continue
+                else:
+                    room_type_obj = None
+                
+                objs.append(
+                    Room(
+                        house=house_obj,
+                        no=room_no,
+                        room_type = room_type_obj,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response(
+                {
+                    "error": "No valid rows found in the file.",
+                    "invalid_rows": invalid_rows,
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                Room.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=[
+                        "is_hidden",
+                        "on_hold",
+                        "hold_date",
+                        "house",
+                        "room_type",
+                        "no"
+                    ],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create rooms: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} rooms created successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+             
+# class UploadRoomFlashesView(APIView):
+#     model = RoomFlash
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+#     def post(self, request):
+#         serializer = FileUploadSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         file = serializer.validated_data['file']
+
+#         try:
+#             df = read_file(file, required_columns=["room_flash", "code", "is_hidden", "on_hold", "hold_date"])
+#         except ValidationError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Check if the DataFrame is empty
+#         if df.empty:
+#             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         objs = []
+#         invalid_rows = []
+        
+#         for idx, row in df.iterrows():
+#             try:
+#                 hold_date = row.get('hold_date')
+#                 if pd.isna(hold_date):  # check for NaT or NaN
+#                     hold_date = None
+#                 else:
+#                     hold_date = pd.to_datetime(hold_date).date()
+                    
+#                 # Normalize boolean fields
+#                 is_hidden = normalize_bool(row.get("is_hidden"))
+#                 on_hold = normalize_bool(row.get("on_hold"))
+                
+#                 # Calculate hidden and on_hold values
+#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+#                 # Clean text safely
+#                 room_flash_name = clean(row.get("room_flash"))
+#                 code = row.get("code")
+                
+#                 # Skip invalid rows early
+#                 if not all([room_flash_name, code]):
+#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+#                     continue
+                
+#                 objs.append(RoomFlash(
+#                     name=room_flash_name, 
+#                     code=code, 
+#                     is_hidden = is_hidden, 
+#                     on_hold = on_hold, 
+#                     hold_date = hold_date
+#                 ))
+                   
+#             except Exception as e:
+#                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+#         if not objs:
+#             return Response({
+#                 "error": "No valid records found in the file.",
+#                 "invalid_rows": invalid_rows
+#                 }, status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         try:
+#             with transaction.atomic():
+#                 RoomFlash.objects.bulk_create(
+#                     objs,
+#                     update_conflicts=True,
+#                     unique_fields=["code"],
+#                     update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+#                 )
+#         except Exception as e:
+#             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         return Response(
+#             {
+#                 "message": f"{len(objs)} RoomFlash uploaded successfully",
+#                 "invalid_rows": invalid_rows,
+#             }, status=status.HTTP_201_CREATED
+#         )
 
 
 class UploadRoomTypesView(APIView):
@@ -2373,6 +2974,108 @@ class UploadPanthView(APIView):
                 "invalid_rows": invalid_rows,
             }, status=status.HTTP_201_CREATED
         )
+
+
+class UploadAwasthaView(APIView):
+    model = Awastha
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        panth_cache = {
+            (
+                p.name,
+                p.sampraday.name,
+                p.sampraday.religion.name
+            ):p 
+            for p in Panth.objects.select_related("sampraday__religion").all()
+        }
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                religion = clean(row.get("religion"))
+                sampraday = clean(row.get("sampraday"))
+                panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([sampraday, religion, panth, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                    
+                panth_obj = panth_cache.get((panth, sampraday, religion))
+                if not panth_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday} and religion: {religion}"})
+                    continue    
+                
+                objs.append(Awastha(
+                    panth = panth_obj,
+                    name=awastha, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                Awastha.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["panth", "name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Awastha uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
         
 
 class UploadVarnaView(APIView):
@@ -2386,7 +3089,7 @@ class UploadVarnaView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2396,11 +3099,14 @@ class UploadVarnaView(APIView):
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
-        panth_cache = {
-            (p.name, 
-             p.sampraday.name, 
-             p.sampraday.religion.name) : p 
-            for p in Panth.objects.select_related("sampraday__religion").all()
+        awastha_cache = {
+            (
+                a.name,
+                a.panth.name,
+                a.panth.sampraday.name,
+                a.panth.sampraday.religion.name
+            ):a
+            for a in Awastha.objects.select_related("panth__sampraday__religion").all()
         }
         
         objs = []
@@ -2425,21 +3131,22 @@ class UploadVarnaView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, code]):
+                if not all([religion, sampraday, panth, awastha, varna, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                panth_obj = panth_cache.get((panth, sampraday, religion))
-                if not panth_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday} and religion: {religion}"}) 
+                awastha_obj = awastha_cache.get((awastha, panth, sampraday, religion))
+                if not awastha_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Awastha '{awastha}' not found"}) 
                     continue    
                 
                 objs.append(Varna(
-                    panth = panth_obj,
+                    awastha = awastha_obj,
                     name=varna, 
                     code=code, 
                     is_hidden = is_hidden, 
@@ -2463,7 +3170,7 @@ class UploadVarnaView(APIView):
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["panth", "name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["awastha", "name", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2487,7 +3194,7 @@ class UploadCasteView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2499,10 +3206,11 @@ class UploadCasteView(APIView):
         
         varna_cache = {
             (v.name,
-             v.panth.name,
-             v.panth.sampraday.name,
-             v.panth.sampraday.religion.name) : v
-            for v in Varna.objects.select_related("panth__sampraday__religion").all()
+             v.awastha.name,
+             v.awastha.panth.name,
+             v.awastha.panth.sampraday.name,
+             v.awastha.panth.sampraday.religion.name) : v
+            for v in Varna.objects.select_related("awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -2527,18 +3235,19 @@ class UploadCasteView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, code]):
+                if not all([sampraday, religion, panth, awastha, varna, caste, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                varna_obj = varna_cache.get((varna, panth, sampraday, religion))
+                varna_obj = varna_cache.get((varna, awastha, panth, sampraday, religion))
                 if not varna_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Varna '{varna}' not found for panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
+                    invalid_rows.append({"row": idx + 2, "error": f"Varna '{varna}' not found for awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
                     continue    
                 
                 objs.append(Caste(
@@ -2590,7 +3299,7 @@ class UploadSubCasteView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2602,11 +3311,12 @@ class UploadSubCasteView(APIView):
         
         caste_cache = {
             (c.name, 
-             c.varna.name, 
-             c.varna.panth.name, 
-             c.varna.panth.sampraday.name, 
-             c.varna.panth.sampraday.religion.name) : c
-            for c in Caste.objects.select_related("varna__panth__sampraday__religion").all()
+             c.varna.name,
+             c.varna.awastha.name, 
+             c.varna.awastha.panth.name, 
+             c.varna.awastha.panth.sampraday.name, 
+             c.varna.awastha.panth.sampraday.religion.name) : c
+            for c in Caste.objects.select_related("varna__awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -2631,19 +3341,20 @@ class UploadSubCasteView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, subcaste, code]):
+                if not all([sampraday, religion, panth, awastha, varna, caste, subcaste, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                caste_obj = caste_cache.get((caste, varna, panth, sampraday, religion))
+                caste_obj = caste_cache.get((caste, varna, awastha, panth, sampraday, religion))
                 if not caste_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Caste '{caste}' not found for varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
+                    invalid_rows.append({"row": idx + 2, "error": f"Caste '{caste}' not found for varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
                     continue    
                 
                 objs.append(SubCaste(
@@ -2694,7 +3405,7 @@ class UploadGotraView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2707,11 +3418,12 @@ class UploadGotraView(APIView):
         subcaste_cache = {
             (s.name, 
              s.caste.name, 
-             s.caste.varna.name, 
-             s.caste.varna.panth.name, 
-             s.caste.varna.panth.sampraday.name, 
-             s.caste.varna.panth.sampraday.religion.name) : s
-            for s in SubCaste.objects.select_related("caste__varna__panth__sampraday__religion").all()
+             s.caste.varna.name,
+             s.caste.varna.awastha.name, 
+             s.caste.varna.awastha.panth.name, 
+             s.caste.varna.awastha.panth.sampraday.name, 
+             s.caste.varna.awastha.panth.sampraday.religion.name) : s
+            for s in SubCaste.objects.select_related("caste__varna__awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -2736,6 +3448,7 @@ class UploadGotraView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
@@ -2743,14 +3456,14 @@ class UploadGotraView(APIView):
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, code]):
+                if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                  
                     
-                subcaste_obj = subcaste_cache.get((subcaste, caste, varna, panth, sampraday, religion))
+                subcaste_obj = subcaste_cache.get((subcaste, caste, varna, awastha, panth, sampraday, religion))
                 if not subcaste_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {subcaste} not found for caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
+                    invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {subcaste} not found for caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
                     continue    
                 
                 objs.append(Gotra(
@@ -2802,7 +3515,7 @@ class UploadSubGotraView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2817,10 +3530,11 @@ class UploadSubGotraView(APIView):
              g.subcaste.name, 
              g.subcaste.caste.name, 
              g.subcaste.caste.varna.name, 
-             g.subcaste.caste.varna.panth.name, 
-             g.subcaste.caste.varna.panth.sampraday.name, 
-             g.subcaste.caste.varna.panth.sampraday.religion.name) : g
-            for g in Gotra.objects.select_related("subcaste__caste__varna__panth__sampraday__religion").all()
+             g.subcaste.caste.varna.awastha.name,
+             g.subcaste.caste.varna.awastha.panth.name, 
+             g.subcaste.caste.varna.awastha.panth.sampraday.name, 
+             g.subcaste.caste.varna.awastha.panth.sampraday.religion.name) : g
+            for g in Gotra.objects.select_related("subcaste__caste__varna__awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -2845,6 +3559,7 @@ class UploadSubGotraView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
@@ -2853,13 +3568,13 @@ class UploadSubGotraView(APIView):
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, subcaste, gotra, subgotra, code]):
+                if not all([sampraday, religion, panth, awastha, varna, caste, subcaste, gotra, subgotra, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                     
-                gotra_obj = gotra_cache.get((gotra, subcaste, caste, varna, panth, sampraday, religion))
+                gotra_obj = gotra_cache.get((gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
                 if not gotra_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue    
                 
                 objs.append(SubGotra(
@@ -2911,7 +3626,7 @@ class UploadKulView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -2927,10 +3642,11 @@ class UploadKulView(APIView):
             sg.gotra.subcaste.name,
             sg.gotra.subcaste.caste.name,
             sg.gotra.subcaste.caste.varna.name,
-            sg.gotra.subcaste.caste.varna.panth.name,
-            sg.gotra.subcaste.caste.varna.panth.sampraday.name,
-            sg.gotra.subcaste.caste.varna.panth.sampraday.religion.name): sg
-            for sg in SubGotra.objects.select_related("gotra__subcaste__caste__varna__panth__sampraday__religion").all()
+            sg.gotra.subcaste.caste.varna.awastha.name,
+            sg.gotra.subcaste.caste.varna.awastha.panth.name,
+            sg.gotra.subcaste.caste.varna.awastha.panth.sampraday.name,
+            sg.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion.name): sg
+            for sg in SubGotra.objects.select_related("gotra__subcaste__caste__varna__awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -2955,6 +3671,7 @@ class UploadKulView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
@@ -2964,13 +3681,13 @@ class UploadKulView(APIView):
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, code]):
+                if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                     
-                subgotra_obj = subgotra_cache.get((subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                subgotra_obj = subgotra_cache.get((subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
                 if not subgotra_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{subgotra}' not found for gotra: {gotra}, sub caste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
+                    invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{subgotra}' not found for gotra: {gotra}, sub caste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
                     continue    
                 
                 objs.append(Kul(
@@ -3022,7 +3739,7 @@ class UploadVanshView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3039,10 +3756,11 @@ class UploadVanshView(APIView):
             kul.subgotra.gotra.subcaste.name,
             kul.subgotra.gotra.subcaste.caste.name,
             kul.subgotra.gotra.subcaste.caste.varna.name,
-            kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-            kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-            kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): kul
-            for kul in Kul.objects.select_related("subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion").all()
+            kul.subgotra.gotra.subcaste.caste.varna.awastha.name,
+            kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.name,
+            kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.name,
+            kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion.name): kul
+            for kul in Kul.objects.select_related("subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -3067,6 +3785,7 @@ class UploadVanshView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday"))
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
@@ -3076,13 +3795,13 @@ class UploadVanshView(APIView):
                 vansh = clean(row.get("vansh"))
                 code = row.get("code")
                 
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, code]):
+                if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                kul_obj = kul_cache.get((kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                kul_obj = kul_cache.get((kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
                 if not kul_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Vansh(
@@ -3131,7 +3850,7 @@ class UploadFamilyView(APIView):
         file = serializer.validated_data['file']
         
         try:
-            df = read_file(file, required_columns=["religion", "sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["religion", "sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3149,10 +3868,11 @@ class UploadFamilyView(APIView):
              v.kul.subgotra.gotra.subcaste.name,
              v.kul.subgotra.gotra.subcaste.caste.name,
              v.kul.subgotra.gotra.subcaste.caste.varna.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): v
-            for v in Vansh.objects.select_related("kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion").all()
+             v.kul.subgotra.gotra.subcaste.caste.varna.awastha.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion.name): v
+            for v in Vansh.objects.select_related("kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion").all()
         }
         
         objs = []
@@ -3177,6 +3897,7 @@ class UploadFamilyView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday")) 
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
@@ -3187,13 +3908,13 @@ class UploadFamilyView(APIView):
                 family = clean(row.get("family"))
                 code = row.get("code")    
                 
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, code]):
+                if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                vansh_obj = vansh_cache.get((vansh, kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                vansh_obj = vansh_cache.get((vansh, kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
                 if not vansh_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna},  awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Family(
@@ -3245,7 +3966,7 @@ class UploadPidhiView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -3264,9 +3985,10 @@ class UploadPidhiView(APIView):
              f.vansh.kul.subgotra.gotra.subcaste.name,
              f.vansh.kul.subgotra.gotra.subcaste.caste.name,
              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): f
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.name,
+             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion.name): f
             for f in Family.objects.all()
         }
                 
@@ -3293,6 +4015,7 @@ class UploadPidhiView(APIView):
                 religion = clean(row.get("religion"))
                 sampraday = clean(row.get("sampraday")) 
                 panth = clean(row.get("panth"))
+                awastha = clean(row.get("awastha"))
                 varna = clean(row.get("varna"))
                 caste = clean(row.get("caste"))
                 subcaste = clean(row.get("subcaste"))
@@ -3304,13 +4027,13 @@ class UploadPidhiView(APIView):
                 pidhi = clean(row.get("pidhi"))
                 code = row.get("code")
                 
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
+                if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
                     continue
                 
-                family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
+                family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
                 if not family_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
                     continue
                 
                 objs.append(Pidhi(

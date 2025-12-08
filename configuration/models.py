@@ -244,7 +244,7 @@ class RoomType(OrderByMixin, HoldableMixin):
     
 class Room(OrderByMixin, HoldableMixin):
     house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="rooms")
-    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name="rooms_of_room_type")
+    room_type = models.ForeignKey(RoomType, on_delete=models.SET_NULL, blank=True, null=True, related_name="rooms_of_room_type")
     no = models.IntegerField()
     code = models.PositiveIntegerField(unique=True)
     

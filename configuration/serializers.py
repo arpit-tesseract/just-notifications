@@ -315,7 +315,7 @@ class WardSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         flash_data = validated_data.pop("flashes", [])
-        
+        print("flash_data:", flash_data)
         with transaction.atomic():
             # update ward
             for attr, value in validated_data.items():
@@ -959,7 +959,7 @@ class VarnaDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = [f for f in Varna._meta.fields]
     
     def get_awastha(self, obj):
-        serializer = PanthDetailSerializer(
+        serializer = AwasthaDetailSerializer(
             obj.awastha,
             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
         )
