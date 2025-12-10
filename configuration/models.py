@@ -1,9 +1,44 @@
 from django.db import models
 from django.utils import timezone
 
+def get_two_digit(num):
+    return str(num).zfill(2)
+
+def get_three_digit(num):
+    return str(num).zfill(3)
 
 # An abstract model mixin that provides is_hidden, on_hold,
 # and hold_date fields, along with the automated save logic.
+class CommonFieldMixin(models.Model):
+    # --- Fields to be reused ---
+    code = models.PositiveIntegerField(null=True, blank=True)
+    is_hidden = models.BooleanField("hidden", default=False)
+    on_hold = models.BooleanField("on hold", default=False)
+    hold_date = models.DateField("hold upto", null=True, blank=True)
+
+    # --- Reusable logic ---
+    def save(self, *args, **kwargs):
+        if self.on_hold == False:
+            self.hold_date = None
+        
+        if self.hold_date:
+            if self.hold_date >= timezone.now().date():
+                self.on_hold = True
+            else:
+                self.on_hold = False
+                self.hold_date = None
+        else:
+            self.on_hold = False
+            
+        super().save(*args, **kwargs)
+    
+    # @staticmethod
+    # def get_two_digit(num):
+    #     return str(num).zfill(2)
+
+    class Meta:
+        abstract = True
+        
 class HoldableMixin(models.Model):
     # --- Fields to be reused ---
     is_hidden = models.BooleanField("hidden", default=False)
@@ -39,7 +74,7 @@ class OrderByMixin(models.Model):
 # for example:-
 # house: foundation size, material, product usage
 # ward: road, gutter, garden, street light
-class Flash(OrderByMixin, HoldableMixin):
+class Flash(OrderByMixin, CommonFieldMixin):
     CATEGORY_CHOICES = (
         ("ward", "Ward"),
         ("society", "Society"),
@@ -63,27 +98,32 @@ class Flash(OrderByMixin, HoldableMixin):
 # --------------------------------------------------------------------------------
 # Residential ->
 # --------------------------------------------------------------------------------
-class Glob(OrderByMixin, HoldableMixin):
+class Glob(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=100, unique=True)
     code = models.PositiveIntegerField(unique=True)
-        
+    
+    def get_formatted_code(self):
+        return f"{get_two_digit(self.code)}"
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Continent(OrderByMixin, HoldableMixin):
+class Continent(OrderByMixin, CommonFieldMixin):
     glob = models.ForeignKey(Glob, on_delete=models.CASCADE, related_name="continents")
     name = models.CharField(max_length=100, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
+    def get_formatted_code(self):
+        continent_count = self.glob.continents.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(continent_count)})"
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Country(OrderByMixin, HoldableMixin):
+class Country(OrderByMixin, CommonFieldMixin):
     continent = models.ForeignKey(Continent, on_delete=models.CASCADE, related_name="countries")
     name = models.CharField(max_length=100, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -93,14 +133,17 @@ class Country(OrderByMixin, HoldableMixin):
             )
         ]
 
+    def get_formatted_code(self):
+        country_count = self.continent.countries.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(country_count)})"
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class State(OrderByMixin, HoldableMixin):
+class State(OrderByMixin, CommonFieldMixin):
     country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="states")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
     
     class Meta:
         constraints = [
@@ -109,14 +152,17 @@ class State(OrderByMixin, HoldableMixin):
             )
         ]
 
+    def get_formatted_code(self):
+        state_count = self.country.states.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(state_count)})"
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class District(OrderByMixin, HoldableMixin):
+class District(OrderByMixin, CommonFieldMixin):
     state = models.ForeignKey(State, on_delete=models.CASCADE, related_name="districts")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -125,14 +171,17 @@ class District(OrderByMixin, HoldableMixin):
             )
         ]
 
+    def get_formatted_code(self):
+        district_count = self.state.districts.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(district_count)})"
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
     
 
-class Taluka(OrderByMixin, HoldableMixin):
+class Taluka(OrderByMixin, CommonFieldMixin):
     district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="talukas")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -140,15 +189,18 @@ class Taluka(OrderByMixin, HoldableMixin):
                 fields=["district", "name"], name="unique_taluka_per_district"
             )
         ]
+        
+    def get_formatted_code(self):
+        taluka_count = self.district.talukas.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(taluka_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class CityVillage(OrderByMixin, HoldableMixin):
+class CityVillage(OrderByMixin, CommonFieldMixin):
     taluka = models.ForeignKey(Taluka, on_delete=models.CASCADE, related_name="city_villages")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -156,15 +208,18 @@ class CityVillage(OrderByMixin, HoldableMixin):
                 fields=["taluka", "name"], name="unique_city_village_per_taluka"
             )
         ]
+    
+    def get_formatted_code(self):
+        city_village_count = self.taluka.city_villages.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(city_village_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Ward(OrderByMixin, HoldableMixin):
+class Ward(OrderByMixin, CommonFieldMixin):
     city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, related_name="wards")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     class Meta:
         constraints = [
@@ -172,24 +227,30 @@ class Ward(OrderByMixin, HoldableMixin):
                 fields=["city_village", "name"], name="unique_ward_per_city_village"
             )
         ]
+    
+    def get_formatted_code(self):
+        ward_count = self.city_village.wards.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(ward_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Society(OrderByMixin, HoldableMixin):
+class Society(OrderByMixin, CommonFieldMixin):
     ward = models.ForeignKey(Ward, on_delete=models.CASCADE, related_name="societies")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        society_count = self.ward.societies.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(society_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Block(OrderByMixin, HoldableMixin):
+class Block(OrderByMixin, CommonFieldMixin):
     society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="blocks")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
     
     class Meta:
         constraints = [
@@ -197,15 +258,18 @@ class Block(OrderByMixin, HoldableMixin):
                 fields=["society", "name"], name="unique_block_per_society"
             )
         ]
+    
+    def get_formatted_code(self):
+        block_count = self.society.blocks.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(block_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Floor(OrderByMixin, HoldableMixin):
+class Floor(OrderByMixin, CommonFieldMixin):
     block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="floors")
     no = models.IntegerField(default=0)
-    code = models.PositiveIntegerField(unique=True)
     
     class Meta:
         constraints = [
@@ -213,15 +277,18 @@ class Floor(OrderByMixin, HoldableMixin):
                 fields=["block", "no"], name="unique_floor_per_block"
             )
         ]
+    
+    def get_formatted_code(self):
+        floor_count = self.block.floors.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(floor_count)})"
 
     def __str__(self):
         return f"{self.no} - {self.code}"
 
 
-class House(OrderByMixin, HoldableMixin):
+class House(OrderByMixin, CommonFieldMixin):
     floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="houses")
     no = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
     
     class Meta:
         constraints = [
@@ -229,12 +296,16 @@ class House(OrderByMixin, HoldableMixin):
                 fields=["floor", "no"], name="unique_house_per_floor"
             )
         ]
+    
+    def get_formatted_code(self):
+        house_count = self.floor.houses.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(house_count)})"
 
     def __str__(self):
         return f"{self.no} - {self.code}"
 
-class RoomType(OrderByMixin, HoldableMixin):
-    name = models.CharField(max_length=20)
+class RoomType(OrderByMixin, CommonFieldMixin):
+    name = models.CharField(max_length=20, unique=True)
     is_used = models.BooleanField(default=False)
     code = models.PositiveIntegerField(unique=True)
 
@@ -242,11 +313,10 @@ class RoomType(OrderByMixin, HoldableMixin):
         return f"{self.code} - {self.name}"
     
     
-class Room(OrderByMixin, HoldableMixin):
+class Room(OrderByMixin, CommonFieldMixin):
     house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="rooms")
     room_type = models.ForeignKey(RoomType, on_delete=models.SET_NULL, blank=True, null=True, related_name="rooms_of_room_type")
-    no = models.IntegerField()
-    code = models.PositiveIntegerField(unique=True)
+    no = models.PositiveIntegerField()
     
     class Meta:
         constraints = [
@@ -254,6 +324,10 @@ class Room(OrderByMixin, HoldableMixin):
                 fields=["house", "no"], name="unique_room_no_per_house"
             )
         ]
+    
+    def get_formatted_code(self):
+        room_count = self.house.rooms.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(room_count)})"
 
     def __str__(self):
         return f"{self.no} - {self.code}"
@@ -313,210 +387,277 @@ class RecordRule(models.Model):
 # -------------------------------------------------------------------------------------------------
 # Personal ->
 # -------------------------------------------------------------------------------------------------
-class Religion(OrderByMixin, HoldableMixin):
+class Religion(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+    
+    def get_formatted_code(self):
+        return get_two_digit(self.code)
+
+
+class Sampraday(OrderByMixin, CommonFieldMixin):
+    religion = models.ForeignKey(Religion, on_delete=models.CASCADE, related_name="sampradays")
+    name = models.CharField(max_length=200, db_index=True)
+    
+    def get_formatted_code(self):
+        sampraday_count = self.religion.sampradays.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(sampraday_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Sampraday(OrderByMixin, HoldableMixin):
-    religion = models.ForeignKey(Religion, on_delete=models.CASCADE)
+class Panth(OrderByMixin, CommonFieldMixin):
+    sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE, related_name="panths")
     name = models.CharField(max_length=200, db_index=True)
+    
+    def get_formatted_code(self):
+        panth_count = self.sampraday.panths.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(panth_count)})"
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class Awastha(OrderByMixin, CommonFieldMixin):
+    name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        return get_two_digit(self.code)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class Varna(OrderByMixin, CommonFieldMixin):
+    panth = models.ForeignKey(Panth, on_delete=models.CASCADE, related_name="varnas")
+    name = models.CharField(max_length=200, db_index=True)
+    
+    def get_formatted_code(self):
+        varna_count = self.panth.varnas.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(varna_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Panth(OrderByMixin, HoldableMixin):
-    sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE)
+class Caste(OrderByMixin, CommonFieldMixin):
+    varna = models.ForeignKey(Varna, on_delete=models.CASCADE, related_name="castes")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.code}"
-
-class Awastha(OrderByMixin, HoldableMixin):
-    panth = models.ForeignKey(Panth, on_delete=models.CASCADE)
-    name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.code}"
-
-class Varna(OrderByMixin, HoldableMixin):
-    awastha = models.ForeignKey(Awastha, on_delete=models.CASCADE)
-    name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        caste_count = self.varna.castes.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(caste_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Caste(OrderByMixin, HoldableMixin):
-    varna = models.ForeignKey(Varna, on_delete=models.CASCADE)
+class SubCaste(OrderByMixin, CommonFieldMixin):
+    caste = models.ForeignKey(Caste, on_delete=models.CASCADE, related_name="subcastes")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.code}"
-
-
-class SubCaste(OrderByMixin, HoldableMixin):
-    caste = models.ForeignKey(Caste, on_delete=models.CASCADE)
-    name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        subcaste_count = self.caste.subcastes.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(subcaste_count)})"
   
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Gotra(OrderByMixin, HoldableMixin):
-    subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE)
+class Gotra(OrderByMixin, CommonFieldMixin):
+    subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE, related_name="gotras")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        gotra_count = self.subcaste.gotras.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(gotra_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class SubGotra(OrderByMixin, HoldableMixin):
-    gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE)
+class SubGotra(OrderByMixin, CommonFieldMixin):
+    gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE, related_name="subgotras")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        subgotra_count = self.gotra.subgotras.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(subgotra_count)})"
   
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Kul(OrderByMixin, HoldableMixin):
-    subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE)
+class Kul(OrderByMixin, CommonFieldMixin):
+    subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE, related_name="kuls")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        kul_count = self.subgotra.kuls.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(kul_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
     
 
-class Vansh(OrderByMixin, HoldableMixin):
-    kul = models.ForeignKey(Kul, on_delete=models.CASCADE)
+class Vansh(OrderByMixin, CommonFieldMixin):
+    kul = models.ForeignKey(Kul, on_delete=models.CASCADE, related_name="vanshs")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        vansh_count = self.kul.vanshs.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(vansh_count)})"
   
     def __str__(self):
         return f"{self.name} - {self.code}"
     
 
-class Family(OrderByMixin, HoldableMixin):
-    vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE)
+class Family(OrderByMixin, CommonFieldMixin):
+    vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE, related_name="families")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        family_count = self.vansh.families.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(family_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Pidhi(OrderByMixin, HoldableMixin):
+class Pidhi(OrderByMixin, CommonFieldMixin):
     family = models.ForeignKey(Family, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Calibration(OrderByMixin, HoldableMixin):
+class Calibration(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
     unit = models.CharField(max_length=50, null=True, blank=True) # e.g: cm, kg
 
     def __str__(self):
         return f"{self.name} - {self.code}"
+    
+    def get_formatted_code(self):
+        return get_two_digit(self.code)
 
 
 # ----------------------------------------------------------------------------------------------
 # Professional ->
 # ----------------------------------------------------------------------------------------------
-class Section(OrderByMixin, HoldableMixin):
+class Section(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
     
-    def __str__(self):
-        return f"{self.name} - {self.code}"
-
-
-class Class(OrderByMixin, HoldableMixin):
-    section = models.ForeignKey(Section, on_delete=models.CASCADE)
-    name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    def get_formatted_code(self):
+        return get_two_digit(self.code)
     
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class ProfCategory(OrderByMixin, HoldableMixin):
-    profclass = models.ForeignKey(Class, on_delete=models.CASCADE)
+class Class(OrderByMixin, CommonFieldMixin):
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name="profclasses")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        profclass_count = self.section.profclasses.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(profclass_count)})"
     
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class ProfSubCategory(OrderByMixin, HoldableMixin):
-    category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE)
+class ProfCategory(OrderByMixin, CommonFieldMixin):
+    profclass = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
     
-    def __str__(self):
-        return f"{self.name} - {self.code}"
-    
-class Sector(OrderByMixin, HoldableMixin):
-    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE)
-    name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    def get_formatted_code(self):
+        category_count = self.profclass.categories.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(category_count)})"
     
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class SubSector(OrderByMixin, HoldableMixin):
-    sector = models.ForeignKey(Sector, on_delete=models.CASCADE)
+
+class ProfSubCategory(OrderByMixin, CommonFieldMixin):
+    category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE, related_name="subcategories")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        subcategory_count = self.category.subcategories.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(subcategory_count)})"
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+    
+class Sector(OrderByMixin, CommonFieldMixin):
+    subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE, related_name="sectors")
+    name = models.CharField(max_length=200, db_index=True)
+    
+    def get_formatted_code(self):
+        sector_count = self.subcategory.sectors.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(sector_count)})"
+    
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+class SubSector(OrderByMixin, CommonFieldMixin):
+    sector = models.ForeignKey(Sector, on_delete=models.CASCADE, related_name="subsectors")
+    name = models.CharField(max_length=200, db_index=True)
+    
+    def get_formatted_code(self):
+        subsector_count = self.sector.subsectors.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(subsector_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Department(OrderByMixin, HoldableMixin):
-    subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE)
+class Department(OrderByMixin, CommonFieldMixin):
+    subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE, related_name="departments")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        department_count = self.subsector.departments.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(department_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class SubDepartment(OrderByMixin, HoldableMixin):
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+class SubDepartment(OrderByMixin, CommonFieldMixin):
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="subdepartments")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        subdepartment_count = self.department.subdepartments.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(subdepartment_count)})"
   
     def __str__(self):
         return f"{self.name} - {self.code}"
 
 
-class Type(OrderByMixin, HoldableMixin):
-    subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE)
+class Type(OrderByMixin, CommonFieldMixin):
+    subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE, related_name="types")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        type_count = self.subdepartment.types.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(type_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
 
-class Brand(OrderByMixin, HoldableMixin):
-    type = models.ForeignKey(Type, on_delete=models.CASCADE)
+class Brand(OrderByMixin, CommonFieldMixin):
+    type = models.ForeignKey(Type, on_delete=models.CASCADE, related_name="brands")
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
+    
+    def get_formatted_code(self):
+        brand_count = self.type.brands.count()
+        return f"({get_two_digit(self.code)}/{get_two_digit(brand_count)})"
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -525,7 +666,6 @@ class Brand(OrderByMixin, HoldableMixin):
 class Product(OrderByMixin, HoldableMixin):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
-    code = models.PositiveIntegerField(unique=True)
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -540,7 +680,7 @@ class Product(OrderByMixin, HoldableMixin):
 
 
 # Example: (Manager -> Team Lead -> Developer), (Super admin -> Main admin -> etc..)
-class Designation(OrderByMixin, HoldableMixin):
+class Designation(OrderByMixin, CommonFieldMixin):
     CATEGORY_CHOICES = [
         ('personal', 'Personal'),        
         ('resident', 'Resident'),

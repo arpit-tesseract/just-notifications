@@ -487,7 +487,7 @@ class ReportCard(models.Model):
     length = models.FloatField()
     width = models.FloatField()
     volume = models.FloatField()
-    used_item = models.CharField(max_length=20)
+    used_item = models.CharField(max_length=20) # gram, kg, liter
     used_rate = models.FloatField()
     used_quantity = models.IntegerField()
     capacity = models.FloatField("capacity/strength")

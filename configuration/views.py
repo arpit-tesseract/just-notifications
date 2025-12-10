@@ -31,6 +31,11 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     }
     # def get_base_queryset(self):
     #     return get_regular_query(self.model)
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return GlobSerializer   # For POST, PUT, PATCH
+        return GlobDetailSerializer
 
 # class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
 #     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -377,6 +382,11 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     }
     # def get_base_queryset(self):
     #     return get_regular_query(self.model)
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return ReligionSerializer   # For POST, PUT, PATCH
+        return ReligionDetailSerializer 
         
     
 class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -657,34 +667,34 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         return FamilyDetailSerializer
 
 
-class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Pidhi
-    queryset = Pidhi.objects.all()
-    serializer_class = PidhiSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'family': 'family__id',
-        'vansh': 'family__vansh__id',
-        'kul': 'family__vansh__kul__id',
-        'subgotra': 'family__vansh__kul__subgotra__id',
-        'gotra': 'family__vansh__kul__subgotra__gotra__id',
-        'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
-        'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
-        'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
-        'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
-        'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+# class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+#     model = Pidhi
+#     queryset = Pidhi.objects.all()
+#     serializer_class = PidhiSerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     pagination_class = ConfigurationPagination
+#     FILTER_FIELDS = {
+#         'family': 'family__id',
+#         'vansh': 'family__vansh__id',
+#         'kul': 'family__vansh__kul__id',
+#         'subgotra': 'family__vansh__kul__subgotra__id',
+#         'gotra': 'family__vansh__kul__subgotra__gotra__id',
+#         'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
+#         'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
+#         'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
+#         'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
+#         'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+#         'is_hidden': 'is_hidden',
+#         'on_hold': 'on_hold',
+#         'search': 'name'
+#     }
+#     # def get_base_queryset(self):
+#     #     return get_regular_query(self.model) 
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return PidhiSerializer   # For POST, PUT, PATCH
-        return PidhiDetailSerializer
+#     def get_serializer_class(self):
+#         if self.action in ["create", "update", "partial_update"]:
+#             return PidhiSerializer   # For POST, PUT, PATCH
+#         return PidhiDetailSerializer
     
 class CalibrationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Calibration
@@ -718,7 +728,7 @@ class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SectionSerializer   # For POST, PUT, PATCH
-        return SectionSerializer
+        return SectionDetailSerializer
 
 
 class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -1033,32 +1043,32 @@ class ProductListView(APIView):
 #         return PostModelDetailSerializer
 
 
-# class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-#     model = RoomFlash
-#     queryset = RoomFlash.objects.all()
-#     serializer_class = RoomFlashSerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-#     pagination_class = ConfigurationPagination
-#     FILTER_FIELDS = {
-#         'is_hidden': 'is_hidden',
-#         'on_hold': 'on_hold',
-#         'search': 'name'
-#     }
+class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = RoomFlash
+    queryset = RoomFlash.objects.all()
+    serializer_class = RoomFlashSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
     
-#     def destroy(self, request, *args, **kwargs):
-#         instance = self.get_object()
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
             
-#         if instance.is_used:
-#             return Response(
-#                 {
-#                     "error": f"Cannot delete RoomFlash '{instance.name}' (Code: {instance.code}) "
-#                              "because it is referenced in one or more users ResidentialDetail records.",
-#                 },
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
+        if instance.is_used:
+            return Response(
+                {
+                    "error": f"Cannot delete RoomFlash '{instance.name}' (Code: {instance.code}) "
+                             "because it is referenced in one or more users ResidentialDetail records.",
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-#         # Proceed with normal deletion if not used
-#         return super().destroy(request, *args, **kwargs)
+        # Proceed with normal deletion if not used
+        return super().destroy(request, *args, **kwargs)
 
 class RoomFlashListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1953,6 +1963,8 @@ class UploadSocietiesView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
                 
                 # Normalize boolean fields
                 is_hidden = row.get("is_hidden", False)
@@ -2063,6 +2075,8 @@ class UploadBlocksView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
                 
                 # Normalize boolean fields    
                 is_hidden = row.get("is_hidden", False)
@@ -2176,6 +2190,8 @@ class UploadFloorsView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
                 
                 # Normalize boolean fields
                 is_hidden = row.get("is_hidden", False)
@@ -2195,7 +2211,7 @@ class UploadFloorsView(APIView):
                 ward = clean(row.get("ward") or "")
                 society = clean(row.get("society") or "")
                 block = clean(row.get("block") or "")
-                floor_no = clean(row.get("floor_no") or "")
+                floor_no = row.get("floor_no")
                 code = row.get("code")
                 
                 # Skip invalid rows early
@@ -2282,7 +2298,6 @@ class UploadHousesView(APIView):
                 f.block.society.ward.city_village.taluka.district.state.country.name,
                 f.block.society.ward.city_village.taluka.district.state.country.continent.name,
                 f.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
-                f.block.name,
              ): f
             for f in Floor.objects.select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
         }
@@ -2296,6 +2311,8 @@ class UploadHousesView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
                 
                 # Normalize boolean fields
                 is_hidden = row.get("is_hidden", False)
@@ -2315,8 +2332,8 @@ class UploadHousesView(APIView):
                 ward = clean(row.get("ward") or "")
                 society = clean(row.get("society") or "")
                 block = clean(row.get("block") or "")
-                floor_no = clean(row.get("floor_no") or "")
-                house_no = clean(row.get("house_no") or "")
+                floor_no = row.get("floor_no")
+                house_no = row.get("house_no")
                 code = row.get("code")
                 
                 # Skip invalid rows early
@@ -2404,7 +2421,7 @@ class UploadRoomsView(APIView):
                 h.floor.block.society.ward.city_village.taluka.district.state.country.name,
                 h.floor.block.society.ward.city_village.taluka.district.state.country.continent.name,
                 h.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
-             ): h
+            ): h
             for h in House.objects.all()
         }
         
@@ -2418,6 +2435,8 @@ class UploadRoomsView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
                 
                 # Normalize boolean fields
                 is_hidden = row.get("is_hidden", False)
@@ -2437,9 +2456,9 @@ class UploadRoomsView(APIView):
                 ward = clean(row.get("ward") or "")
                 society = clean(row.get("society") or "")
                 block = clean(row.get("block") or "")
-                floor_no = clean(row.get("floor_no") or "")
+                floor_no = row.get("floor_no")
                 house_no = clean(row.get("house_no") or "")
-                room_no = clean(row.get("room_no") or "")
+                room_no = row.get("room_no")
                 room_type = clean(row.get("room_type") or "")
                 code = row.get("code")
                 
@@ -2500,11 +2519,11 @@ class UploadRoomsView(APIView):
                     ],
                 )
         except Exception as e:
-            return Response({"error": f"Failed to create rooms: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
-                "message": f"{len(objs)} rooms created successfully.",
+                "message": f"{len(objs)} rooms uploaded successfully.",
                 "invalid_rows": invalid_rows
             }, status=status.HTTP_201_CREATED
         )
@@ -3014,6 +3033,8 @@ class UploadAwasthaView(APIView):
                 hold_date = row.get('hold_date')
                 if pd.isna(hold_date):  # check for NaT or NaN
                     hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
                 
                     
                 # Normalize boolean fields
@@ -3955,123 +3976,123 @@ class UploadFamilyView(APIView):
         )
 
 
-class UploadPidhiView(APIView):
-    model = Pidhi
-    permission_classes = [IsAuthenticated]
-    serializer_class = FileUploadSerializer
+# class UploadPidhiView(APIView):
+#     model = Pidhi
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = FileUploadSerializer
     
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
+#     def post(self, request):
+#         serializer = FileUploadSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         file = serializer.validated_data['file']
 
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
+#         except ValidationError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+#         # Check if the DataFrame is empty
+#         if df.empty:
+#             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
-        family_cache = {
-            (f.name,
-             f.vansh.name,
-             f.vansh.kul.name,
-             f.vansh.kul.subgotra.name,
-             f.vansh.kul.subgotra.gotra.name,
-             f.vansh.kul.subgotra.gotra.subcaste.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion.name): f
-            for f in Family.objects.all()
-        }
+#         family_cache = {
+#             (f.name,
+#              f.vansh.name,
+#              f.vansh.kul.name,
+#              f.vansh.kul.subgotra.name,
+#              f.vansh.kul.subgotra.gotra.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion.name): f
+#             for f in Family.objects.all()
+#         }
                 
     
-        objs = []
-        invalid_rows = []
+#         objs = []
+#         invalid_rows = []
         
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
+#         for idx, row in df.iterrows():
+#             try:
+#                 hold_date = row.get('hold_date')
+#                 if pd.isna(hold_date):  # check for NaT or NaN
+#                     hold_date = None
+#                 else:
+#                     hold_date = pd.to_datetime(hold_date).date()
                     
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
+#                 # Normalize boolean fields
+#                 is_hidden = normalize_bool(row.get("is_hidden"))
+#                 on_hold = normalize_bool(row.get("on_hold"))
                 
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+#                 # Calculate hidden and on_hold values
+#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday")) 
-                panth = clean(row.get("panth"))
-                awastha = clean(row.get("awastha"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                subgotra = clean(row.get("subgotra"))
-                kul = clean(row.get("kul"))
-                vansh = clean(row.get("vansh"))
-                family = clean(row.get("family"))
-                pidhi = clean(row.get("pidhi"))
-                code = row.get("code")
+#                 # Clean text safely
+#                 religion = clean(row.get("religion"))
+#                 sampraday = clean(row.get("sampraday")) 
+#                 panth = clean(row.get("panth"))
+#                 awastha = clean(row.get("awastha"))
+#                 varna = clean(row.get("varna"))
+#                 caste = clean(row.get("caste"))
+#                 subcaste = clean(row.get("subcaste"))
+#                 gotra = clean(row.get("gotra"))
+#                 subgotra = clean(row.get("subgotra"))
+#                 kul = clean(row.get("kul"))
+#                 vansh = clean(row.get("vansh"))
+#                 family = clean(row.get("family"))
+#                 pidhi = clean(row.get("pidhi"))
+#                 code = row.get("code")
                 
-                if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
+#                 if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
+#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+#                     continue
                 
-                family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
-                if not family_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
-                    continue
+#                 family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
+#                 if not family_obj:
+#                     invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+#                     continue
                 
-                objs.append(Pidhi(
-                    family = family_obj,
-                    name = pidhi,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
+#                 objs.append(Pidhi(
+#                     family = family_obj,
+#                     name = pidhi,
+#                     code = code,
+#                     is_hidden = is_hidden,
+#                     on_hold = on_hold,
+#                     hold_date = hold_date
+#                 ))
                 
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+#             except Exception as e:
+#                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
+#         if not objs:
+#             return Response({
+#                 "error": "No valid records found in the file.",
+#                 "invalid_rows": invalid_rows
+#                 }, status=status.HTTP_400_BAD_REQUEST
+#             )
         
-        try:
-            with transaction.atomic():
-                Pidhi.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["family", "name", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             with transaction.atomic():
+#                 Pidhi.objects.bulk_create(
+#                     objs,
+#                     update_conflicts=True,
+#                     unique_fields=["code"],
+#                     update_fields=["family", "name", "is_hidden", "on_hold", "hold_date"],
+#                 )
+#         except Exception as e:
+#             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(
-            {
-                "message": f"{len(objs)} Pidhis uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
+#         return Response(
+#             {
+#                 "message": f"{len(objs)} Pidhis uploaded successfully.",
+#                 "invalid_rows": invalid_rows
+#             }, status=status.HTTP_201_CREATED
+#         )
  
 # ======================================================================
 # Professional Upload excel/csv
@@ -5368,7 +5389,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         ward_name = data.get("ward")
         society_name = data.get("society")
         block_name = data.get("block")
-        floor_name = data.get("floor")
+        floor_no = data.get("floor")
         house_no = data.get("house")
         room_no = data.get("room")
         
@@ -5768,8 +5789,8 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                 filters['block__society__name__icontains'] = society_name
             if block_name:
                 filters['block__name__icontains'] = block_name
-            if floor_name:
-                filters['name__icontains'] = floor_name
+            if floor_no:
+                filters['no'] = floor_no
             
             qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
@@ -5817,10 +5838,10 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                 filters['floor__block__society__name__icontains'] = society_name
             if block_name:
                 filters['floor__block__name__icontains'] = block_name
-            if floor_name:
-                filters['floor__name__icontains'] = floor_name
+            if floor_no:
+                filters['floor__no'] = floor_no
             if house_no:
-                filters['name__icontains'] = house_no
+                filters['no'] = house_no
             
             qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
@@ -5868,12 +5889,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                 filters['house__floor__block__society__name__icontains'] = society_name
             if block_name:
                 filters['house__floor__block__name__icontains'] = block_name
-            if floor_name:
-                filters['house__floor__name__icontains'] = floor_name
+            if floor_no:
+                filters['house__floor__no'] = floor_no
             if house_no:
-                filters['house__name__icontains'] = house_no
+                filters['house__no'] = house_no
             if room_no:
-                filters['name__icontains'] = room_no
+                filters['no'] = room_no
             
             qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
@@ -6410,56 +6431,56 @@ class PersonalSearchView(APIView):
             ]
 
         
-        elif search_key == "pidhi":
-            qs = get_regular_query(Pidhi).select_related('family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
-            if pidhi_name:
-                filters['name__icontains'] = pidhi_name
-            if family_name:
-                filters['family__name__icontains'] = family_name
-            if vansh_name:
-                filters['family__vansh__name__icontains'] = vansh_name    
-            if kul_name:
-                filters['family__vansh__kul__name__icontains'] = kul_name
-            if subgotra_name:
-                filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
-            if gotra_name:
-                filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
-            if subcaste_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
-            if caste_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
-            if varna_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
-            if awastha_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
-            if panth_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
-            if sampraday_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
-            if religion_name:
-                filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
+        # elif search_key == "pidhi":
+        #     qs = get_regular_query(Pidhi).select_related('family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion')
+        #     if pidhi_name:
+        #         filters['name__icontains'] = pidhi_name
+        #     if family_name:
+        #         filters['family__name__icontains'] = family_name
+        #     if vansh_name:
+        #         filters['family__vansh__name__icontains'] = vansh_name    
+        #     if kul_name:
+        #         filters['family__vansh__kul__name__icontains'] = kul_name
+        #     if subgotra_name:
+        #         filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
+        #     if gotra_name:
+        #         filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
+        #     if subcaste_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+        #     if caste_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
+        #     if varna_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
+        #     if awastha_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__name__icontains'] = awastha_name
+        #     if panth_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__name__icontains'] = panth_name
+        #     if sampraday_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__name__icontains'] = sampraday_name
+        #     if religion_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__awastha__panth__sampraday__religion__name__icontains'] = religion_name
             
-            qs = qs.filter(**filters)
-            qs = qs[:10]
+        #     qs = qs.filter(**filters)
+        #     qs = qs[:10]
             
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth).data,
-                    "awastha": AwasthaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
-                    "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
-                    "subgotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
-                    "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
-                    "vansh": VanshIdNameSerializer(obj.family.vansh).data,
-                    "family": FamilyIdNameSerializer(obj.family).data,
-                    "pidhi": PidhiIdNameSerializer(obj).data
-                }                
-                for obj in qs
-            ]
+        #     results = [
+        #         {
+        #             "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday.religion).data,
+        #             "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth.sampraday).data,
+        #             "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha.panth).data,
+        #             "awastha": AwasthaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
+        #             "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
+        #             "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
+        #             "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
+        #             "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
+        #             "subgotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
+        #             "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
+        #             "vansh": VanshIdNameSerializer(obj.family.vansh).data,
+        #             "family": FamilyIdNameSerializer(obj.family).data,
+        #             "pidhi": PidhiIdNameSerializer(obj).data
+        #         }                
+        #         for obj in qs
+        #     ]
         
         else:
             # fallback - default religions

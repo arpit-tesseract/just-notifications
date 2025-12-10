@@ -17,6 +17,7 @@ router.register(r'floors', FloorViewSet)
 router.register(r'houses', HouseViewSet)
 router.register(r'rooms', RoomViewSet)
 
+router.register(r'roomflashes', RoomFlashViewSet)
 router.register(r'roomtypes', RoomTypeViewSet)
 
 router.register(r'religions', ReligionViewSet)
@@ -31,7 +32,7 @@ router.register(r'subgotras', SubGotraViewSet)
 router.register(r'kuls', KulViewSet)
 router.register(r'vanshes', VanshViewSet)
 router.register(r'families', FamilyViewSet)
-router.register(r'pidhis', PidhiViewSet)
+# router.register(r'pidhis', PidhiViewSet)
 router.register(r'calibrations', CalibrationViewSet)
 
 router.register(r'sections', SectionViewSet)
@@ -78,7 +79,7 @@ urlpatterns = [
     path('upload/kuls/', UploadKulView.as_view()),
     path('upload/vanshes/', UploadVanshView.as_view()),
     path('upload/families/', UploadFamilyView.as_view()),
-    path('upload/pidhis/', UploadPidhiView.as_view()),
+    # path('upload/pidhis/', UploadPidhiView.as_view()),
     
     path('upload/sections/', UploadSectionView.as_view()),
     path('upload/profclasses/', UploadClassView.as_view()),

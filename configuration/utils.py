@@ -4,6 +4,9 @@ from django.db.models import Q, ForeignKey
 from django.utils import timezone
 import re
 
+# def get_two_degit(num):
+#     return str(num).zfill(2)
+
 def check_id_exists(model, id):
     try:
         model.objects.get(id=id)

@@ -521,7 +521,7 @@ class PersonalDetailGetSerializer(serializers.ModelSerializer):
     kul = KulIdNameSerializer()
     vansh = VanshIdNameSerializer()
     family = FamilyIdNameSerializer()
-    pidhi = PidhiIdNameSerializer()
+    # pidhi = PidhiIdNameSerializer()
     class Meta:
         model = PersonalDetail
         fields = [
@@ -537,7 +537,7 @@ class PersonalDetailGetSerializer(serializers.ModelSerializer):
             'kul',
             'vansh',
             'family',
-            'pidhi',
+            # 'pidhi',
         ]
 
 
