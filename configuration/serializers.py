@@ -9,7 +9,38 @@ from rest_framework.validators import UniqueTogetherValidator
 
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
     code = serializers.SerializerMethodField()
+    
+    """
+    Base serializer that allows dynamic exclusion of fields
+    via either context={'exclude_fields': [...]} or argument exclude_fields=[...].
+    """
+    def __init__(self, *args, **kwargs):
+        exclude_fields = kwargs.pop('exclude_fields', None)
+        super().__init__(*args, **kwargs)
+
+        if exclude_fields is None:
+            exclude_fields = self.context.get('exclude_fields', [])
+
+        for field in exclude_fields:
+            self.fields.pop(field, None)
+            
     def get_code(self, obj):
+        # 1. Priority: Check if we manually forced raw code in context (for nested parents)
+        if self.context.get('use_raw_code'):
+            return get_two_digit(obj.code)
+
+        # 2. Check the View Action (List vs Detail)
+        view = self.context.get('view')
+        if view and hasattr(view, 'action'):
+            # If we are viewing a single item (api/<id>), return RAW code
+            if view.action == 'retrieve':
+                return get_two_digit(obj.code)
+            
+            # If we are listing items (api/), return FORMATTED code
+            if view.action == 'list':
+                return obj.get_formatted_code()
+
+        # Default fallback (e.g., inside other views)
         return obj.get_formatted_code()
 
 
@@ -65,9 +96,12 @@ class ContinentDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = ['id']
     
     def get_glob(self, obj):
-        serializer = GlobSerializer(
+        serializer = GlobDetailSerializer(
             obj.glob,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -101,7 +135,10 @@ class CountryDetailSerializer(DynamicFieldsModelSerializer):
     def get_continent(self, obj):
         serializer = ContinentDetailSerializer(
             obj.continent,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -136,7 +173,10 @@ class StateDetailSerializer(DynamicFieldsModelSerializer):
     def get_country(self, obj):
         serializer = CountryDetailSerializer(
             obj.country,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
@@ -171,7 +211,10 @@ class DistrictDetailSerializer(DynamicFieldsModelSerializer):
     def get_state(self, obj):
         serializer = StateDetailSerializer(
             obj.state,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -206,7 +249,10 @@ class TalukaDetailSerializer(DynamicFieldsModelSerializer):
     def get_district(self, obj):
         serializer = DistrictDetailSerializer(
             obj.district,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -240,7 +286,10 @@ class CityVillageDetailSerializer(DynamicFieldsModelSerializer):
     def get_taluka(self, obj):
         serializer = TalukaDetailSerializer(
             obj.taluka,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -366,7 +415,10 @@ class WardDetailSerializer(DynamicFieldsModelSerializer):
             return None
         serializer = CityVillageDetailSerializer(
             obj.city_village,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -467,7 +519,10 @@ class SocietyDetailSerializer(DynamicFieldsModelSerializer):
         
         serializer = WardDetailSerializer(
             obj.ward,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -574,7 +629,10 @@ class BlockDetailSerializer(DynamicFieldsModelSerializer):
             return None
         serializer = SocietyDetailSerializer(
             obj.society,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -682,7 +740,10 @@ class FloorDetailSerializer(DynamicFieldsModelSerializer):
             return None
         serializer = BlockDetailSerializer(
             obj.block,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -789,7 +850,10 @@ class HouseDetailSerializer(DynamicFieldsModelSerializer):
             return None
         serializer = FloorDetailSerializer(
             obj.floor,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -897,7 +961,10 @@ class RoomDetailSerializer(DynamicFieldsModelSerializer):
             return None
         serializer = HouseDetailSerializer(
             obj.house,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
@@ -929,9 +996,12 @@ class SampradayDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = [f for f in Sampraday._meta.fields]
     
     def get_religion(self, obj):
-        serializer = ReligionSerializer(
+        serializer = ReligionDetailSerializer(
             obj.religion,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -952,7 +1022,10 @@ class PanthDetailSerializer(DynamicFieldsModelSerializer):
     def get_sampraday(self, obj):
         serializer = SampradayDetailSerializer(
             obj.sampraday,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -973,7 +1046,10 @@ class AwasthaDetailSerializer(DynamicFieldsModelSerializer):
     # def get_panth(self, obj):
     #     serializer = PanthDetailSerializer(
     #         obj.panth,
-    #         context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+    #         context={
+            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+            #     'use_raw_code': True
+            # }
     #     )
     #     return serializer.data
 
@@ -993,7 +1069,10 @@ class VarnaDetailSerializer(DynamicFieldsModelSerializer):
     def get_panth(self, obj):
         serializer = PanthDetailSerializer(
             obj.panth,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1014,7 +1093,10 @@ class CasteDetailSerializer(DynamicFieldsModelSerializer):
     def get_varna(self, obj):
         serializer = VarnaDetailSerializer(
             obj.varna,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1035,7 +1117,10 @@ class SubCasteDetailSerializer(DynamicFieldsModelSerializer):
     def get_caste(self, obj):
         serializer = CasteDetailSerializer(
             obj.caste,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
@@ -1056,7 +1141,10 @@ class GotraDetailSerializer(DynamicFieldsModelSerializer):
     def get_subcaste(self, obj):
         serializer = SubCasteDetailSerializer(
             obj.subcaste,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1077,7 +1165,10 @@ class SubGotraDetailSerializer(DynamicFieldsModelSerializer):
     def get_gotra(self, obj):
         serializer = GotraDetailSerializer(
             obj.gotra,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1098,7 +1189,10 @@ class KulDetailSerializer(DynamicFieldsModelSerializer):
     def get_subgotra(self, obj):
         serializer = SubGotraDetailSerializer(
             obj.subgotra,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -1119,7 +1213,10 @@ class VanshDetailSerializer(DynamicFieldsModelSerializer):
     def get_kul(self, obj):
         serializer = KulDetailSerializer(
             obj.kul,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -1140,7 +1237,10 @@ class FamilyDetailSerializer(DynamicFieldsModelSerializer):
     def get_vansh(self, obj):
         serializer = VanshDetailSerializer(
             obj.vansh,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1151,7 +1251,7 @@ class FamilyDetailSerializer(DynamicFieldsModelSerializer):
 #         fields = '__all__'
 #         read_only_fields = ['id']
 
-# class PidhiDetailSerializer(DynamicFieldsModelSerializer):
+# class PidhiIdNameSerializer(serializers.ModelSerializer):
 #     family = serializers.SerializerMethodField()
 #     class Meta:
 #         model = Pidhi
@@ -1159,9 +1259,12 @@ class FamilyDetailSerializer(DynamicFieldsModelSerializer):
 #         read_only_fields = [f for f in Pidhi._meta.fields]
     
 #     def get_family(self, obj):
-#         serializer = FamilyDetailSerializer(
+#         serializer = FamilyIdNameSerializer(
 #             obj.family,
-#             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+#             context={
+            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+            #     'use_raw_code': True
+            # }
 #         )
 #         return serializer.data
 
@@ -1202,9 +1305,12 @@ class ClassDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = [f for f in Class._meta.fields]
     
     def get_section(self, obj):
-        serializer = SectionSerializer(
+        serializer = SectionDetailSerializer(
             obj.section,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1225,7 +1331,10 @@ class ProfCategoryDetailSerializer(DynamicFieldsModelSerializer):
     def get_profclass(self, obj):
         serializer = ClassDetailSerializer(
             obj.profclass,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -1247,7 +1356,10 @@ class ProfSubCategoryDetailSerializer(DynamicFieldsModelSerializer):
     def get_category(self, obj):
         serializer = ProfCategoryDetailSerializer(
             obj.category,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
@@ -1268,7 +1380,10 @@ class SectorDetailSerializer(DynamicFieldsModelSerializer):
     def get_subcategory(self, obj):
         serializer = ProfSubCategoryDetailSerializer(
             obj.subcategory,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1289,7 +1404,10 @@ class SubSectorDetailSerializer(DynamicFieldsModelSerializer):
     def get_sector(self, obj):
         serializer = SectorDetailSerializer(
             obj.sector,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1310,7 +1428,10 @@ class DepartmentDetailSerializer(DynamicFieldsModelSerializer):
     def get_subsector(self, obj):
         serializer = SubSectorDetailSerializer(
             obj.subsector,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1331,7 +1452,10 @@ class SubDepartmentDetailSerializer(DynamicFieldsModelSerializer):
     def get_department(self, obj):
         serializer = DepartmentDetailSerializer(
             obj.department,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1352,7 +1476,10 @@ class TypeDetailSerializer(DynamicFieldsModelSerializer):
     def get_subdepartment(self, obj):
         serializer = SubDepartmentDetailSerializer(
             obj.subdepartment,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1373,7 +1500,10 @@ class BrandDetailSerializer(DynamicFieldsModelSerializer):
     def get_type(self, obj):
         serializer = TypeDetailSerializer(
             obj.type,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -1400,7 +1530,10 @@ class ProductDetailSerializer(DynamicFieldsModelSerializer):
     def get_brand(self, obj):
         serializer = BrandDetailSerializer(
             obj.brand,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -1420,7 +1553,10 @@ class ProductDetailSerializer(DynamicFieldsModelSerializer):
 #     def get_brand(self, obj):
 #         serializer = BrandDetailSerializer(
 #             obj.brand,
-#             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+#             context={
+            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+            #     'use_raw_code': True
+            # }
 #         )
 #         return serializer.data
 
@@ -1635,9 +1771,14 @@ class FileUploadSerializer(serializers.Serializer):
     
 
 class ReligionIdNameSerializer(serializers.ModelSerializer):
+    # code = serializers.SerializerMethodField()
     class Meta:
         model = Religion
         fields = ["id", "name"]
+    
+    # def get_code(self, obj):
+    #     value = obj.code if hasattr(obj, "code") else obj.get("code")
+    #     return get_two_digit(value)
 
 class SampradayIdNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1719,7 +1860,7 @@ class PersonalOutputSerializer(serializers.Serializer):
     religion = ReligionIdNameSerializer(allow_null=True)
     sampraday = SampradayIdNameSerializer(allow_null=True)
     panth = PanthIdNameSerializer(allow_null=True)
-    awastha = AwasthaIdNameSerializer(allow_null=True)
+    awastha = AwasthaIdNameSerializer(allow_null=True, many=True)
     varna = VarnaIdNameSerializer(allow_null=True)
     caste = CasteIdNameSerializer(allow_null=True)
     subcaste = SubCasteIdNameSerializer(allow_null=True)
@@ -1828,7 +1969,7 @@ class ProfessionalOutputSerializer(serializers.Serializer):
 class DesignationIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
-        fields = ["id", "name", "code"]
+        fields = ["id", "name"]
 
 
 class DesignationSerializer(serializers.ModelSerializer):

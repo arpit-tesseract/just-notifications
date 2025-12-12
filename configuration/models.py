@@ -32,6 +32,63 @@ class CommonFieldMixin(models.Model):
             
         super().save(*args, **kwargs)
     
+    parent_field_name = None
+    
+    def _get_code(self):
+        return get_two_digit(self.code) if self.code else 00 
+    
+    # def _get_code_chain(self):
+    #     current_code = get_two_digit(self.code)
+        
+    #     if not self.parent_field_name:
+    #         return current_code
+        
+    #     parent = getattr(self, self.parent_field_name)
+    #     # Check if parent exists
+    #     if parent:
+    #         return f"{parent._get_code_chain()}{current_code}"
+        
+    #     # Fallback if parent is a plain model
+    #     return current_code
+    
+    def get_formatted_code(self):
+        current_code = self._get_code()
+        
+        # Check if parent field name exists
+        if not self.parent_field_name:
+            return current_code
+        
+        parent = getattr(self, self.parent_field_name)  
+        field = self._meta.get_field(self.parent_field_name)
+        related_name = field.remote_field.get_accessor_name()
+        
+        # Count siblings
+        sibling_count = getattr(parent, related_name).count()
+        
+        return f"{current_code}/{get_two_digit(sibling_count)}"
+    
+    
+    # def get_formatted_code(self):
+    #     # 1. Build the full hierarchy code (e.g., 010205...)
+    #     code_chain = self._get_code_chain()
+        
+    #     # 2. If root, return just the code
+    #     if not self.parent_field_name:
+    #         return code_chain
+        
+    #     # 3. Calculate sibling count dynamically
+    #     parent = getattr(self, self.parent_field_name)
+        
+    #     # Introspect the model to find the 'related_name' used by the parent
+    #     # This automatically finds 'continents', 'countries', 'states', etc.
+    #     field = self._meta.get_field(self.parent_field_name)
+    #     related_name = field.remote_field.get_accessor_name()
+        
+    #     # Count siblings
+    #     sibling_count = getattr(parent, related_name).count()
+        
+    #     return f"{code_chain}/{get_two_digit(sibling_count)}"
+    
     # @staticmethod
     # def get_two_digit(num):
     #     return str(num).zfill(2)
@@ -102,8 +159,10 @@ class Glob(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=100, unique=True)
     code = models.PositiveIntegerField(unique=True)
     
-    def get_formatted_code(self):
-        return f"{get_two_digit(self.code)}"
+    # def get_formatted_code(self):
+    #     return f"{get_two_digit(self.code)}"
+    class Meta:
+        ordering = ['code']
     
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -113,9 +172,19 @@ class Continent(OrderByMixin, CommonFieldMixin):
     glob = models.ForeignKey(Glob, on_delete=models.CASCADE, related_name="continents")
     name = models.CharField(max_length=100, db_index=True)
 
-    def get_formatted_code(self):
-        continent_count = self.glob.continents.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(continent_count)})"
+    parent_field_name = "glob"
+    class Meta:
+        ordering = ['glob__code', 'code']
+    # def get_formatted_code(self):
+    #     continent_count = self.glob.continents.count()
+    #     return f"({get_two_digit(self.code)}/{get_two_digit(continent_count)})"
+    
+    # def get_formatted_code(self):
+    #     continent_count = self.glob.continents.count()
+    #     formatted_code = f"{get_two_digit(self.glob.code)}"\
+    #                      f"{get_two_digit(self.code)}"\
+    #                      f"/{get_two_digit(continent_count)}"
+    #     return formatted_code
     
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -125,6 +194,7 @@ class Country(OrderByMixin, CommonFieldMixin):
     continent = models.ForeignKey(Continent, on_delete=models.CASCADE, related_name="countries")
     name = models.CharField(max_length=100, db_index=True)
 
+    parent_field_name = "continent"
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -132,11 +202,12 @@ class Country(OrderByMixin, CommonFieldMixin):
                 name="unique_country_per_continent",
             )
         ]
+        ordering = [
+            'continent__glob__code', 
+            'continent__code',
+            'code'
+        ]
 
-    def get_formatted_code(self):
-        country_count = self.continent.countries.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(country_count)})"
-    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -145,17 +216,20 @@ class State(OrderByMixin, CommonFieldMixin):
     country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="states")
     name = models.CharField(max_length=200, db_index=True)
     
+    parent_field_name = "country"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["country", "name"], name="unique_state_per_country"
             )
         ]
+        ordering = [
+            'country__continent__glob__code', 
+            'country__continent__code', 
+            'country__code', 
+            'code'
+        ]
 
-    def get_formatted_code(self):
-        state_count = self.country.states.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(state_count)})"
-    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -164,17 +238,21 @@ class District(OrderByMixin, CommonFieldMixin):
     state = models.ForeignKey(State, on_delete=models.CASCADE, related_name="districts")
     name = models.CharField(max_length=200, db_index=True)
 
+    parent_field_name = "state"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["state", "name"], name="unique_district_per_state"
             )
         ]
+        ordering = [
+            'state__country__continent__glob__code',
+            'state__country__continent__code',
+            'state__country__code',
+            'state__code',
+            'code'
+        ]
 
-    def get_formatted_code(self):
-        district_count = self.state.districts.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(district_count)})"
-    
     def __str__(self):
         return f"{self.name} - {self.code}"
     
@@ -183,17 +261,22 @@ class Taluka(OrderByMixin, CommonFieldMixin):
     district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="talukas")
     name = models.CharField(max_length=200, db_index=True)
 
+    parent_field_name = "district"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["district", "name"], name="unique_taluka_per_district"
             )
         ]
+        ordering = [
+            'district__state__country__continent__glob__code',
+            'district__state__country__continent__code',
+            'district__state__country__code',
+            'district__state__code',
+            'district__code',
+            'code'
+        ]
         
-    def get_formatted_code(self):
-        taluka_count = self.district.talukas.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(taluka_count)})"
-
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -202,17 +285,23 @@ class CityVillage(OrderByMixin, CommonFieldMixin):
     taluka = models.ForeignKey(Taluka, on_delete=models.CASCADE, related_name="city_villages")
     name = models.CharField(max_length=200, db_index=True)
 
+    parent_field_name = "taluka"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["taluka", "name"], name="unique_city_village_per_taluka"
             )
         ]
+        ordering = [
+            'taluka__district__state__country__continent__glob__code',
+            'taluka__district__state__country__continent__code',
+            'taluka__district__state__country__code',
+            'taluka__district__state__code',
+            'taluka__district__code',
+            'taluka__code',
+            'code'
+        ]
     
-    def get_formatted_code(self):
-        city_village_count = self.taluka.city_villages.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(city_village_count)})"
-
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -221,17 +310,24 @@ class Ward(OrderByMixin, CommonFieldMixin):
     city_village = models.ForeignKey(CityVillage, on_delete=models.CASCADE, related_name="wards")
     name = models.CharField(max_length=200, db_index=True)
 
+    parent_field_name = "city_village"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["city_village", "name"], name="unique_ward_per_city_village"
             )
         ]
+        ordering = [
+            'city_village__taluka__district__state__country__continent__glob__code',
+            'city_village__taluka__district__state__country__continent__code',
+            'city_village__taluka__district__state__country__code',
+            'city_village__taluka__district__state__code',
+            'city_village__taluka__district__code',
+            'city_village__taluka__code',
+            'city_village__code',
+            'code'
+        ]
     
-    def get_formatted_code(self):
-        ward_count = self.city_village.wards.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(ward_count)})"
-
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -240,9 +336,19 @@ class Society(OrderByMixin, CommonFieldMixin):
     ward = models.ForeignKey(Ward, on_delete=models.CASCADE, related_name="societies")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        society_count = self.ward.societies.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(society_count)})"
+    parent_field_name = "ward"
+    class Meta:
+        ordering = [
+            'ward__city_village__taluka__district__state__country__continent__glob__code',
+            'ward__city_village__taluka__district__state__country__continent__code',
+            'ward__city_village__taluka__district__state__country__code',
+            'ward__city_village__taluka__district__state__code',
+            'ward__city_village__taluka__district__code',
+            'ward__city_village__taluka__code',
+            'ward__city_village__code',
+            'ward__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -252,17 +358,26 @@ class Block(OrderByMixin, CommonFieldMixin):
     society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="blocks")
     name = models.CharField(max_length=200, db_index=True)
     
+    parent_field_name = "society"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["society", "name"], name="unique_block_per_society"
             )
         ]
+        ordering = [
+            'society__ward__city_village__taluka__district__state__country__continent__glob__code',
+            'society__ward__city_village__taluka__district__state__country__continent__code',
+            'society__ward__city_village__taluka__district__state__country__code',
+            'society__ward__city_village__taluka__district__state__code',
+            'society__ward__city_village__taluka__district__code',
+            'society__ward__city_village__taluka__code',
+            'society__ward__city_village__code',
+            'society__ward__code',
+            'society__code',
+            'code'
+        ]
     
-    def get_formatted_code(self):
-        block_count = self.society.blocks.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(block_count)})"
-
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -271,17 +386,27 @@ class Floor(OrderByMixin, CommonFieldMixin):
     block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="floors")
     no = models.IntegerField(default=0)
     
+    parent_field_name = "block"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["block", "no"], name="unique_floor_per_block"
             )
         ]
+        ordering = [
+            'block__society__ward__city_village__taluka__district__state__country__continent__glob__code',
+            'block__society__ward__city_village__taluka__district__state__country__continent__code',
+            'block__society__ward__city_village__taluka__district__state__country__code',
+            'block__society__ward__city_village__taluka__district__state__code',
+            'block__society__ward__city_village__taluka__district__code',
+            'block__society__ward__city_village__taluka__code',
+            'block__society__ward__city_village__code',
+            'block__society__ward__code',
+            'block__society__code',
+            'block__code',
+            'code'
+        ]
     
-    def get_formatted_code(self):
-        floor_count = self.block.floors.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(floor_count)})"
-
     def __str__(self):
         return f"{self.no} - {self.code}"
 
@@ -290,17 +415,28 @@ class House(OrderByMixin, CommonFieldMixin):
     floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="houses")
     no = models.CharField(max_length=200, db_index=True)
     
+    parent_field_name = "floor"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["floor", "no"], name="unique_house_per_floor"
             )
         ]
+        ordering = [
+            'floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__code',
+            'floor__block__society__ward__city_village__taluka__district__state__country__continent__code',
+            'floor__block__society__ward__city_village__taluka__district__state__country__code',
+            'floor__block__society__ward__city_village__taluka__district__state__code',
+            'floor__block__society__ward__city_village__taluka__district__code',
+            'floor__block__society__ward__city_village__taluka__code',
+            'floor__block__society__ward__city_village__code',
+            'floor__block__society__ward__code',
+            'floor__block__society__code',
+            'floor__block__code',
+            'floor__code',
+            'code'
+        ]
     
-    def get_formatted_code(self):
-        house_count = self.floor.houses.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(house_count)})"
-
     def __str__(self):
         return f"{self.no} - {self.code}"
 
@@ -318,16 +454,28 @@ class Room(OrderByMixin, CommonFieldMixin):
     room_type = models.ForeignKey(RoomType, on_delete=models.SET_NULL, blank=True, null=True, related_name="rooms_of_room_type")
     no = models.PositiveIntegerField()
     
+    parent_field_name = "house"
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["house", "no"], name="unique_room_no_per_house"
             )
         ]
-    
-    def get_formatted_code(self):
-        room_count = self.house.rooms.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(room_count)})"
+        ordering = [
+            'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__code',
+            'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__code',
+            'house__floor__block__society__ward__city_village__taluka__district__state__country__code',
+            'house__floor__block__society__ward__city_village__taluka__district__state__code',
+            'house__floor__block__society__ward__city_village__taluka__district__code',
+            'house__floor__block__society__ward__city_village__taluka__code',
+            'house__floor__block__society__ward__city_village__code',
+            'house__floor__block__society__ward__code',
+            'house__floor__block__society__code',
+            'house__floor__block__code',
+            'house__floor__code',
+            'house__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.no} - {self.code}"
@@ -394,18 +542,18 @@ class Religion(OrderByMixin, CommonFieldMixin):
     def __str__(self):
         return f"{self.name} - {self.code}"
     
-    def get_formatted_code(self):
-        return get_two_digit(self.code)
+    class Meta:
+        ordering = ['code']
 
 
 class Sampraday(OrderByMixin, CommonFieldMixin):
     religion = models.ForeignKey(Religion, on_delete=models.CASCADE, related_name="sampradays")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        sampraday_count = self.religion.sampradays.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(sampraday_count)})"
-
+    parent_field_name = "religion"
+    class Meta:
+        ordering = ['religion__code', 'code']
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -414,10 +562,14 @@ class Panth(OrderByMixin, CommonFieldMixin):
     sampraday = models.ForeignKey(Sampraday, on_delete=models.CASCADE, related_name="panths")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        panth_count = self.sampraday.panths.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(panth_count)})"
-
+    parent_field_name = "sampraday"
+    class Meta:
+        ordering = [
+            'sampraday__religion__code',
+            'sampraday__code',
+            'code'
+        ]
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -425,9 +577,6 @@ class Awastha(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
     
-    def get_formatted_code(self):
-        return get_two_digit(self.code)
-
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -435,10 +584,15 @@ class Varna(OrderByMixin, CommonFieldMixin):
     panth = models.ForeignKey(Panth, on_delete=models.CASCADE, related_name="varnas")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        varna_count = self.panth.varnas.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(varna_count)})"
-
+    parent_field_name = "panth"
+    class Meta:
+        ordering = [
+            'panth__sampraday__religion__code',
+            'panth__sampraday__code',
+            'panth__code',
+            'code'
+        ]
+    
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -447,10 +601,16 @@ class Caste(OrderByMixin, CommonFieldMixin):
     varna = models.ForeignKey(Varna, on_delete=models.CASCADE, related_name="castes")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        caste_count = self.varna.castes.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(caste_count)})"
-
+    parent_field_name = "varna"
+    class Meta:
+        ordering = [
+            'varna__panth__sampraday__religion__code',
+            'varna__panth__sampraday__code',
+            'varna__panth__code',
+            'varna__code',
+            'code'
+        ]
+        
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -459,9 +619,16 @@ class SubCaste(OrderByMixin, CommonFieldMixin):
     caste = models.ForeignKey(Caste, on_delete=models.CASCADE, related_name="subcastes")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        subcaste_count = self.caste.subcastes.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(subcaste_count)})"
+    parent_field_name = "caste"
+    class Meta:
+        ordering = [
+            'caste__varna__panth__sampraday__religion__code',
+            'caste__varna__panth__sampraday__code',
+            'caste__varna__panth__code',
+            'caste__varna__code',
+            'caste__code',
+            'code'
+        ]
   
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -471,9 +638,17 @@ class Gotra(OrderByMixin, CommonFieldMixin):
     subcaste = models.ForeignKey(SubCaste, on_delete=models.CASCADE, related_name="gotras")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        gotra_count = self.subcaste.gotras.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(gotra_count)})"
+    parent_field_name = "subcaste"
+    class Meta:
+        ordering = [
+            'subcaste__caste__varna__panth__sampraday__religion__code',
+            'subcaste__caste__varna__panth__sampraday__code',
+            'subcaste__caste__varna__panth__code',
+            'subcaste__caste__varna__code',
+            'subcaste__caste__code',
+            'subcaste__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -483,9 +658,18 @@ class SubGotra(OrderByMixin, CommonFieldMixin):
     gotra = models.ForeignKey(Gotra, on_delete=models.CASCADE, related_name="subgotras")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        subgotra_count = self.gotra.subgotras.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(subgotra_count)})"
+    parent_field_name = "gotra"
+    class Meta:
+        ordering = [
+            'gotra__subcaste__caste__varna__panth__sampraday__religion__code',
+            'gotra__subcaste__caste__varna__panth__sampraday__code',
+            'gotra__subcaste__caste__varna__panth__code',
+            'gotra__subcaste__caste__varna__code',
+            'gotra__subcaste__caste__code',
+            'gotra__subcaste__code',
+            'gotra__code',
+            'code'
+        ]
   
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -495,9 +679,19 @@ class Kul(OrderByMixin, CommonFieldMixin):
     subgotra = models.ForeignKey(SubGotra, on_delete=models.CASCADE, related_name="kuls")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        kul_count = self.subgotra.kuls.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(kul_count)})"
+    parent_field_name = "subgotra"
+    class Meta:
+        ordering = [
+            'subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__code',
+            'subgotra__gotra__subcaste__caste__varna__panth__sampraday__code',
+            'subgotra__gotra__subcaste__caste__varna__panth__code',
+            'subgotra__gotra__subcaste__caste__varna__code',
+            'subgotra__gotra__subcaste__caste__code',
+            'subgotra__gotra__subcaste__code',
+            'subgotra__gotra__code',
+            'subgotra__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -507,9 +701,20 @@ class Vansh(OrderByMixin, CommonFieldMixin):
     kul = models.ForeignKey(Kul, on_delete=models.CASCADE, related_name="vanshs")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        vansh_count = self.kul.vanshs.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(vansh_count)})"
+    parent_field_name = "kul"
+    class Meta:
+        ordering = [
+            'kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__code',
+            'kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__code',
+            'kul__subgotra__gotra__subcaste__caste__varna__panth__code',
+            'kul__subgotra__gotra__subcaste__caste__varna__code',
+            'kul__subgotra__gotra__subcaste__caste__code',
+            'kul__subgotra__gotra__subcaste__code',
+            'kul__subgotra__gotra__code',
+            'kul__subgotra__code',
+            'kul__code',
+            'code'
+        ]
   
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -519,9 +724,21 @@ class Family(OrderByMixin, CommonFieldMixin):
     vansh = models.ForeignKey(Vansh, on_delete=models.CASCADE, related_name="families")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        family_count = self.vansh.families.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(family_count)})"
+    parent_field_name = "vansh"
+    class Meta:
+        ordering = [
+            'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__code',
+            'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__code',
+            'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__code',
+            'vansh__kul__subgotra__gotra__subcaste__caste__varna__code',
+            'vansh__kul__subgotra__gotra__subcaste__caste__code',
+            'vansh__kul__subgotra__gotra__subcaste__code',
+            'vansh__kul__subgotra__gotra__code',
+            'vansh__kul__subgotra__code',
+            'vansh__kul__code',
+            'vansh__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -553,8 +770,8 @@ class Section(OrderByMixin, CommonFieldMixin):
     name = models.CharField(max_length=200, unique=True)
     code = models.PositiveIntegerField(unique=True)
     
-    def get_formatted_code(self):
-        return get_two_digit(self.code)
+    class Meta:
+        ordering = ['code']
     
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -564,10 +781,10 @@ class Class(OrderByMixin, CommonFieldMixin):
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name="profclasses")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        profclass_count = self.section.profclasses.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(profclass_count)})"
-    
+    parent_field_name = "section"
+    class Meta:
+        ordering = ['section__code', 'code']
+        
     def __str__(self):
         return f"{self.name} - {self.code}"
 
@@ -576,9 +793,13 @@ class ProfCategory(OrderByMixin, CommonFieldMixin):
     profclass = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        category_count = self.profclass.categories.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(category_count)})"
+    parent_field_name = "profclass"
+    class Meta:
+        ordering = [
+            'profclass__section__code',
+            'profclass__code',
+            'code'
+        ]
     
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -588,9 +809,14 @@ class ProfSubCategory(OrderByMixin, CommonFieldMixin):
     category = models.ForeignKey(ProfCategory, on_delete=models.CASCADE, related_name="subcategories")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        subcategory_count = self.category.subcategories.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(subcategory_count)})"
+    parent_field_name = "category"
+    class Meta:
+        ordering = [
+            'category__profclass__section__code',
+            'category__profclass__code',
+            'category__code',
+            'code'
+        ]
     
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -599,9 +825,15 @@ class Sector(OrderByMixin, CommonFieldMixin):
     subcategory = models.ForeignKey(ProfSubCategory, on_delete=models.CASCADE, related_name="sectors")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        sector_count = self.subcategory.sectors.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(sector_count)})"
+    parent_field_name = "subcategory"
+    class Meta:
+        ordering = [
+            'subcategory__category__profclass__section__code',
+            'subcategory__category__profclass__code',
+            'subcategory__category__code',
+            'subcategory__code',
+            'code'
+        ]
     
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -610,9 +842,16 @@ class SubSector(OrderByMixin, CommonFieldMixin):
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE, related_name="subsectors")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        subsector_count = self.sector.subsectors.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(subsector_count)})"
+    parent_field_name = "sector"
+    class Meta:
+        ordering = [
+            'sector__subcategory__category__profclass__section__code',
+            'sector__subcategory__category__profclass__code',
+            'sector__subcategory__category__code',
+            'sector__subcategory__code',
+            'sector__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -621,9 +860,17 @@ class Department(OrderByMixin, CommonFieldMixin):
     subsector = models.ForeignKey(SubSector, on_delete=models.CASCADE, related_name="departments")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        department_count = self.subsector.departments.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(department_count)})"
+    parent_field_name = "subsector"
+    class Meta:
+        ordering = [
+            'subsector__sector__subcategory__category__profclass__section__code',
+            'subsector__sector__subcategory__category__profclass__code',
+            'subsector__sector__subcategory__category__code',
+            'subsector__sector__subcategory__code',
+            'subsector__sector__code',
+            'subsector__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -632,9 +879,18 @@ class SubDepartment(OrderByMixin, CommonFieldMixin):
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="subdepartments")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        subdepartment_count = self.department.subdepartments.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(subdepartment_count)})"
+    parent_field_name = "department"
+    class Meta:
+        ordering = [
+            'department__subsector__sector__subcategory__category__profclass__section__code',
+            'department__subsector__sector__subcategory__category__profclass__code',
+            'department__subsector__sector__subcategory__category__code',
+            'department__subsector__sector__subcategory__code',
+            'department__subsector__sector__code',
+            'department__subsector__code',
+            'department__code',
+            'code'
+        ]
   
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -644,9 +900,19 @@ class Type(OrderByMixin, CommonFieldMixin):
     subdepartment = models.ForeignKey(SubDepartment, on_delete=models.CASCADE, related_name="types")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        type_count = self.subdepartment.types.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(type_count)})"
+    parent_field_name = "subdepartment"
+    class Meta:
+        ordering = [
+            'subdepartment__department__subsector__sector__subcategory__category__profclass__section__code',
+            'subdepartment__department__subsector__sector__subcategory__category__profclass__code',
+            'subdepartment__department__subsector__sector__subcategory__category__code',
+            'subdepartment__department__subsector__sector__subcategory__code',
+            'subdepartment__department__subsector__sector__code',
+            'subdepartment__department__subsector__code',
+            'subdepartment__department__code',
+            'subdepartment__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"
@@ -655,9 +921,20 @@ class Brand(OrderByMixin, CommonFieldMixin):
     type = models.ForeignKey(Type, on_delete=models.CASCADE, related_name="brands")
     name = models.CharField(max_length=200, db_index=True)
     
-    def get_formatted_code(self):
-        brand_count = self.type.brands.count()
-        return f"({get_two_digit(self.code)}/{get_two_digit(brand_count)})"
+    parent_field_name = "type"
+    class Meta:
+        ordering = [
+            'type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__code',
+            'type__subdepartment__department__subsector__sector__subcategory__category__profclass__code',
+            'type__subdepartment__department__subsector__sector__subcategory__category__code',
+            'type__subdepartment__department__subsector__sector__subcategory__code',
+            'type__subdepartment__department__subsector__sector__code',
+            'type__subdepartment__department__subsector__code',
+            'type__subdepartment__department__code',
+            'type__subdepartment__code',
+            'type__code',
+            'code'
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.code}"

@@ -303,7 +303,7 @@ class PersonalDetail(models.Model):
     kul = models.ForeignKey(configm.Kul, on_delete=models.SET_NULL, null=True, blank=True)
     vansh = models.ForeignKey(configm.Vansh, on_delete=models.SET_NULL, null=True, blank=True)
     family = models.ForeignKey(configm.Family, on_delete=models.SET_NULL, null=True, blank=True)
-    pidhi = models.ForeignKey(configm.Pidhi, on_delete=models.SET_NULL, null=True, blank=True)
+    pidhi = models.CharField(max_length=100, null=True, blank=True)
     personal_code = models.CharField(max_length=100, null=True, blank=True, unique=True)
     is_verified = models.BooleanField(default=False)
     

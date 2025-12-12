@@ -537,7 +537,7 @@ class PersonalDetailGetSerializer(serializers.ModelSerializer):
             'kul',
             'vansh',
             'family',
-            # 'pidhi',
+            'pidhi',
         ]
 
 
