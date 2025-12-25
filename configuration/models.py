@@ -15,6 +15,7 @@ class CommonFieldMixin(models.Model):
     is_hidden = models.BooleanField("hidden", default=False)
     on_hold = models.BooleanField("on hold", default=False)
     hold_date = models.DateField("hold upto", null=True, blank=True)
+    time_stamp = models.DateTimeField(auto_now_add=True)
 
     # --- Reusable logic ---
     def save(self, *args, **kwargs):
@@ -942,6 +943,14 @@ class Brand(OrderByMixin, CommonFieldMixin):
 
 class Product(OrderByMixin, HoldableMixin):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, db_index=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.code}"
+
+
+class Item(OrderByMixin, HoldableMixin):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
 
     def __str__(self):
