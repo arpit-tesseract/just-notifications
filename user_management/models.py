@@ -164,6 +164,7 @@ class CustomUserManager(BaseUserManager):
 class UserRole(models.Model):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
     
     def __str__(self):
         return self.name
@@ -328,8 +329,8 @@ class PersonalDetail(models.Model):
                    f"{self.subgotra.code if self.subgotra else '00'}-" \
                    f"{self.kul.code if self.kul else '00'}-" \
                    f"{self.vansh.code if self.vansh else '00'}-" \
-                   f"{self.family.code if self.family else '00'}-" \
-                   f"{self.pidhi.code if self.pidhi else '00'}"
+                   f"{self.family.code if self.family else '00'}-"
+                #    f"{self.pidhi.code if self.pidhi else '00'}"
 
         # Save again *only* if the code has changed
         if self.personal_code != new_code:
@@ -435,9 +436,9 @@ class ProfessionalDetail(models.Model):
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
     designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True)
-    pay_scale = models.CharField(max_length=20)
-    mfg_dt_time = models.DateTimeField("MFG date & time")
-    mfg_life = models.CharField("MFG life", max_length=20)
+    pay_scale = models.CharField(max_length=20, null=True, blank=True)
+    mfg_dt_time = models.DateTimeField("MFG date & time", null=True, blank=True)
+    mfg_life = models.CharField("MFG life", max_length=20, null=True, blank=True)
     professional_code = models.CharField("Professional ID", max_length=100, null=True, blank=True)
 
     def save(self, *args, **kwargs):

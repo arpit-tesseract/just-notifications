@@ -21,3 +21,14 @@ class Status(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def get_or_create_status_by_model_name_and_status_name(model_name, status_name):
+        try:
+            status = Status.objects.get(model__model=model_name, name=status_name)
+        except Status.DoesNotExist:
+            status = Status.objects.create(model__model=model_name, name=status_name)
+        except Status.MultipleObjectsReturned:
+            status = Status.objects.filter(model__model=model_name, name=status_name).first()
+        return status
+    
+    
