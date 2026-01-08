@@ -227,3 +227,46 @@ class WalletLedgerSerializer(serializers.ModelSerializer):
 
     def get_amount(self, obj):
         return obj.transaction.amount
+
+
+class WalletMemberInfoOutputSerializer(serializers.ModelSerializer):
+    fullname = serializers.SerializerMethodField()
+    # email = serializers.SerializerMethodField()
+    country = serializers.SerializerMethodField()
+    state = serializers.SerializerMethodField()
+    district = serializers.SerializerMethodField()
+    class Meta:
+        model = WalletMember
+        fields = [
+            'id',
+            'fullname',
+            # 'email',
+            'country',
+            'state',
+            'district'
+        ]
+    
+    def get_fullname(self, obj):
+        return obj.user.full_name
+
+    # def get_email(self, obj):
+    #     return obj.user.email
+    
+    def get_country(self, obj):
+        residential = obj.user.current_residential_details
+        if residential and residential.country:
+            return residential.country.name
+        return None
+    
+    def get_state(self, obj):
+        residential = obj.user.current_residential_details
+        if residential and residential.state:
+            return residential.state.name
+        return None
+    
+    def get_district(self, obj):
+        residential = obj.user.current_residential_details
+        if residential and residential.district:
+            return residential.district.name
+        return None
+    

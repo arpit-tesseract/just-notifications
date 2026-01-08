@@ -7,4 +7,6 @@ urlpatterns = [
     path("transaction-categories-lst/", views.TransactionCategoryView.as_view(), name="transaction-category"),
     path("transaction-history/", views.TransactionHistoryView.as_view(), name="transaction-history"),
     path("wallet-history/", views.WalletLedgerView.as_view(), name="wallet-ledger"),
+    
+    path("wallet-member-info/<int:wallet_member_id>/", views.GetWalletMemberInfo.as_view(), name="wallet-member-info", )
 ]

@@ -136,6 +136,7 @@ class WalletView(APIView):
         if wallet_obj.wallet_type.name == "PROFESSIONAL" and wallet_obj.professional_detail:
             company = wallet_obj.professional_detail.brand.name
             return {
+                "wallet_member_id": wallet_member_obj.id,
                 "wallet_id": wallet_obj.id,
                 "wallet_type": wallet_obj.wallet_type.name,
                 "company": company,
@@ -144,6 +145,7 @@ class WalletView(APIView):
             }
         else:
             return {
+                "wallet_member_id": wallet_member_obj.id,
                 "wallet_id": wallet_obj.id,
                 "wallet_type": wallet_obj.wallet_type.name,
                 "balance": balance,
@@ -273,3 +275,15 @@ class WalletLedgerView(APIView):
         
         return Response(output_data, status=status.HTTP_200_OK)
 
+
+class GetWalletMemberInfo(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, wallet_member_id):
+        try:
+            wallet_member_obj = WalletMember.objects.get(id=wallet_member_id)
+        except WalletMember.DoesNotExist:
+            return Response({"error": "Invalid wallet member id"}, status=status.HTTP_404_NOT_FOUND)
+        
+        output_data = WalletMemberInfoOutputSerializer(wallet_member_obj).data
+        return Response(output_data, status=status.HTTP_200_OK)
