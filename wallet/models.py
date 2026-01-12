@@ -95,6 +95,30 @@ class WalletMember(models.Model):
     
     def __str__(self):
         return f"{self.wallet.wallet_type.name} - {self.user}"
+    
+    def is_wallet_owner(self):
+        if self.user == self.wallet.owner_user:
+            return True
+        else:
+            return False
+        
+    def check_can_transfer(self):
+        if self.is_wallet_owner():
+            return True
+        else:
+            if self.can_transfer:
+                return True
+            else:
+                return False
+    
+    # def check_credit_limit(self):
+    #     receiver_wallet = self.wallet
+        
+    #     receiver_wallet_type_limits = WalletLimit.objects.filter(
+    #         wallet=receiver_wallet,
+    #         wallet_type_limit__entry_type="CREDIT"
+    #     )
+    
 
 
 class WalletMemberLimit(models.Model):
@@ -163,6 +187,10 @@ class Transaction(models.Model):
         TransactionStatusLog.objects.create(transaction=self, status=status_obj, summary=summary)
         return status_obj
 
+    def create_status_log_by_obj(self, status_obj, summary=None):
+        TransactionStatusLog.objects.create(transaction=self, status=status_obj, summary=summary)
+        return status_obj
+
 
 class TransactionStatusLog(models.Model):
     transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name="transaction_status_logs_of_transaction")
@@ -170,7 +198,6 @@ class TransactionStatusLog(models.Model):
     time_stamp = models.DateTimeField(auto_now_add=True)
     summary = models.TextField(null=True, blank=True)
     
-    history = HistoricalRecords()
 
 
 class WalletLedger(models.Model):
@@ -188,3 +215,38 @@ class WalletLedger(models.Model):
     
     def __str__(self):
         return f"{self.wallet.wallet_type.name} - {self.wallet.owner_user}"
+
+
+class MoneyRequest(models.Model):
+    request_user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name="money_requests_of_request_user")
+    request_wallet_member = models.ForeignKey(WalletMember, on_delete=models.SET_NULL, blank=True, null=True, related_name="money_requests_of_request_wallet_member")
+    payer_user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, blank=True, null=True, related_name="money_requests_of_payer_user")
+    payer_wallet_member = models.ForeignKey(WalletMember, on_delete=models.SET_NULL, blank=True, null=True, related_name="money_requests_of_payer_wallet_member")
+    amount = models.DecimalField(
+        max_digits=30, 
+        decimal_places=2, 
+        validators=[MinValueValidator(0.01)]
+    )
+    summary = models.TextField(null=True, blank=True)
+    current_status = models.ForeignKey(Status, on_delete=models.SET_NULL, blank=True, null=True)
+    transaction = models.OneToOneField(Transaction, on_delete=models.SET_NULL, blank=True, null=True, related_name="money_requests_of_transaction")
+    time_stamp = models.DateTimeField(auto_now_add=True)
+    
+    history = HistoricalRecords()
+    
+    def create_status_log(self, model_name, status_name, summary=None):
+        status_obj = Status.get_or_create_status_by_model_name_and_status_name(model_name, status_name)
+        MoneyRequestStatusLog.objects.create(money_request=self, status=status_obj, summary=summary)
+        return status_obj
+    
+    def create_status_log_by_obj(self, status_obj, summary=None):
+        MoneyRequestStatusLog.objects.create(money_request=self, status=status_obj, summary=summary)
+        return status_obj
+
+
+class MoneyRequestStatusLog(models.Model):
+    money_request = models.ForeignKey(MoneyRequest, on_delete=models.CASCADE, related_name="money_request_status_logs_of_money_request")
+    status = models.ForeignKey(Status, on_delete=models.SET_NULL, blank=True, null=True)
+    time_stamp = models.DateTimeField(auto_now_add=True)
+    summary = models.TextField(null=True, blank=True)
+    

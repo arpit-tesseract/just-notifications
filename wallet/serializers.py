@@ -58,18 +58,18 @@ class TransactionCategoryOutputSerializer(serializers.ModelSerializer):
         model = TransactionCategory
         fields = ['id', 'name']
 
-class WalletToWalletTransferSerializer(serializers.Serializer):
-    sender_wallet_member = serializers.PrimaryKeyRelatedField(queryset=WalletMember.objects.all())
-    receiver_wallet_member = serializers.PrimaryKeyRelatedField(queryset=WalletMember.objects.all())
-    amount = serializers.DecimalField(max_digits=30, decimal_places=2)
+class WalletToWalletTransferInputSerializer(serializers.Serializer):
+    money_request = serializers.PrimaryKeyRelatedField(queryset=MoneyRequest.objects.filter(current_status__name="REQUESTED"))
+    sender_wallet_member = serializers.PrimaryKeyRelatedField(queryset=WalletMember.objects.filter(can_transfer=True))
     summary = serializers.CharField(required=False, allow_blank=True)
     
     def validate(self, attrs, *args, **kwargs):
         super().validate(attrs)
         
-        sender_wallet_member = attrs['sender_wallet_member']
-        receiver_wallet_member = attrs['receiver_wallet_member']
-        amount = attrs['amount']
+        sender_wallet_member = attrs.get('sender_wallet_member')
+        money_request_obj = attrs.get('money_request')
+        receiver_wallet_member = money_request_obj.request_wallet_member
+        amount = money_request_obj.amount
         
         if sender_wallet_member.id == receiver_wallet_member.id:
             raise serializers.ValidationError({"receiver_wallet_member": "You cannot transfer to yourself."})
@@ -269,4 +269,81 @@ class WalletMemberInfoOutputSerializer(serializers.ModelSerializer):
         if residential and residential.district:
             return residential.district.name
         return None
+
+
+class MoneyRequestInputSerializer(serializers.ModelSerializer):
+    payer_wallet_member = serializers.PrimaryKeyRelatedField(
+        queryset=WalletMember.objects.filter(can_transfer=True),
+        required=True
+    )
+    class Meta:
+        model = MoneyRequest
+        fields = [
+            'request_wallet_member',
+            'payer_wallet_member',
+            'amount',
+            'summary'
+        ]
+        extra_kwargs = {
+            'request_wallet_member': {'required': True},
+        }
+
+    def validate(self, attrs):
+        super().validate(attrs)
+        
+        logged_user = self.context.get('logged_user')
+        request_wallet_member_obj = attrs.get('request_wallet_member')
+        payer_wallet_member_obj = attrs.get('payer_wallet_member')
+        amount = attrs.get('amount')
+        
+        if request_wallet_member_obj.user != logged_user:
+            raise serializers.ValidationError({"error": "You do not have access to this wallet."})
+        
+        if payer_wallet_member_obj == request_wallet_member_obj:
+            raise serializers.ValidationError({"error": "You cannot request money from yourself."})
+        
+        # Check amount
+        if amount.as_tuple().exponent < -2:
+            raise serializers.ValidationError("Amount supports max 2 decimal places.")
+        
+        if amount <= 0:
+            raise serializers.ValidationError({"amount": "Amount must be greater than 0."})
+                
+        return attrs
+
+
+class MoneyRequestOutputSerializerForRequester(serializers.ModelSerializer):
+    payer_wallet_member = WalletMemberInfoOutputSerializer()
+    status = serializers.SerializerMethodField()
+    class Meta:
+        model = MoneyRequest
+        fields = [
+            'id',
+            'payer_wallet_member',
+            'amount',
+            'summary',
+            'status',
+            'time_stamp'
+        ]
     
+    def get_status(self, obj):
+        return obj.current_status.name
+
+
+class MoneyRequestOutputSerializerForPayer(serializers.ModelSerializer):
+    request_wallet_member = WalletMemberInfoOutputSerializer()
+    status = serializers.SerializerMethodField()
+    class Meta:
+        model = MoneyRequest
+        fields = [
+            'id',
+            'request_wallet_member',
+            'payer_wallet_member',
+            'amount',
+            'summary',
+            'status',
+            'time_stamp'
+        ]
+    
+    def get_status(self, obj):
+        return obj.current_status.name

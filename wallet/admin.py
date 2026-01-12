@@ -52,7 +52,7 @@ class TransactionAdmin(SimpleHistoryAdmin):
 #     list_display = ("user", "wallet_member", "amount", "current_status", "time_stamp")    
 
 @admin.register(TransactionStatusLog)
-class TransactionStatusLogAdmin(SimpleHistoryAdmin):
+class TransactionStatusLogAdmin(admin.ModelAdmin):
     list_display = ("transaction", "status", "time_stamp", "summary")
     
 
@@ -69,3 +69,11 @@ class TransactionTypeAdmin(SimpleHistoryAdmin):
 @admin.register(WalletLedger)
 class WalletLedgerAdmin(SimpleHistoryAdmin):
     list_display = ("wallet", "transaction", "entry_type", "balance_after", "time_stamp")
+    
+@admin.register(MoneyRequest)
+class MoneyRequestAdmin(SimpleHistoryAdmin):
+    list_display = ("request_wallet_member", "payer_wallet_member", "amount", "current_status", "time_stamp")
+
+@admin.register(MoneyRequestStatusLog)
+class MoneyRequestStatusLogAdmin(admin.ModelAdmin):
+    list_display = ("money_request", "status", "time_stamp", "summary")
