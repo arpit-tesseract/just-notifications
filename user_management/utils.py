@@ -33,7 +33,7 @@ def verify_user_category_for_residential(category):
         return False
     return True
 
-def verify_user_relation_category(category):
+def verify_user_relation_category(category): # relation / residential
     categories = ['current', 'owner', 'permanent', 'native', 'inlaws', 'maternal', 'business']
     if category not in categories:
         return False
@@ -105,20 +105,22 @@ def clean_str(value):
 
 
 def get_from_user_and_to_users(higher_designation, relations):
+    # print("higher_designation:", higher_designation)
+    # print("relations:", relations)
     for index, relation in enumerate(relations):
         user_obj = relation.get("user_obj")
-        designation = relation.get("designation")
+        user_designation_obj = relation.get("user_designation")
         
         if user_obj.category_of_user == "grp_tenant":
             from_user = relations[0].get('user_obj')
-            from_user_designation = relations[0].get('designation')
+            from_user_designation = relations[0].get('user_designation')
             return from_user, from_user_designation, relations[1::]
         
         # print(designation.id, "===", higher_designation.id, "and", user_obj.expired_date)
-        if designation.id == higher_designation.id and user_obj.expired_date is None:
+        if user_designation_obj.id == higher_designation.id and user_obj.expired_date is None:
             relation_obj = relations.pop(relations.index(relation))
             from_user_obj = relation_obj.get("user_obj")
-            from_user_designation = designation
+            from_user_designation = user_designation_obj
             # print("Higher designation user:", relation_obj.get("user_obj"), relations)
     return from_user_obj, from_user_designation, relations
 
@@ -195,12 +197,12 @@ def allocate_rooms_for_to_user(user_obj, residential_category):
 
 def get_parent_user_obj(user_obj, residential_category):
     try:
-        relation_obj = Relation.objects.get(relation_category=residential_category, to_user = user_obj)
+        relation_obj = Relation.objects.filter(relation_category=residential_category, to_user = user_obj).first()
         return relation_obj.from_user
     except Relation.DoesNotExist:
         raise ValidationError(f"No parent relation found for user {user_obj.email}.")
-    except Relation.MultipleObjectsReturned:
-        raise ValidationError(f"Multiple parent relations found for user {user_obj.email}.")
+    # except Relation.MultipleObjectsReturned:
+    #     raise ValidationError(f"Multiple parent relations found for user {user_obj.email}.")
 
 def allocate_room_same_as_parent(user_obj, residential_category):
     # Don't allocate room for inlaws, maternal, business

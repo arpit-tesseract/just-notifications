@@ -19,7 +19,7 @@ import pandas as pd
 # Residential 
 # ========================================
 class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Glob.objects.all() # First time load data when server starts
+    queryset = Glob.objects.none() # First time load data when server starts
     model = Glob 
     serializer_class = GlobSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -31,6 +31,11 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     }
     # def get_base_queryset(self):
     #     return get_regular_query(self.model)
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return GlobSerializer   # For POST, PUT, PATCH
+        return GlobDetailSerializer
 
 # class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
 #     permission_classes = [IsAuthenticated, HasModelAccessPermission]
@@ -56,7 +61,7 @@ class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
 
 class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Continent
-    queryset = Continent.objects.all() 
+    queryset = Continent.objects.none()
     serializer_class = ContinentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -66,8 +71,9 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = Continent.objects.select_related('glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -77,7 +83,7 @@ class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
 
 class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Country
-    queryset = Country.objects.all()
+    queryset = Country.objects.none()
     serializer_class = CountrySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -88,8 +94,9 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = Country.objects.select_related('continent__glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -99,7 +106,7 @@ class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
 
 class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = State
-    queryset = State.objects.all()
+    queryset = State.objects.none()
     serializer_class = StateSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -111,8 +118,9 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = State.objects.select_related('country__continent__glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -122,7 +130,7 @@ class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
    
 class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = District
-    queryset = District.objects.all()
+    queryset = District.objects.none()
     serializer_class = DistrictSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -135,8 +143,9 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = District.objects.select_related('state__country__continent__glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -146,7 +155,7 @@ class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
 
 class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Taluka
-    queryset = Taluka.objects.all()
+    queryset = Taluka.objects.none()
     serializer_class = TalukaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -160,8 +169,9 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = Taluka.objects.select_related('district__state__country__continent__glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -171,7 +181,7 @@ class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
 
 class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = CityVillage
-    queryset = CityVillage.objects.all()
+    queryset = CityVillage.objects.none()
     serializer_class = CityVillageSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -186,8 +196,9 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = CityVillage.objects.select_related('taluka__district__state__country__continent__glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -197,7 +208,7 @@ class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
 
 class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Ward
-    queryset = Ward.objects.all()
+    queryset = Ward.objects.none()
     serializer_class = WardSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -213,8 +224,9 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
+    def get_base_queryset(self):
+        qs = Ward.objects.select_related('city_village__taluka__district__state__country__continent__glob').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -223,6 +235,164 @@ class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
     
 
 
+class SocietyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Society
+    queryset = Society.objects.none()
+    serializer_class = SocietySerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'ward': 'ward__id',
+        'city_village': 'ward__city_village__id',
+        'taluka': 'ward__city_village__taluka__id',
+        'district': 'ward__city_village__taluka__district__id',
+        'state': 'ward__city_village__taluka__district__state__id',
+        'country': 'ward__city_village__taluka__district__state__country__id',
+        'continent': 'ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_base_queryset(self):
+        qs = Society.objects.select_related('ward__city_village__taluka__district__state__country__continent__glob').all()
+        return qs
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return SocietySerializer   # For POST, PUT, PATCH
+        return SocietyDetailSerializer
+
+
+class BlockViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Block
+    queryset = Block.objects.none()
+    serializer_class = BlockSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'society': 'society__id',
+        'ward': 'society__ward__id',
+        'city_village': 'society__ward__city_village__id',
+        'taluka': 'society__ward__city_village__taluka__id',
+        'district': 'society__ward__city_village__taluka__district__id',
+        'state': 'society__ward__city_village__taluka__district__state__id',
+        'country': 'society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    
+    def get_base_queryset(self):
+        qs = Block.objects.select_related('society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        return qs
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return BlockSerializer   # For POST, PUT, PATCH
+        return BlockDetailSerializer
+
+
+class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Floor
+    queryset = Floor.objects.none()
+    serializer_class = FloorSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'block': 'block__id',
+        'society': 'block__society__id',
+        'ward': 'block__society__ward__id',
+        'city_village': 'block__society__ward__city_village__id',
+        'taluka': 'block__society__ward__city_village__taluka__id',
+        'district': 'block__society__ward__city_village__taluka__district__id',
+        'state': 'block__society__ward__city_village__taluka__district__state__id',
+        'country': 'block__society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'block__society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'no'
+    }
+    
+    def get_base_queryset(self):
+        qs = Floor.objects.select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        return qs
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return FloorSerializer   # For POST, PUT, PATCH
+        return FloorDetailSerializer
+    
+class HouseViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = House
+    queryset = House.objects.none()
+    serializer_class = HouseSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'floor': 'floor__id',
+        'block': 'floor__block__id',
+        'society': 'floor__block__society__id',
+        'ward': 'floor__block__society__ward__id',
+        'city_village': 'floor__block__society__ward__city_village__id',
+        'taluka': 'floor__block__society__ward__city_village__taluka__id',
+        'district': 'floor__block__society__ward__city_village__taluka__district__id',
+        'state': 'floor__block__society__ward__city_village__taluka__district__state__id',
+        'country': 'floor__block__society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'floor__block__society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'no'
+    }
+    
+    def get_base_queryset(self):
+        qs = House.objects.select_related('floor__block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        return qs
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return HouseSerializer   # For POST, PUT, PATCH
+        return HouseDetailSerializer
+
+
+class RoomViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Room
+    queryset = Room.objects.none()
+    serializer_class = RoomSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'house': 'house__id',
+        'floor': 'house__floor__id',
+        'block': 'house__floor__block__id',
+        'society': 'house__floor__block__society__id',
+        'ward': 'house__floor__block__society__ward__id',
+        'city_village': 'house__floor__block__society__ward__city_village__id',
+        'taluka': 'house__floor__block__society__ward__city_village__taluka__id',
+        'district': 'house__floor__block__society__ward__city_village__taluka__district__id',
+        'state': 'house__floor__block__society__ward__city_village__taluka__district__state__id',
+        'country': 'house__floor__block__society__ward__city_village__taluka__district__state__country__id',
+        'continent': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__id',
+        'glob': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'no'
+    }
+    
+    def get_base_queryset(self):
+        qs = Room.objects.select_related('house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        return qs
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return RoomSerializer   # For POST, PUT, PATCH
+        return RoomDetailSerializer
+    
 # ========================================
 # Personal 
 # ========================================
@@ -239,11 +409,16 @@ class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
     }
     # def get_base_queryset(self):
     #     return get_regular_query(self.model)
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return ReligionSerializer   # For POST, PUT, PATCH
+        return ReligionDetailSerializer 
         
     
 class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Sampraday
-    queryset = Sampraday.objects.all()
+    queryset = Sampraday.objects.none()
     serializer_class = SampradaySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission] 
     pagination_class = ConfigurationPagination
@@ -253,8 +428,9 @@ class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Sampraday.objects.select_related('religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -264,7 +440,7 @@ class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
 
 class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Panth
-    queryset = Panth.objects.all()
+    queryset = Panth.objects.none()
     serializer_class = PanthSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -275,18 +451,38 @@ class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Panth.objects.select_related('sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return PanthSerializer   # For POST, PUT, PATCH
         return PanthDetailSerializer
-    
+
+
+class AwasthaViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
+    model = Awastha
+    queryset = Awastha.objects.none()
+    serializer_class = AwasthaSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model)
+
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return AwasthaSerializer   # For POST, PUT, PATCH
+        return AwasthaDetailSerializer
 
 class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Varna
-    queryset = Varna.objects.all()
+    queryset = Varna.objects.none()
     serializer_class = VarnaSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -299,7 +495,8 @@ class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'search': 'name'
     }
     def get_base_queryset(self):
-        return get_regular_query(self.model)
+        qs = Varna.objects.select_related('panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -309,7 +506,7 @@ class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
 
 class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Caste
-    queryset = Caste.objects.all()
+    queryset = Caste.objects.none()
     serializer_class = CasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -322,8 +519,9 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Caste.objects.select_related('varna__panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -333,7 +531,7 @@ class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
     
 class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = SubCaste
-    queryset = SubCaste.objects.all()
+    queryset = SubCaste.objects.none()
     serializer_class = SubCasteSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission] 
     pagination_class = ConfigurationPagination   
@@ -347,8 +545,9 @@ class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = SubCaste.objects.select_related('caste__varna__panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -358,7 +557,7 @@ class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
 
 class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Gotra
-    queryset = Gotra.objects.all()
+    queryset = Gotra.objects.none()
     serializer_class = GotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -373,8 +572,9 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Gotra.objects.select_related('subcaste__caste__varna__panth__sampraday__religion').all()
+        return qs 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -384,7 +584,7 @@ class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
 
 class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = SubGotra
-    queryset = SubGotra.objects.all()
+    queryset = SubGotra.objects.none()
     serializer_class = SubGotraSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission] 
     pagination_class = ConfigurationPagination 
@@ -400,8 +600,9 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
         'on_hold': 'on_hold',
         'search': 'name'
     } 
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = SubGotra.objects.select_related('gotra__subcaste__caste__varna__panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -411,7 +612,7 @@ class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelView
 
 class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Kul
-    queryset = Kul.objects.all()
+    queryset = Kul.objects.none()
     serializer_class = KulSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -428,8 +629,9 @@ class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Kul.objects.select_related('subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -439,7 +641,7 @@ class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
 
 class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Vansh
-    queryset = Vansh.objects.all()
+    queryset = Vansh.objects.none()
     serializer_class = VanshSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -457,8 +659,9 @@ class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Vansh.objects.select_related('kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -468,7 +671,7 @@ class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
 
 class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Family
-    queryset = Family.objects.all()
+    queryset = Family.objects.none()
     serializer_class = FamilySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -487,8 +690,9 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Family.objects.select_related('vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -496,36 +700,47 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         return FamilyDetailSerializer
 
 
-class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Pidhi
-    queryset = Pidhi.objects.all()
-    serializer_class = PidhiSerializer
+# class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+#     model = Pidhi
+#     queryset = Pidhi.objects.all()
+#     serializer_class = PidhiSerializer
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+#     pagination_class = ConfigurationPagination
+#     FILTER_FIELDS = {
+#         'family': 'family__id',
+#         'vansh': 'family__vansh__id',
+#         'kul': 'family__vansh__kul__id',
+#         'subgotra': 'family__vansh__kul__subgotra__id',
+#         'gotra': 'family__vansh__kul__subgotra__gotra__id',
+#         'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
+#         'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
+#         'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
+#         'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
+#         'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+#         'is_hidden': 'is_hidden',
+#         'on_hold': 'on_hold',
+#         'search': 'name'
+#     }
+#     # def get_base_queryset(self):
+#     #     return get_regular_query(self.model) 
+    
+#     def get_serializer_class(self):
+#         if self.action in ["create", "update", "partial_update"]:
+#             return PidhiSerializer   # For POST, PUT, PATCH
+#         return PidhiDetailSerializer
+    
+class CalibrationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Calibration
+    queryset = Calibration.objects.all()
+    serializer_class = CalibrationSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'family': 'family__id',
-        'vansh': 'family__vansh__id',
-        'kul': 'family__vansh__kul__id',
-        'subgotra': 'family__vansh__kul__subgotra__id',
-        'gotra': 'family__vansh__kul__subgotra__gotra__id',
-        'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
-        'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
-        'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
-        'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
-        'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
     
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return PidhiSerializer   # For POST, PUT, PATCH
-        return PidhiDetailSerializer
-    
-    
+class CalibrationListView(APIView):
+    def get(self, request):
+        calibration_objs = get_regular_query(Calibration)
+        serializer = CalibrationSerializer(calibration_objs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 # ========================================
 # Professional 
 # ========================================
@@ -546,12 +761,12 @@ class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewS
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
             return SectionSerializer   # For POST, PUT, PATCH
-        return SectionSerializer
+        return SectionDetailSerializer
 
 
 class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Class
-    queryset = Class.objects.all()
+    queryset = Class.objects.none()
     serializer_class = ClassSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -561,8 +776,9 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Class.objects.select_related('section').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -572,7 +788,7 @@ class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
 
 class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = ProfCategory
-    queryset = ProfCategory.objects.all()
+    queryset = ProfCategory.objects.none()
     serializer_class = ProfCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -583,8 +799,9 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = ProfCategory.objects.select_related('profclass__section').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -594,7 +811,7 @@ class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Model
 
 class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = ProfSubCategory
-    queryset = ProfSubCategory.objects.all()
+    queryset = ProfSubCategory.objects.none()
     serializer_class = ProfSubCategorySerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -606,8 +823,9 @@ class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mo
         'on_hold': 'on_hold',
         'search': 'name' 
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = ProfSubCategory.objects.select_related('category__profclass__section').all()
+        return qs 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -617,7 +835,7 @@ class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mo
 
 class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Sector
-    queryset = Sector.objects.all()
+    queryset = Sector.objects.none()
     serializer_class = SectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -630,8 +848,9 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Sector.objects.select_related('subcategory__category__profclass__section').all()
+        return qs 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -641,7 +860,7 @@ class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
 
 class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = SubSector
-    queryset = SubSector.objects.all()
+    queryset = SubSector.objects.none()
     serializer_class = SubSectorSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -655,8 +874,9 @@ class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = SubSector.objects.select_related('sector__subcategory__category__profclass__section').all()
+        return qs 
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -666,7 +886,7 @@ class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVie
 
 class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Department
-    queryset = Department.objects.all()
+    queryset = Department.objects.none()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -681,8 +901,9 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Department.objects.select_related('subsector__sector__subcategory__category__profclass__section').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -692,7 +913,7 @@ class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelVi
 
 class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = SubDepartment
-    queryset = SubDepartment.objects.all()
+    queryset = SubDepartment.objects.none()
     serializer_class = SubDepartmentSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -708,8 +929,9 @@ class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mode
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = SubDepartment.objects.select_related('department__subsector__sector__subcategory__category__profclass__section').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -719,7 +941,7 @@ class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.Mode
     
 class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Type
-    queryset = Type.objects.all()
+    queryset = Type.objects.none()
     serializer_class = TypeSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -736,8 +958,9 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Type.objects.select_related('subdepartment__department__subsector__sector__subcategory__category__profclass__section').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -745,9 +968,19 @@ class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         return TypeDetailSerializer
     
 
+class BrandListView(APIView):
+    def get(self, request):
+        search = request.query_params.get('search')
+        if search:
+            brand_objs_lst = Brand.objects.filter(name__icontains=search)[:10]
+        else:
+            brand_objs_lst = Brand.objects.all()[:10]
+        serializer = BrandIdNameSerializer(brand_objs_lst, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Brand
-    queryset = Brand.objects.all()
+    queryset = Brand.objects.none()
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
@@ -765,8 +998,9 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         'on_hold': 'on_hold',
         'search': 'name'
     }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
+    def get_base_queryset(self):
+        qs = Brand.objects.select_related('type__subdepartment__department__subsector__sector__subcategory__category__profclass__section').all()
+        return qs
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -774,6 +1008,57 @@ class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet
         return BrandDetailSerializer
 
 
+class ProductViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Product
+    queryset = Product.objects.none()
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    FILTER_FIELDS = {
+        'brand': 'brand__id',
+        'type': 'brand__type__id',
+        'subdepartment': 'brand__type__subdepartment__id',
+        'department': 'brand__type__subdepartment__department__id',
+        'subsector': 'brand__type__subdepartment__department__subsector__id',
+        'sector': 'brand__type__subdepartment__department__subsector__sector__id',
+        'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
+        'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
+        'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
+        'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
+        'is_hidden': 'is_hidden',
+        'on_hold': 'on_hold',
+        'search': 'name'
+    }
+    def get_base_queryset(self):
+        qs = Product.objects.select_related('brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section').all()
+        return qs
+    
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return ProductSerializer   # For POST, PUT, PATCH
+        return ProductDetailSerializer
+
+
+class ProductListView(APIView):
+    def get(self, request):
+        brand_id = request.query_params.get('brand_id')
+        if not brand_id:
+            return Response({
+                "error": "brand_id is required."
+            })
+        
+        brand = get_object_or_404(Brand, id=brand_id)
+        
+        search = request.query_params.get('search')
+        if search:
+            product_objs_lst = Product.objects.filter(brand=brand, name__icontains=search)[:10]
+        else:
+            product_objs_lst = Product.objects.filter(brand=brand)[:10]
+            
+        serializer = ProductIdNameSerializer(product_objs_lst, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
 # class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
 #     model = PostModel
 #     queryset = PostModel.objects.all()
@@ -1680,8 +1965,8 @@ class UploadWardsView(APIView):
         )
 
 
-class UploadRoomFlashesView(APIView):
-    model = RoomFlash
+class UploadSocietiesView(APIView):
+    model = Society
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     
@@ -1691,7 +1976,7 @@ class UploadRoomFlashesView(APIView):
         file = serializer.validated_data['file']
 
         try:
-            df = read_file(file, required_columns=["room_flash", "code", "is_hidden", "on_hold", "hold_date"])
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "code", "is_hidden", "on_hold", "hold_date"])
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -1700,6 +1985,20 @@ class UploadRoomFlashesView(APIView):
         # Check if the DataFrame is empty
         if df.empty:
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        ward_cache = {
+            (
+                w.name,
+                w.city_village.name,
+                w.city_village.taluka.name,
+                w.city_village.taluka.district.name,
+                w.city_village.taluka.district.state.name,
+                w.city_village.taluka.district.state.country.name,
+                w.city_village.taluka.district.state.country.continent.name,
+                w.city_village.taluka.district.state.country.continent.glob.name
+            ): w
+            for w in Ward.objects.select_related('city_village__taluka__district__state__country__continent__glob').all()
+        }
         
         objs = []
         invalid_rows = []
@@ -1711,58 +2010,654 @@ class UploadRoomFlashesView(APIView):
                     hold_date = None
                 else:
                     hold_date = pd.to_datetime(hold_date).date()
-                    
+                
                 # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
                 
                 # Calculate hidden and on_hold values
                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
                 # Clean text safely
-                room_flash_name = clean(row.get("room_flash"))
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
                 code = row.get("code")
                 
                 # Skip invalid rows early
-                if not all([room_flash_name, code]):
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, code]):
                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
                     continue
                 
-                objs.append(RoomFlash(
-                    name=room_flash_name, 
+                ward_obj = ward_cache.get((ward, city_village, taluka, district, state, country, continent, glob))
+                if not ward_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Ward '{ward}' not found for city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
+                    continue
+                
+                objs.append(Society(
+                    ward=ward_obj, 
+                    name=society, 
                     code=code, 
                     is_hidden = is_hidden, 
                     on_hold = on_hold, 
                     hold_date = hold_date
                 ))
-                   
             except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+                
         if not objs:
             return Response({
                 "error": "No valid records found in the file.",
                 "invalid_rows": invalid_rows
                 }, status=status.HTTP_400_BAD_REQUEST
             )
-
         try:
             with transaction.atomic():
-                RoomFlash.objects.bulk_create(
+                Society.objects.bulk_create(
                     objs,
                     update_conflicts=True,
                     unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                    update_fields=["ward", "name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Societies uploaded successfully",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadBlocksView(APIView):
+    model = Block
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        society_cache = {
+            (
+                s.name,
+                s.ward.name,
+                s.ward.city_village.name,
+                s.ward.city_village.taluka.name,
+                s.ward.city_village.taluka.district.name,
+                s.ward.city_village.taluka.district.state.name,
+                s.ward.city_village.taluka.district.state.country.name,
+                s.ward.city_village.taluka.district.state.country.continent.name,
+                s.ward.city_village.taluka.district.state.country.continent.glob.name,
+             ): s
+            for s in Society.objects.select_related('ward__city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                
+                # Normalize boolean fields    
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                society_obj = society_cache.get((society, ward, city_village, taluka, district, state, country, continent, glob))
+                if not society_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Society '{society}' not found for ward: {ward}, city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
+                    continue
+                
+                objs.append(
+                    Block(
+                        society=society_obj,
+                        name=block,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+            
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                Block.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["society", "name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Blocks uploaded successfully",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+class UploadFloorsView(APIView):
+    model = Floor
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        block_cache = {
+            (
+                b.name,
+                b.society.name,
+                b.society.ward.name,
+                b.society.ward.city_village.name,
+                b.society.ward.city_village.taluka.name,
+                b.society.ward.city_village.taluka.district.name,
+                b.society.ward.city_village.taluka.district.state.name,
+                b.society.ward.city_village.taluka.district.state.country.name,
+                b.society.ward.city_village.taluka.district.state.country.continent.name,
+                b.society.ward.city_village.taluka.district.state.country.continent.glob.name,
+             ): b
+            for b in Block.objects.select_related('society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                
+                # Normalize boolean fields
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                floor_no = row.get("floor_no")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                block_obj = block_cache.get((block, society, ward, city_village, taluka, district, state, country, continent, glob))
+                if not block_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Block '{block}' not found for society: {society}, ward: {ward}, city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}."})
+                    continue
+                
+                objs.append(
+                    Floor(
+                        block=block_obj,
+                        no=floor_no,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response(
+                {
+                    "error": "No valid rows found in the file.",
+                    "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            with transaction.atomic():
+                Floor.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["block", "no", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=400)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Floors uploaded successfully",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+class UploadHousesView(APIView):
+    model = House
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "house_no", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        floor_cache = {
+            (
+                f.no,
+                f.block.name,
+                f.block.society.name,
+                f.block.society.ward.name,
+                f.block.society.ward.city_village.name,
+                f.block.society.ward.city_village.taluka.name,
+                f.block.society.ward.city_village.taluka.district.name,
+                f.block.society.ward.city_village.taluka.district.state.name,
+                f.block.society.ward.city_village.taluka.district.state.country.name,
+                f.block.society.ward.city_village.taluka.district.state.country.continent.name,
+                f.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
+             ): f
+            for f in Floor.objects.select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
+        }
+        
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                
+                # Normalize boolean fields
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                floor_no = row.get("floor_no")
+                house_no = row.get("house_no")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, house_no, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue
+                
+                floor_obj = floor_cache.get((floor_no, block, society, ward, city_village, taluka, district, state, country, continent, glob))
+                if not floor_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"Floor '{floor_no}' not found for block {block}, society {society}, ward {ward}, city_village {city_village}, taluka {taluka}, district {district}, state {state}, country {country}, continent {continent}, glob {glob}."})
+                    continue
+                
+                objs.append(
+                    House(
+                        floor=floor_obj,
+                        no=house_no,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response(
+                {
+                    "error": "No valid rows found in the file.",
+                    "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                House.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["floor","no", "is_hidden", "on_hold", "hold_date"]
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(
             {
-                "message": f"{len(objs)} RoomFlash uploaded successfully",
-                "invalid_rows": invalid_rows,
+                "message": f"{len(objs)} Houses uploaded successfully",
+                "invalid_rows": invalid_rows
             }, status=status.HTTP_201_CREATED
         )
+
+
+class UploadRoomsView(APIView):
+    model = Room
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "house_no", "room_no", "room_type", "code", "is_hidden", "on_hold", "hold_date"])
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        house_cache = {
+            (
+                h.no,
+                h.floor.no,
+                h.floor.block.name,
+                h.floor.block.society.name,
+                h.floor.block.society.ward.name,
+                h.floor.block.society.ward.city_village.name,
+                h.floor.block.society.ward.city_village.taluka.name,
+                h.floor.block.society.ward.city_village.taluka.district.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.country.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.country.continent.name,
+                h.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
+            ): h
+            for h in House.objects.all()
+        }
+        
+        room_type_objs =  RoomType.objects.all()
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                
+                # Normalize boolean fields
+                is_hidden = row.get("is_hidden", False)
+                on_hold = row.get("on_hold", False)
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                glob = clean(row.get("glob") or "")
+                continent = clean(row.get("continent") or "")
+                country = clean(row.get("country") or "")
+                state = clean(row.get("state") or "")
+                district = clean(row.get("district") or "")
+                taluka = clean(row.get("taluka") or "")
+                city_village = clean(row.get("city_village") or "")
+                ward = clean(row.get("ward") or "")
+                society = clean(row.get("society") or "")
+                block = clean(row.get("block") or "")
+                floor_no = row.get("floor_no")
+                house_no = clean(row.get("house_no") or "")
+                room_no = row.get("room_no")
+                room_type = clean(row.get("room_type") or "")
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, house_no, room_no,code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    continue
+                
+                house_obj = house_cache[(house_no, floor_no, block, society, ward, city_village, taluka, district, state, country, continent, glob)]
+                if not house_obj:
+                    invalid_rows.append({"row": idx + 2, "error": f"House '{house_no}' not found for floor {floor_no}, block {block}, society {society}, ward {ward}, city_village {city_village}, taluka {taluka}, district {district}, state {state}, country {country}, continent {continent}, glob {glob}."})
+                    continue
+                
+                if room_type:
+                    room_type_obj = room_type_objs.filter(name=room_type).first()
+                    if not room_type_obj:
+                        invalid_rows.append({"row": idx + 2, "error": "Room type not found."})
+                        continue
+                else:
+                    room_type_obj = None
+                
+                objs.append(
+                    Room(
+                        house=house_obj,
+                        no=room_no,
+                        room_type = room_type_obj,
+                        code=code,
+                        is_hidden=is_hidden,
+                        on_hold=on_hold,
+                        hold_date=hold_date
+                    )
+                )
+
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response(
+                {
+                    "error": "No valid rows found in the file.",
+                    "invalid_rows": invalid_rows,
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                Room.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=[
+                        "is_hidden",
+                        "on_hold",
+                        "hold_date",
+                        "house",
+                        "room_type",
+                        "no"
+                    ],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} rooms uploaded successfully.",
+                "invalid_rows": invalid_rows
+            }, status=status.HTTP_201_CREATED
+        )
+
+
+             
+# class UploadRoomFlashesView(APIView):
+#     model = RoomFlash
+#     parser_classes = [MultiPartParser]
+#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+#     def post(self, request):
+#         serializer = FileUploadSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         file = serializer.validated_data['file']
+
+#         try:
+#             df = read_file(file, required_columns=["room_flash", "code", "is_hidden", "on_hold", "hold_date"])
+#         except ValidationError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Check if the DataFrame is empty
+#         if df.empty:
+#             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         objs = []
+#         invalid_rows = []
+        
+#         for idx, row in df.iterrows():
+#             try:
+#                 hold_date = row.get('hold_date')
+#                 if pd.isna(hold_date):  # check for NaT or NaN
+#                     hold_date = None
+#                 else:
+#                     hold_date = pd.to_datetime(hold_date).date()
+                    
+#                 # Normalize boolean fields
+#                 is_hidden = normalize_bool(row.get("is_hidden"))
+#                 on_hold = normalize_bool(row.get("on_hold"))
+                
+#                 # Calculate hidden and on_hold values
+#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+#                 # Clean text safely
+#                 room_flash_name = clean(row.get("room_flash"))
+#                 code = row.get("code")
+                
+#                 # Skip invalid rows early
+#                 if not all([room_flash_name, code]):
+#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+#                     continue
+                
+#                 objs.append(RoomFlash(
+#                     name=room_flash_name, 
+#                     code=code, 
+#                     is_hidden = is_hidden, 
+#                     on_hold = on_hold, 
+#                     hold_date = hold_date
+#                 ))
+                   
+#             except Exception as e:
+#                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
+
+#         if not objs:
+#             return Response({
+#                 "error": "No valid records found in the file.",
+#                 "invalid_rows": invalid_rows
+#                 }, status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         try:
+#             with transaction.atomic():
+#                 RoomFlash.objects.bulk_create(
+#                     objs,
+#                     update_conflicts=True,
+#                     unique_fields=["code"],
+#                     update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+#                 )
+#         except Exception as e:
+#             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         return Response(
+#             {
+#                 "message": f"{len(objs)} RoomFlash uploaded successfully",
+#                 "invalid_rows": invalid_rows,
+#             }, status=status.HTTP_201_CREATED
+#         )
 
 
 class UploadRoomTypesView(APIView):
@@ -2143,6 +3038,92 @@ class UploadPanthView(APIView):
                 "invalid_rows": invalid_rows,
             }, status=status.HTTP_201_CREATED
         )
+
+
+class UploadAwasthaView(APIView):
+    model = Awastha
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data['file']
+
+        try:
+            df = read_file(file, required_columns=["awastha", "code", "is_hidden", "on_hold", "hold_date"])   
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        objs = []
+        invalid_rows = []
+        
+        for idx, row in df.iterrows():
+            try:
+                hold_date = row.get('hold_date')
+                if pd.isna(hold_date):  # check for NaT or NaN
+                    hold_date = None
+                else:
+                    hold_date = pd.to_datetime(hold_date).date()
+                
+                    
+                # Normalize boolean fields
+                is_hidden = normalize_bool(row.get("is_hidden"))
+                on_hold = normalize_bool(row.get("on_hold"))
+                
+                # Calculate hidden and on_hold values
+                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+                
+                # Clean text safely
+                awastha = clean(row.get("awastha"))
+                code = row.get("code")
+                
+                # Skip invalid rows early
+                if not all([awastha, code]):
+                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
+                    continue    
+                
+                objs.append(Awastha(
+                    name=awastha, 
+                    code=code, 
+                    is_hidden = is_hidden, 
+                    on_hold = on_hold, 
+                    hold_date = hold_date
+                ))
+                   
+            except Exception as e:
+                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        
+        if not objs:
+            return Response({
+                "error": "No valid records found in the file.",
+                "invalid_rows": invalid_rows
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            with transaction.atomic():
+                Awastha.objects.bulk_create(
+                    objs,
+                    update_conflicts=True,
+                    unique_fields=["code"],
+                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                )
+        except Exception as e:
+            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {
+                "message": f"{len(objs)} Awastha uploaded successfully",
+                "invalid_rows": invalid_rows,
+            }, status=status.HTTP_201_CREATED
+        )
         
 
 class UploadVarnaView(APIView):
@@ -2167,9 +3148,11 @@ class UploadVarnaView(APIView):
             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
         panth_cache = {
-            (p.name, 
-             p.sampraday.name, 
-             p.sampraday.religion.name) : p 
+            (
+                p.name,
+                p.sampraday.name,
+                p.sampraday.religion.name
+            ): p
             for p in Panth.objects.select_related("sampraday__religion").all()
         }
         
@@ -2205,7 +3188,7 @@ class UploadVarnaView(APIView):
                     
                 panth_obj = panth_cache.get((panth, sampraday, religion))
                 if not panth_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday} and religion: {religion}"}) 
+                    invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday}, religion: {religion}"}) 
                     continue    
                 
                 objs.append(Varna(
@@ -2372,7 +3355,7 @@ class UploadSubCasteView(APIView):
         
         caste_cache = {
             (c.name, 
-             c.varna.name, 
+             c.varna.name,
              c.varna.panth.name, 
              c.varna.panth.sampraday.name, 
              c.varna.panth.sampraday.religion.name) : c
@@ -2586,7 +3569,7 @@ class UploadSubGotraView(APIView):
             (g.name, 
              g.subcaste.name, 
              g.subcaste.caste.name, 
-             g.subcaste.caste.varna.name, 
+             g.subcaste.caste.varna.name,
              g.subcaste.caste.varna.panth.name, 
              g.subcaste.caste.varna.panth.sampraday.name, 
              g.subcaste.caste.varna.panth.sampraday.religion.name) : g
@@ -2809,6 +3792,7 @@ class UploadVanshView(APIView):
             kul.subgotra.gotra.subcaste.name,
             kul.subgotra.gotra.subcaste.caste.name,
             kul.subgotra.gotra.subcaste.caste.varna.name,
+            kul.subgotra.gotra.subcaste.caste.varna.name,
             kul.subgotra.gotra.subcaste.caste.varna.panth.name,
             kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
             kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): kul
@@ -2919,6 +3903,7 @@ class UploadFamilyView(APIView):
              v.kul.subgotra.gotra.subcaste.name,
              v.kul.subgotra.gotra.subcaste.caste.name,
              v.kul.subgotra.gotra.subcaste.caste.varna.name,
+             v.kul.subgotra.gotra.subcaste.caste.varna.name,
              v.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
              v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
              v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): v
@@ -3004,121 +3989,123 @@ class UploadFamilyView(APIView):
         )
 
 
-class UploadPidhiView(APIView):
-    model = Pidhi
-    permission_classes = [IsAuthenticated]
-    serializer_class = FileUploadSerializer
+# class UploadPidhiView(APIView):
+#     model = Pidhi
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = FileUploadSerializer
     
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
+#     def post(self, request):
+#         serializer = FileUploadSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         file = serializer.validated_data['file']
 
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
+#         except ValidationError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+#         # Check if the DataFrame is empty
+#         if df.empty:
+#             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
         
-        family_cache = {
-            (f.name,
-             f.vansh.name,
-             f.vansh.kul.name,
-             f.vansh.kul.subgotra.name,
-             f.vansh.kul.subgotra.gotra.name,
-             f.vansh.kul.subgotra.gotra.subcaste.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-             f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): f
-            for f in Family.objects.all()
-        }
+#         family_cache = {
+#             (f.name,
+#              f.vansh.name,
+#              f.vansh.kul.name,
+#              f.vansh.kul.subgotra.name,
+#              f.vansh.kul.subgotra.gotra.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
+#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): f
+#             for f in Family.objects.all()
+#         }
                 
     
-        objs = []
-        invalid_rows = []
+#         objs = []
+#         invalid_rows = []
         
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
+#         for idx, row in df.iterrows():
+#             try:
+#                 hold_date = row.get('hold_date')
+#                 if pd.isna(hold_date):  # check for NaT or NaN
+#                     hold_date = None
+#                 else:
+#                     hold_date = pd.to_datetime(hold_date).date()
                     
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
+#                 # Normalize boolean fields
+#                 is_hidden = normalize_bool(row.get("is_hidden"))
+#                 on_hold = normalize_bool(row.get("on_hold"))
                 
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
+#                 # Calculate hidden and on_hold values
+#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
                 
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday")) 
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                subgotra = clean(row.get("subgotra"))
-                kul = clean(row.get("kul"))
-                vansh = clean(row.get("vansh"))
-                family = clean(row.get("family"))
-                pidhi = clean(row.get("pidhi"))
-                code = row.get("code")
+#                 # Clean text safely
+#                 religion = clean(row.get("religion"))
+#                 sampraday = clean(row.get("sampraday")) 
+#                 panth = clean(row.get("panth"))
+#                 awastha = clean(row.get("awastha"))
+#                 varna = clean(row.get("varna"))
+#                 caste = clean(row.get("caste"))
+#                 subcaste = clean(row.get("subcaste"))
+#                 gotra = clean(row.get("gotra"))
+#                 subgotra = clean(row.get("subgotra"))
+#                 kul = clean(row.get("kul"))
+#                 vansh = clean(row.get("vansh"))
+#                 family = clean(row.get("family"))
+#                 pidhi = clean(row.get("pidhi"))
+#                 code = row.get("code")
                 
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
+#                 if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
+#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+#                     continue
                 
-                family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
-                if not family_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
-                    continue
+#                 family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
+#                 if not family_obj:
+#                     invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
+#                     continue
                 
-                objs.append(Pidhi(
-                    family = family_obj,
-                    name = pidhi,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
+#                 objs.append(Pidhi(
+#                     family = family_obj,
+#                     name = pidhi,
+#                     code = code,
+#                     is_hidden = is_hidden,
+#                     on_hold = on_hold,
+#                     hold_date = hold_date
+#                 ))
                 
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+#             except Exception as e:
+#                 invalid_rows.append({"row": idx + 2, "error": str(e)})
         
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
+#         if not objs:
+#             return Response({
+#                 "error": "No valid records found in the file.",
+#                 "invalid_rows": invalid_rows
+#                 }, status=status.HTTP_400_BAD_REQUEST
+#             )
         
-        try:
-            with transaction.atomic():
-                Pidhi.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["family", "name", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             with transaction.atomic():
+#                 Pidhi.objects.bulk_create(
+#                     objs,
+#                     update_conflicts=True,
+#                     unique_fields=["code"],
+#                     update_fields=["family", "name", "is_hidden", "on_hold", "hold_date"],
+#                 )
+#         except Exception as e:
+#             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(
-            {
-                "message": f"{len(objs)} Pidhis uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
+#         return Response(
+#             {
+#                 "message": f"{len(objs)} Pidhis uploaded successfully.",
+#                 "invalid_rows": invalid_rows
+#             }, status=status.HTTP_201_CREATED
+#         )
  
 # ======================================================================
 # Professional Upload excel/csv
@@ -4413,14 +5400,19 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         taluka_name = data.get("taluka")
         city_village_name = data.get("city_village")
         ward_name = data.get("ward")
+        society_name = data.get("society")
+        block_name = data.get("block")
+        floor_no = data.get("floor")
+        house_no = data.get("house")
+        room_no = data.get("room")
         
-        
-
+        filters = {}
         if search_key == "glob":
             qs = get_regular_query(Glob)
             if glob_name:
-                qs = qs.filter(name__icontains=glob_name)
-                
+                filters['name__icontains'] = glob_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4433,17 +5425,24 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
         elif search_key == "continent":
-            qs = get_regular_query(Continent)
+            qs = get_regular_query(Continent).select_related('glob')
             if glob_name:
-                qs = qs.filter(glob__name__icontains=glob_name)
+                filters['glob__name__icontains']=glob_name
             if continent_name:
-                qs = qs.filter(name__icontains=continent_name)
+                filters['name__icontains'] = continent_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4456,19 +5455,26 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
         elif search_key == "country":
-            qs = get_regular_query(Country)
+            qs = get_regular_query(Country).select_related('continent__glob')
             if glob_name:
-                qs = qs.filter(continent__glob__name__icontains=glob_name)
+                filters['continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(continent__name__icontains=continent_name)
+                filters['continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(name__icontains=country_name)
+                filters['name__icontains'] = country_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4481,21 +5487,28 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
         elif search_key == "state":
-            qs = get_regular_query(State)
+            qs = get_regular_query(State).select_related('country__continent__glob')
             if glob_name:
-                qs = qs.filter(country__continent__glob__name__icontains=glob_name)
+                filters['country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(country__continent__name__icontains=continent_name)
+                filters['country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(country__name__icontains=country_name)
+                filters['country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(name__icontains=state_name)
+                filters['name__icontains'] = state_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4508,23 +5521,30 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
         elif search_key == "district":
-            qs = get_regular_query(District)
+            qs = get_regular_query(District).select_related('state__country__continent__glob')
             if glob_name:
-                qs = qs.filter(state__country__continent__glob__name__icontains=glob_name)
+                filters['state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(state__country__continent__name__icontains=continent_name)
+                filters['state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(state__country__name__icontains=country_name)
+                filters['state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(state__name__icontains=state_name)
+                filters['state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(name__icontains=district_name)
+                filters['name__icontains'] = district_name
+                
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4537,25 +5557,32 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj).data,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
         elif search_key == "taluka":
-            qs = get_regular_query(Taluka)
+            qs = get_regular_query(Taluka).select_related('district__state__country__continent__glob')
             if glob_name:
-                qs = qs.filter(district__state__country__continent__glob__name__icontains=glob_name)
+                filters['district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(district__state__country__continent__name__icontains=continent_name)
+                filters['district__state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(district__state__country__name__icontains=country_name)
+                filters['district__state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(district__state__name__icontains=state_name)
+                filters['district__state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(district__name__icontains=district_name)
+                filters['district__name__icontains'] = district_name
             if taluka_name:
-                qs = qs.filter(name__icontains=taluka_name)
+                filters['name__icontains'] = taluka_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4568,27 +5595,34 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj.district).data,
                     "taluka": TalukaIdNameSerializer(obj).data,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
         elif search_key == "city_village":
-            qs = get_regular_query(CityVillage)
+            qs = get_regular_query(CityVillage).select_related('taluka__district__state__country__continent__glob')
             if glob_name:
-                qs = qs.filter(taluka__district__state__country__continent__glob__name__icontains=glob_name)
+                filters['taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(taluka__district__state__country__continent__name__icontains=continent_name)
+                filters['taluka__district__state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(taluka__district__state__country__name__icontains=country_name)
+                filters['taluka__district__state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(taluka__district__state__name__icontains=state_name)
+                filters['taluka__district__state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(taluka__district__name__icontains=district_name)
+                filters['taluka__district__name__icontains'] = district_name
             if taluka_name:
-                qs = qs.filter(taluka__name__icontains=taluka_name)
+                filters['taluka__name__icontains'] = taluka_name
             if city_village_name:
-                qs = qs.filter(name__icontains=city_village_name)
+                filters['name__icontains'] = city_village_name
+            
+            qs = qs.filter(**filters)            
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4601,29 +5635,36 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj.taluka.district).data,
                     "taluka": TalukaIdNameSerializer(obj.taluka).data,
                     "city_village": CityVillageIdNameSerializer(obj).data,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
         
         elif search_key == "ward":
-            qs = get_regular_query(Ward)
+            qs = get_regular_query(Ward).select_related('city_village__taluka__district__state__country__continent__glob')
             if glob_name:
-                qs = qs.filter(city_village__taluka__district__state__country__continent__glob__name__icontains=glob_name)
+                filters['city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
-                qs = qs.filter(city_village__taluka__district__state__country__continent__name__icontains=continent_name)
+                filters['city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
             if country_name:
-                qs = qs.filter(city_village__taluka__district__state__country__name__icontains=country_name)
+                filters['city_village__taluka__district__state__country__name__icontains'] = country_name
             if state_name:
-                qs = qs.filter(city_village__taluka__district__state__name__icontains=state_name)
+                filters['city_village__taluka__district__state__name__icontains'] = state_name
             if district_name:
-                qs = qs.filter(city_village__taluka__district__name__icontains=district_name)
+                filters['city_village__taluka__district__name__icontains'] = district_name
             if taluka_name:
-                qs = qs.filter(city_village__taluka__name__icontains=taluka_name)
+                filters['city_village__taluka__name__icontains'] = taluka_name
             if city_village_name:
-                qs = qs.filter(city_village__name__icontains=city_village_name)
+                filters['city_village__name__icontains'] = city_village_name
             if ward_name:
-                qs = qs.filter(name__icontains=ward_name)
+                filters['name__icontains'] = ward_name
+            
+            qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
             qs = qs[:10]
 
@@ -4636,15 +5677,266 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": DistrictIdNameSerializer(obj.city_village.taluka.district).data,
                     "taluka": TalukaIdNameSerializer(obj.city_village.taluka).data,
                     "city_village": CityVillageIdNameSerializer(obj.city_village).data,
-                    "ward": WardIdNameSerializer(obj).data
+                    "ward": WardIdNameSerializer(obj).data,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "society":
+            qs = get_regular_query(Society).select_related('ward__city_village__taluka__district__state__country__continent__glob')
+            
+            if glob_name:
+                filters['ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['ward__name__icontains'] = ward_name
+            if society_name:
+                filters['name__icontains'] = society_name
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.ward).data,
+                    "society": SocietyIdNameSerializer(obj).data,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "block":
+            qs = get_regular_query(Block).select_related('society__ward__city_village__taluka__district__state__country__continent__glob')
+            
+            if glob_name:
+                filters['society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['society__name__icontains'] = society_name
+            if block_name:
+                filters['name__icontains'] = block_name
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.society).data,
+                    "block": BlockIdNameSerializer(obj).data,
+                    "floor": None,
+                    "house": None,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "floor":
+            qs = get_regular_query(Floor).select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob')
+            
+            if glob_name:
+                filters['block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['block__society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['block__society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['block__society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['block__society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['block__society__name__icontains'] = society_name
+            if block_name:
+                filters['block__name__icontains'] = block_name
+            if floor_no:
+                filters['no'] = floor_no
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.block.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.block.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.block.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.block.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.block.society).data,
+                    "block": BlockIdNameSerializer(obj.block).data,
+                    "floor": FloorIdNameSerializer(obj).data,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
 
+        elif search_key == "house":
+            qs = get_regular_query(House).select_related('floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
+            
+            if glob_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['floor__block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['floor__block__society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['floor__block__society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['floor__block__society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['floor__block__society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['floor__block__society__name__icontains'] = society_name
+            if block_name:
+                filters['floor__block__name__icontains'] = block_name
+            if floor_no:
+                filters['floor__no'] = floor_no
+            if house_no:
+                filters['no'] = house_no
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.floor.block.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.floor.block.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.floor.block.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.floor.block.society).data,
+                    "block": BlockIdNameSerializer(obj.floor.block).data,
+                    "floor": FloorIdNameSerializer(obj.floor).data,
+                    "house": HouseIdNameSerializer(obj).data,
+                    "room": None
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "room":
+            qs = get_regular_query(Room).select_related('house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
+            
+            if glob_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
+            if continent_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
+            if country_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
+            if state_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
+            if district_name:
+                filters['house__floor__block__society__ward__city_village__taluka__district__name__icontains'] = district_name
+            if taluka_name:
+                filters['house__floor__block__society__ward__city_village__taluka__name__icontains'] = taluka_name
+            if city_village_name:
+                filters['house__floor__block__society__ward__city_village__name__icontains'] = city_village_name
+            if ward_name:
+                filters['house__floor__block__society__ward__name__icontains'] = ward_name
+            if society_name:
+                filters['house__floor__block__society__name__icontains'] = society_name
+            if block_name:
+                filters['house__floor__block__name__icontains'] = block_name
+            if floor_no:
+                filters['house__floor__no'] = floor_no
+            if house_no:
+                filters['house__no'] = house_no
+            if room_no:
+                filters['no'] = room_no
+            
+            qs = qs.filter(**filters)
+            qs = self.apply_record_rules(qs)
+            qs = qs[:10]
+
+            results = [
+                {
+                    "glob": GlobIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
+                    "continent": ContinentIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country.continent).data,
+                    "country": CountryIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country).data,
+                    "state": StateIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state).data,
+                    "district": DistrictIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district).data,
+                    "taluka": TalukaIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka).data,
+                    "city_village": CityVillageIdNameSerializer(obj.house.floor.block.society.ward.city_village).data,
+                    "ward": WardIdNameSerializer(obj.house.floor.block.society.ward).data,
+                    "society": SocietyIdNameSerializer(obj.house.floor.block.society).data,
+                    "block": BlockIdNameSerializer(obj.house.floor.block).data,
+                    "floor": FloorIdNameSerializer(obj.house.floor).data,
+                    "house": HouseIdNameSerializer(obj.house).data,
+                    "room": RoomIdNameSerializer(obj).data
+                }
+                for obj in qs
+            ]
+            
         else:
             # fallback → default globs
             qs = get_regular_query(Glob)
             qs = self.apply_record_rules(qs)
+            qs = qs[:10]
             results = [
                 {
                     "glob": GlobIdNameSerializer(obj).data,
@@ -4654,7 +5946,12 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
                     "district": None,
                     "taluka": None,
                     "city_village": None,
-                    "ward": None
+                    "ward": None,
+                    "society": None,
+                    "block": None,
+                    "floor": None,
+                    "house": None,
+                    "room": None
                 }
                 for obj in qs
             ]
@@ -4663,6 +5960,8 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         output = ResidentialOutputSerializer(results, many=True)
         return Response(output.data) 
        
+            
+
 class PersonalSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -4675,6 +5974,7 @@ class PersonalSearchView(APIView):
         religion_name = data.get('religion')
         sampraday_name = data.get('sampraday')
         panth_name = data.get('panth')
+        awastha_name = data.get('awastha')
         varna_name = data.get('varna')
         caste_name = data.get('caste')
         subcaste_name = data.get('subcaste')
@@ -4686,7 +5986,13 @@ class PersonalSearchView(APIView):
         pidhi_name = data.get('pidhi')
         
         
-        
+        filters = {}
+        awastha_objs = get_regular_query(Awastha)
+        if awastha_objs.exists():
+            awastha_data = AwasthaIdNameSerializer(awastha_objs, many=True).data
+        else:
+            awastha_data = []
+            
         if search_key == "religion":
             qs = get_regular_query(Religion)
             if religion_name:
@@ -4697,6 +6003,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj).data,
                     "sampraday": None,
                     "panth": None,
+                    "awastha": awastha_data,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -4711,11 +6018,13 @@ class PersonalSearchView(APIView):
             ]
 
         elif search_key == "sampraday":
-            qs = get_regular_query(Sampraday)
+            qs = get_regular_query(Sampraday).select_related('religion')
             if religion_name:
-                qs = qs.filter(religion__name__icontains=religion_name)
+                filters['religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(name__icontains=sampraday_name)
+                filters['name__icontains'] = sampraday_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4723,6 +6032,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj).data,
                     "panth": None,
+                    "awastha": awastha_data,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -4737,13 +6047,15 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "panth":
-            qs = get_regular_query(Panth)
+            qs = get_regular_query(Panth).select_related('sampraday__religion')
             if religion_name:
-                qs = qs.filter(sampraday__religion__name__icontains=religion_name)
+                filters['sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(sampraday__name__icontains=sampraday_name)
+                filters['sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(name__icontains=panth_name)
+                filters['name__icontains'] = panth_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4751,6 +6063,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.sampraday).data,
                     "panth": PanthIdNameSerializer(obj).data,
+                    "awastha": awastha_data,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -4763,17 +6076,51 @@ class PersonalSearchView(APIView):
                 }
                 for obj in qs
             ]
+        # elif search_key == "awastha":
+        #     qs = get_regular_query(Awastha).select_related('panth__sampraday__religion')
+        #     if religion_name:
+        #         filters['panth__sampraday__religion__name__icontains'] = religion_name
+        #     if sampraday_name:
+        #         filters['panth__sampraday__name__icontains'] = sampraday_name
+        #     if panth_name:
+        #         filters['panth__name__icontains'] = panth_name
+        #     if awastha_name:
+        #         filters['name__icontains'] = awastha_name
+            
+        #     qs = qs.filter(**filters)
+        #     qs = qs[:10]
+            
+        #     results = [
+        #         {
+        #             "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
+        #             "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
+        #             "panth": PanthIdNameSerializer(obj.panth).data,
+        #             "awastha": AwasthaIdNameSerializer(obj).data,
+        #             "varna": None,
+        #             "caste": None,
+        #             "subcaste": None,
+        #             "gotra": None,
+        #             "subgotra": None,
+        #             "kul": None,
+        #             "vansh": None,
+        #             "family": None,
+        #             "pidhi": None,
+        #         }
+        #         for obj in qs
+        #     ]
         
         elif search_key == "varna":
-            qs = get_regular_query(Varna)
+            qs = get_regular_query(Varna).select_related('panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(panth__sampraday__religion__name__icontains=religion_name)
+                filters['panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(panth__sampraday__name__icontains=sampraday_name)
+                filters['panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(panth__name__icontains=panth_name)
+                filters['panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(name__icontains=varna_name)
+                filters['name__icontains'] = varna_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4781,6 +6128,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj).data,
                     "caste": None,
                     "subcaste": None,
@@ -4796,17 +6144,19 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "caste":
-            qs = get_regular_query(Caste)
+            qs = get_regular_query(Caste).select_related('varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(varna__panth__name__icontains=panth_name)
+                filters['varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(varna__name__icontains=varna_name)
+                filters['varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(name__icontains=caste_name)
+                filters['name__icontains'] = caste_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4814,6 +6164,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.varna).data,
                     "caste": CasteIdNameSerializer(obj).data,
                     "subcaste": None,
@@ -4829,19 +6180,21 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "subcaste":
-            qs = get_regular_query(SubCaste)
+            qs = get_regular_query(SubCaste).select_related('caste__varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['caste__varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(caste__varna__panth__name__icontains=panth_name)
+                filters['caste__varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(caste__varna__name__icontains=varna_name)
+                filters['caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(caste__name__icontains=caste_name)
+                filters['caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(name__icontains=subcaste_name)
+                filters['name__icontains'] = subcaste_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4849,6 +6202,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.caste.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.caste.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.caste.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj).data,
@@ -4864,21 +6218,23 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "gotra":
-            qs = get_regular_query(Gotra)
+            qs = get_regular_query(Gotra).select_related('subcaste__caste__varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['subcaste__caste__varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(subcaste__caste__varna__name__icontains=varna_name)
+                filters['subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(subcaste__caste__name__icontains=caste_name)
+                filters['subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(subcaste__name__icontains=subcaste_name)
+                filters['subcaste__name__icontains'] = subcaste_name
             if gotra_name:
-                qs = qs.filter(name__icontains=gotra_name)
+                filters['name__icontains'] = gotra_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4886,6 +6242,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.subcaste.caste.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.subcaste).data,
@@ -4901,23 +6258,25 @@ class PersonalSearchView(APIView):
         
         
         elif search_key == "subgotra":
-            qs = get_regular_query(SubGotra)
+            qs = get_regular_query(SubGotra).select_related('gotra__subcaste__caste__varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(gotra__subcaste__caste__name__icontains=caste_name)
+                filters['gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(gotra__subcaste__name__icontains=subcaste_name)
+                filters['gotra__subcaste__name__icontains'] = subcaste_name
             if gotra_name:
-                qs = qs.filter(gotra__name__icontains=gotra_name)
+                filters['gotra__name__icontains'] = gotra_name
             if subgotra_name:
-                qs = qs.filter(name__icontains=subgotra_name)
+                filters['name__icontains'] = subgotra_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4925,6 +6284,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.gotra.subcaste.caste.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.gotra.subcaste).data,
@@ -4939,25 +6299,27 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "kul":
-            qs = get_regular_query(Kul)
+            qs = get_regular_query(Kul).select_related('subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)       
+                filters['subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(subgotra__gotra__subcaste__name__icontains=subcaste_name)
+                filters['subgotra__gotra__subcaste__name__icontains'] = subcaste_name
             if gotra_name:
-                qs = qs.filter(subgotra__gotra__name__icontains=gotra_name)
+                filters['subgotra__gotra__name__icontains'] = gotra_name
             if subgotra_name:
-                qs = qs.filter(subgotra__name__icontains=subgotra_name) 
+                filters['subgotra__name__icontains'] = subgotra_name
             if kul_name:
-                qs = qs.filter(name__icontains=kul_name)
+                filters['name__icontains'] = kul_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -4965,6 +6327,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.subgotra.gotra.subcaste).data,
@@ -4979,27 +6342,29 @@ class PersonalSearchView(APIView):
             ]
         
         elif search_key == "vansh":
-            qs = get_regular_query(Vansh)
+            qs = get_regular_query(Vansh).select_related('kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
-            if gotra_name:  
-                qs = qs.filter(kul__subgotra__gotra__name__icontains=gotra_name)
-            if subgotra_name:  
-                qs = qs.filter(kul__subgotra__name__icontains=subgotra_name)                  
+                filters['kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+            if gotra_name:
+                filters['kul__subgotra__gotra__name__icontains'] = gotra_name  
+            if subgotra_name:
+                filters['kul__subgotra__name__icontains'] = subgotra_name  
             if kul_name:
-                qs = qs.filter(kul__name__icontains=kul_name)
+                filters['kul__name__icontains'] = kul_name
             if vansh_name:
-                qs = qs.filter(name__icontains=vansh_name)
+                filters['name__icontains'] = vansh_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -5007,6 +6372,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste).data,
@@ -5021,29 +6387,31 @@ class PersonalSearchView(APIView):
             ]  
             
         elif search_key == "family":
-            qs = get_regular_query(Family)
+            qs = get_regular_query(Family).select_related('vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
             if religion_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             if sampraday_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
             if panth_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
             if varna_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
             if caste_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
+                filters['vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
             if subcaste_name:
-                qs = qs.filter(vansh__kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
-            if gotra_name:  
-                qs = qs.filter(vansh__kul__subgotra__gotra__name__icontains=gotra_name)
-            if subgotra_name:  
-                qs = qs.filter(vansh__kul__subgotra__name__icontains=subgotra_name)                  
+                filters['vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+            if gotra_name:
+                filters['vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
+            if subgotra_name:
+                filters['vansh__kul__subgotra__name__icontains'] = subgotra_name  
             if kul_name:
-                qs = qs.filter(vansh__kul__name__icontains=kul_name)
+                filters['vansh__kul__name__icontains'] = kul_name
             if vansh_name:    
-                qs = qs.filter(vansh__name__icontains=vansh_name)
+                filters['vansh__name__icontains'] = vansh_name
             if family_name:
-                qs = qs.filter(name__icontains=family_name)
+                filters['name__icontains'] = family_name
+            
+            qs = qs.filter(**filters)
             qs = qs[:10]
             
             results = [
@@ -5051,6 +6419,7 @@ class PersonalSearchView(APIView):
                     "religion": ReligionIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
                     "sampraday": SampradayIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
                     "panth": PanthIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+                    "awastha": awastha_data,
                     "varna": VarnaIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
                     "caste": CasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste).data,
                     "subcaste": SubCasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste).data,
@@ -5065,60 +6434,67 @@ class PersonalSearchView(APIView):
             ]
 
         
-        elif search_key == "pidhi":
-            qs = get_regular_query(Pidhi)
-            if religion_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains=religion_name)
-            if sampraday_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains=sampraday_name)
-            if panth_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains=panth_name)
-            if varna_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains=varna_name)
-            if caste_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains=caste_name)
-            if subcaste_name:
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__subcaste__name__icontains=subcaste_name)
-            if gotra_name:  
-                qs = qs.filter(family__vansh__kul__subgotra__gotra__name__icontains=gotra_name)
-            if subgotra_name:  
-                qs = qs.filter(family__vansh__kul__subgotra__name__icontains=subgotra_name)                  
-            if kul_name:
-                qs = qs.filter(family__vansh__kul__name__icontains=kul_name)
-            if vansh_name:    
-                qs = qs.filter(family__vansh__name__icontains=vansh_name)
-            if family_name:
-                qs = qs.filter(family__name__icontains=family_name)    
-            if pidhi_name:
-                qs = qs.filter(name__icontains=pidhi_name)
-            qs = qs[:10]
+        # elif search_key == "pidhi":
+        #     qs = get_regular_query(Pidhi).select_related('family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
+        #     if pidhi_name:
+        #         filters['name__icontains'] = pidhi_name
+        #     if family_name:
+        #         filters['family__name__icontains'] = family_name
+        #     if vansh_name:
+        #         filters['family__vansh__name__icontains'] = vansh_name    
+        #     if kul_name:
+        #         filters['family__vansh__kul__name__icontains'] = kul_name
+        #     if subgotra_name:
+        #         filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
+        #     if gotra_name:
+        #         filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
+        #     if subcaste_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
+        #     if caste_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
+        #     if varna_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
+        #     if awastha_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = awastha_name
+        #     if panth_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
+        #     if sampraday_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
+        #     if religion_name:
+        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
             
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
-                    "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
-                    "subgotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
-                    "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
-                    "vansh": VanshIdNameSerializer(obj.family.vansh).data,
-                    "family": FamilyIdNameSerializer(obj.family).data,
-                    "pidhi": PidhiIdNameSerializer(obj).data
-                }                
-                for obj in qs
-            ]
+        #     qs = qs.filter(**filters)
+        #     qs = qs[:10]
+            
+        #     results = [
+        #         {
+        #             "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
+        #             "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
+        #             "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
+        #             "awastha": AwasthaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
+        #             "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
+        #             "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
+        #             "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
+        #             "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
+        #             "subgotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
+        #             "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
+        #             "vansh": VanshIdNameSerializer(obj.family.vansh).data,
+        #             "family": FamilyIdNameSerializer(obj.family).data,
+        #             "pidhi": PidhiIdNameSerializer(obj).data
+        #         }                
+        #         for obj in qs
+        #     ]
         
         else:
             # fallback - default religions
             qs = get_regular_query(Religion)
+            qs = qs[:10]
             results = [
                 {
                     "religion": ReligionIdNameSerializer(obj).data,
                     "sampraday": None,
                     "panth": None,
+                    "awastha": awastha_data,
                     "varna": None,
                     "caste": None,
                     "subcaste": None,
@@ -5182,7 +6558,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "profclass":
-            qs = get_regular_query(Class)
+            qs = get_regular_query(Class).select_related("section")
             if profclass_name:
                 qs = qs.filter(name__icontains=profclass_name)
             if section_name:
@@ -5206,7 +6582,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "category":
-            qs = get_regular_query(ProfCategory)
+            qs = get_regular_query(ProfCategory).select_related("profclass__section")
             if category_name:
                 qs = qs.filter(name__icontains=category_name)
             if profclass_name:
@@ -5232,7 +6608,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subcategory":
-            qs = get_regular_query(ProfSubCategory)
+            qs = get_regular_query(ProfSubCategory).select_related("category__profclass__section")
             if subcategory_name:
                 qs = qs.filter(name__icontains=subcategory_name)
             if category_name:
@@ -5260,7 +6636,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "sector":
-            qs = get_regular_query(Sector)
+            qs = get_regular_query(Sector).select_related("subcategory__category__profclass__section")
             if sector_name:
                 qs = qs.filter(name__icontains=sector_name)
             if subcategory_name:
@@ -5290,7 +6666,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subsector":
-            qs = get_regular_query(SubSector)
+            qs = get_regular_query(SubSector).select_related("sector__subcategory__category__profclass__section")
             if subsector_name:
                 qs = qs.filter(name__icontains=subsector_name)
             if sector_name:
@@ -5322,7 +6698,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "department":
-            qs = get_regular_query(Department)
+            qs = get_regular_query(Department).select_related("subsector__sector__subcategory__category__profclass__section")
             if department_name:
                 qs = qs.filter(name__icontains=department_name)
             if subsector_name:
@@ -5356,7 +6732,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "subdepartment":
-            qs = get_regular_query(SubDepartment)
+            qs = get_regular_query(SubDepartment).select_related("department__subsector__sector__subcategory__category__profclass__section")
             if subdepartment_name:
                 qs = qs.filter(name__icontains=subdepartment_name)
             if department_name:
@@ -5392,7 +6768,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "type":
-            qs = get_regular_query(Type)
+            qs = get_regular_query(Type).select_related("subdepartment__department__subsector__sector__subcategory__category__profclass__section")
             if type_name:
                 qs = qs.filter(name__icontains=type_name)
             if subdepartment_name:
@@ -5430,7 +6806,7 @@ class ProfessionalSearchView(APIView):
             ]
         
         elif search_key == "brand":
-            qs = get_regular_query(Brand)
+            qs = get_regular_query(Brand).select_related("type__subdepartment__department__subsector__sector__subcategory__category__profclass__section")
             if brand_name:
                 qs = qs.filter(name__icontains=brand_name)
             if type_name:
@@ -5473,6 +6849,7 @@ class ProfessionalSearchView(APIView):
         else:
             # fallback - default sections
             qs = get_regular_query(Section)
+            qs = qs[:10]
             results = [
                 {
                     "section": SectionIdNameSerializer(obj).data,
@@ -5491,31 +6868,6 @@ class ProfessionalSearchView(APIView):
         
         output = ProfessionalOutputSerializer(results, many=True)
         return Response(output.data, status=status.HTTP_200_OK)
-            
-   
-# class DesignationSubCategoryView(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-#     model = DesignationSubCategory
-#     queryset = DesignationSubCategory.objects.all()
-#     serializer_class = DesignationSubCategorySerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-#     pagination_class = ConfigurationPagination
-#     FILTER_FIELDS = {
-#         'category': 'category',
-#         'is_hidden': 'is_hidden',
-#         'on_hold': 'on_hold',
-#         'search': 'name'
-#     }
-
-
-class DesignationSubCategoryListView(APIView):
-    model = DesignationSubCategory
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        qs = get_regular_query(DesignationSubCategory)
-        qs = qs.order_by('code')
-        output = DesignationSubCategoryIdNameSerializer(qs, many=True)
-        return Response(output.data, status=status.HTTP_200_OK)
     
     
 class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
@@ -5525,7 +6877,6 @@ class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelV
     permission_classes = [IsAuthenticated, HasModelAccessPermission]
     pagination_class = ConfigurationPagination
     FILTER_FIELDS = {
-        'subcategory': 'subcategory__name',
         'category': 'category',
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold',
@@ -5547,23 +6898,15 @@ class DesignationListView(RecordRuleMixin, APIView):
     def get(self, request):
         qs = self.get_base_queryset()
         category = request.query_params.get('category', "").strip()
-        subcategory = request.query_params.get('subcategory', "").strip()
         
-        if category != '':
-            if subcategory != '':
-                qs = qs.filter(category=category, subcategory__name=subcategory)
-            else:
-                return Response(
-                    {
-                        "error": "Query paramter 'subcategory' cannot be empty."
-                    }, status=status.HTTP_400_BAD_REQUEST
-                )
-        else:
+        if category == '':
             return Response(
                 {
                     "error": "Query paramter 'category' cannot be empty."
                 }, status=status.HTTP_400_BAD_REQUEST
             )
+        else:
+            qs = qs.filter(category=category)
         
         qs = qs.order_by('code')
         output = DesignationIdNameSerializer(qs, many=True)
@@ -5591,12 +6934,545 @@ class DownloadSampleFile(APIView):
         return Response({"file_url": file.file.url}, status=status.HTTP_200_OK)
 
 
-class DesignationCategoryListView(APIView):
+# =======================================================
+# Flash Views
+# =======================================================
+
+class ProductSearchView(RecordRuleMixin, APIView):
+    model = Product
     permission_classes = [IsAuthenticated]
     
+    def post(self, request):
+        serializer = ProductSearchInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        input_data = serializer.validated_data
+        search_key = input_data.get('search_key')
+        sector_name = input_data.get('sector')
+        brand_name = input_data.get('brand')
+        product_name = input_data.get('product')
+        
+        filters = {}
+        if search_key == "sector":
+            qs = get_regular_query(Sector)
+            if sector_name:
+                qs = qs.filter(name__icontains=sector_name)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj).data,
+                    "brand": None,
+                    "product": None,
+                }
+                for obj in qs
+            ]
+            
+        elif search_key == "brand":
+            qs = get_regular_query(Brand)
+            if brand_name:
+                filters['name__icontains'] = brand_name
+            if sector_name:
+                filters['type__subdepartment__department__subsector__sector__name__icontains'] = sector_name
+            
+            qs = qs.filter(**filters)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj.type.subdepartment.department.subsector.sector).data,
+                    "brand": BrandIdNameSerializer(obj).data,
+                    "product": None,
+                }
+                for obj in qs
+            ]
+        
+        elif search_key == "product":
+            qs = get_regular_query(Product)
+            if product_name:
+                filters['name__icontains'] = product_name
+            if brand_name:
+                filters['brand__name__icontains'] = brand_name
+            if sector_name:
+                filters['brand__type__subdepartment__department__subsector__sector__name__icontains'] = sector_name
+            
+            qs = qs.filter(**filters)
+            qs = qs[:10]
+            
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector).data,
+                    "brand": BrandIdNameSerializer(obj.brand).data,
+                    "product": ProductIdNameSerializer(obj).data,
+                }
+                for obj in qs
+            ]
+        
+        else:
+            qs = get_regular_query(Sector)
+            qs = qs[:10]
+            results = [
+                {
+                    "sector": SectorIdNameSerializer(obj).data,
+                    "brand": None,
+                    "product": None,
+                }
+                for obj in qs
+            ]
+        
+        output_data = ProductSearchOutputSerializer(results, many=True).data
+        return Response(output_data, status=status.HTTP_200_OK)
+            
+                
+            
+            
+class WardFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    model = WardFlash
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
     def get(self, request):
-        categories = [
-            {"key": key, "label": label}
-            for key, label in Designation.CATEGORY_CHOICES
+        ward_id = request.query_params.get('ward_id', "").strip()
+        if ward_id == '':
+            return Response({"error": "Query paramter 'ward_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            ward_obj = Ward.objects.get(id=ward_id)
+        except Ward.DoesNotExist:
+            return Response({"error": "Ward not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get ward: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = WardFlashOutputSerializer(ward_obj.ward_flashes.all(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        ward_id = request.query_params.get('ward_id', "").strip()
+        if ward_id == '':
+            return Response({"error": "Query paramter 'ward_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            ward_obj = Ward.objects.get(id=ward_id)
+        except Ward.DoesNotExist:
+            return Response({"error": "Ward not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get ward: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = WardFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
         ]
-        return Response({"categories": categories})
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                WardFlash.objects.filter(ward=ward_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(WardFlash, id=flash_id, ward=ward_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        WardFlash.objects.create(
+                            ward=ward_obj,
+                            product=product,
+                            value=value
+                        )
+                        
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update ward flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        updated_ward_flashes = ward_obj.ward_flashes.all()
+        serializer = WardFlashOutputSerializer(updated_ward_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SocietyFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    model = SocietyFlash
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get(self, request):
+        society_id = request.query_params.get('society_id', "").strip()
+        if society_id == '':
+            return Response({"error": "Query paramter 'society_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            society_obj = Society.objects.get(id=society_id)
+        except Society.DoesNotExist:
+            return Response({"error": "Society not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get society: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = SocietyFlashOutputSerializer(society_obj.society_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        society_id = request.query_params.get('society_id', "").strip()
+        if society_id == '':
+            return Response({"error": "Query paramter 'society_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            society_obj = Society.objects.get(id=society_id)
+        except Society.DoesNotExist:
+            return Response({"error": "Society not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get society: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = SocietyFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                SocietyFlash.objects.filter(society=society_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(SocietyFlash, id=flash_id, society=society_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        SocietyFlash.objects.create(
+                            society=society_obj,
+                            product=product,
+                            value=value
+                        )
+                        
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update society flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
+            
+        updated_society_flashes = society_obj.society_flashes.all()
+        serializer = SocietyFlashOutputSerializer(updated_society_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class BlockFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    model = BlockFlash
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get(self, request):
+        block_id = request.query_params.get('block_id', "").strip()
+        if block_id == '':
+            return Response({"error": "Query paramter 'block_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            block_obj = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get block: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = BlockFlashOutputSerializer(block_obj.block_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        block_id = request.query_params.get('block_id', "").strip()
+        if block_id == '':
+            return Response({"error": "Query paramter 'block_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            block_obj = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get block: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = BlockFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                BlockFlash.objects.filter(block=block_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+                    
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(BlockFlash, id=flash_id, block=block_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        BlockFlash.objects.create(
+                            block=block_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update block flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_block_flashes = block_obj.block_flashes.all()
+        serializer = BlockFlashOutputSerializer(updated_block_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class FloorFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    model = FloorFlash
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get(self, request):
+        floor_id = request.query_params.get('floor_id', "").strip()
+        if floor_id == '':
+            return Response({"error": "Query paramter 'floor_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            floor_obj = Floor.objects.get(id=floor_id)
+        except Floor.DoesNotExist:
+            return Response({"error": "Floor not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get floor: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = FloorFlashOutputSerializer(floor_obj.floor_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        floor_id = request.query_params.get('floor_id', "").strip()
+        if floor_id == '':
+            return Response({"error": "Query paramter 'floor_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            floor_obj = Floor.objects.get(id=floor_id)
+        except Floor.DoesNotExist:
+            return Response({"error": "Floor not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get floor: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = FloorFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                FloorFlash.objects.filter(floor=floor_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+                    
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(FloorFlash, id=flash_id, floor=floor_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        FloorFlash.objects.create(
+                            floor=floor_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update floor flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_floor_flashes = floor_obj.floor_flashes.all()
+        serializer = FloorFlashOutputSerializer(updated_floor_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class HouseFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    model = HouseFlash
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get(self, request):
+        house_id = request.query_params.get('house_id', "").strip()
+        if house_id == '':
+            return Response({"error": "Query paramter 'house_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            house_obj = House.objects.get(id=house_id)
+        except House.DoesNotExist:
+            return Response({"error": "House not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get house: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = HouseFlashOutputSerializer(house_obj.house_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        house_id = request.query_params.get('house_id', "").strip()
+        if house_id == '':
+            return Response({"error": "Query paramter 'house_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            house_obj = House.objects.get(id=house_id)
+        except House.DoesNotExist:
+            return Response({"error": "House not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get house: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = HouseFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                HouseFlash.objects.filter(house=house_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(HouseFlash, id=flash_id, house=house_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        HouseFlash.objects.create(
+                            house=house_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update house flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_house_flashes = house_obj.house_flashes.all()
+        serializer = HouseFlashOutputSerializer(updated_house_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class RoomFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
+    model = RoomFlash
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    
+    def get(self, request):
+        room_id = request.query_params.get('room_id', "").strip()
+        if room_id == '':
+            return Response({"error": "Query paramter 'room_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            room_obj = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get room: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = RoomFlashOutputSerializer(room_obj.room_flashes.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        room_id = request.query_params.get('room_id', "").strip()
+        if room_id == '':
+            return Response({"error": "Query paramter 'room_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            room_obj = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to get room: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = RoomFlashBulkInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        flash_data = serializer.validated_data.get("flashes", [])
+        incoming_flash_ids = [
+            f.get("existing_id")
+            for f in flash_data
+            if f.get("existing_id")
+        ]
+        
+        try:
+            with transaction.atomic():
+                # Delete existing flashes which are not included in new request
+                RoomFlash.objects.filter(room=room_obj).exclude(id__in=incoming_flash_ids).delete()
+                
+                for flash in flash_data:
+                    flash_id = flash.pop("existing_id")
+                    product = flash.get("product")
+                    value = flash.get("value")
+
+                    if flash_id:  # update existing
+                        obj = get_object_or_404(RoomFlash, id=flash_id, room=room_obj)
+                        obj.product = product
+                        obj.value = value
+                        obj.save()
+                    else:
+                        # Create new flash
+                        RoomFlash.objects.create(
+                            room=room_obj,
+                            product=product,
+                            value=value
+                        )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": f"Failed to update room flashes.",
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        updated_room_flashes = room_obj.room_flashes.all()
+        serializer = RoomFlashOutputSerializer(updated_room_flashes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

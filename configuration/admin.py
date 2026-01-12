@@ -11,15 +11,17 @@ admin.site.register(District)
 admin.site.register(Taluka)
 admin.site.register(CityVillage)
 admin.site.register(Ward)
-# admin.site.register(Society)
-# admin.site.register(Block)
-# admin.site.register(Floor)
-# admin.site.register(Houses)
+admin.site.register(Society)
+admin.site.register(Block)
+admin.site.register(Floor)
+admin.site.register(House)
+admin.site.register(Room)
 
 
 admin.site.register(Religion)
 admin.site.register(Sampraday)
 admin.site.register(Panth)
+admin.site.register(Awastha)
 admin.site.register(Varna)
 admin.site.register(Caste)
 admin.site.register(SubCaste)
@@ -29,6 +31,7 @@ admin.site.register(Kul)
 admin.site.register(Vansh)
 admin.site.register(Family)
 admin.site.register(Pidhi)
+admin.site.register(Calibration)
 
 
 admin.site.register(Section)
@@ -41,22 +44,15 @@ admin.site.register(Department)
 admin.site.register(SubDepartment)
 admin.site.register(Type)
 admin.site.register(Brand)
+admin.site.register(Product)
 
-admin.site.register(DesignationSubCategory)
-@admin.register(Designation)
-class DesignationAdmin(admin.ModelAdmin):
-    # Show these fields in the list view
-    list_display = ("category", "subcategory", "name", "code")
+admin.site.register(Designation)
 
-    # Add filter sidebar
-    list_filter = ("category", "subcategory")
-
-    # Add search box
-    search_fields = ("name", "code")
-
-    # Optional: order results
-    ordering = ("category",)
-
+admin.site.register(WardFlash)
+admin.site.register(SocietyFlash)
+admin.site.register(BlockFlash)
+admin.site.register(FloorFlash)
+admin.site.register(HouseFlash)
 admin.site.register(RoomFlash)
 admin.site.register(RoomType)
 

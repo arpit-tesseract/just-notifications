@@ -164,6 +164,7 @@ class CustomUserManager(BaseUserManager):
 class UserRole(models.Model):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
     
     def __str__(self):
         return self.name
@@ -183,13 +184,11 @@ class ResidentialDetail(models.Model):
     taluka = models.ForeignKey(configm.Taluka, on_delete=models.SET_NULL, null=True, blank=True)
     city_village = models.ForeignKey(configm.CityVillage, on_delete=models.SET_NULL, null=True, blank=True)
     ward = models.ForeignKey(configm.Ward, on_delete=models.SET_NULL, null=True, blank=True)
-    society = models.CharField(max_length=255, null=True, blank=True)
-    block = models.CharField(max_length=20, null=True, blank=True)
-    floor = models.CharField(max_length=20, null=True, blank=True)
-    house_no = models.CharField(max_length=20, null=True, blank=True)
-    total_no_of_rooms = models.IntegerField(default=1)
-    room_details = models.JSONField(null=True, blank=True)
-    pending_rooms_to_allocate = models.JSONField(null=True, blank=True)
+    society = models.ForeignKey(configm.Society, on_delete=models.SET_NULL, null=True, blank=True)
+    block = models.ForeignKey(configm.Block, on_delete=models.SET_NULL, null=True, blank=True)
+    floor = models.ForeignKey(configm.Floor, on_delete=models.SET_NULL, null=True, blank=True)
+    house = models.ForeignKey(configm.House, on_delete=models.SET_NULL, null=True, blank=True)
+    pending_to_allocated_rooms = models.ManyToManyField(configm.Room, blank=True, null=True, related_name='pending_to_allocated_rooms')
     residential_code = models.CharField(max_length=255,blank=True, null=True, unique=True)
     is_verified = models.BooleanField(default=False)
 
@@ -214,7 +213,11 @@ class ResidentialDetail(models.Model):
                    f"{self.district.code if self.district else '00'}-" \
                    f"{self.taluka.code if self.taluka else '00'}-" \
                    f"{self.city_village.code if self.city_village else '00'}-" \
-                   f"{self.ward.code if self.ward else '00'}-"
+                   f"{self.ward.code if self.ward else '00'}-" \
+                   f"{self.society.code if self.society else '00'}-" \
+                   f"{self.block.code if self.block else '00'}-" \
+                   f"{self.floor.code if self.floor else '00'}-" \
+                   f"{self.house.code if self.house else '00'}-"
 
         # Only save again if the code has actually changed.
         # This prevents an infinite loop on updates.
@@ -261,8 +264,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
     maternal_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='maternal_residential_details')
     business_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='business_residential_details')
     
-    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20)
-    allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
+    allocated_rooms = models.ManyToManyField(configm.Room, related_name='allocated_rooms', null=True, blank=True)
+    category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
+    # allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -285,63 +289,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
         return False
     
     
-# class Address(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-#     ADDRESS_CHOICES = [
-#         ('current','Current Address'),
-#         ('owner','Owner Address'),
-#         ('permanent','Permanent Address'),
-#         ('native','Native Address'),
-#         ('inlaws','InLaws Address'),
-#         ('maternal','Maternal Address'),
-#         ('business','Business Address')
-#     ]
-#     address_type = models.CharField("Address Type", max_length=20, choices=ADDRESS_CHOICES)
-#     block_number = models.CharField("Block Number", max_length=20)
-#     floor = models.CharField("Floor", max_length=20)
-#     room_count = models.IntegerField("Room Count", default=0)
-#     house_number = models.CharField("House Number", max_length=20)
-#     main_person = models.CharField("Main/Mukhiya's Name", max_length=30)
-#     mobile_number = models.CharField("Mobile Number", max_length=14)
-#     is_verified = models.BooleanField(default=False)
-
-#     def save(self, *args, **kwargs):
-#         super().save(*args, **kwargs)
-#         user = self.user
-
-#         if Address.objects.filter(user=user).exists():
-#             has_unverified = Address.objects.filter(user=user, is_verified=False).exists()
-#             if has_unverified:
-#                 user.is_verified = False
-#             else:
-#                 user.is_verified = True
-#             user.save(update_fields=['is_verified'])
-
-
-# class Relation(models.Model):
-#     relation_category_choices = [
-#         ('current','Current'),
-#         ('owner','Owner'),
-#         ('permanent','Permanent'),
-#         ('native','Native'),
-#         ('inlaws','InLaws'),
-#         ('maternal','Maternal'),
-#         ('business','Business')
-#     ]
-#     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
-#     relation_category = models.CharField("Relation Category",choices=relation_category_choices, max_length=20)
-#     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
-#     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
-
-#     def __str__(self):
-#         return f"{self.from_user} - {self.designation.name} - {self.to_user}"
-    
     
 class PersonalDetail(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='personal_details')
     religion = models.ForeignKey(configm.Religion, on_delete=models.SET_NULL, null=True, blank=True)
     sampraday = models.ForeignKey(configm.Sampraday, on_delete=models.SET_NULL, null=True, blank=True)
     panth = models.ForeignKey(configm.Panth, on_delete=models.SET_NULL, null=True, blank=True)
+    awastha = models.ForeignKey(configm.Awastha, on_delete=models.SET_NULL, null=True, blank=True)
     varna = models.ForeignKey(configm.Varna, on_delete=models.SET_NULL, null=True, blank=True)
     caste = models.ForeignKey(configm.Caste, on_delete=models.SET_NULL, null=True, blank=True)
     subcaste = models.ForeignKey(configm.SubCaste, on_delete=models.SET_NULL, null=True, blank=True)
@@ -350,7 +304,7 @@ class PersonalDetail(models.Model):
     kul = models.ForeignKey(configm.Kul, on_delete=models.SET_NULL, null=True, blank=True)
     vansh = models.ForeignKey(configm.Vansh, on_delete=models.SET_NULL, null=True, blank=True)
     family = models.ForeignKey(configm.Family, on_delete=models.SET_NULL, null=True, blank=True)
-    pidhi = models.ForeignKey(configm.Pidhi, on_delete=models.SET_NULL, null=True, blank=True)
+    pidhi = models.CharField(max_length=100, null=True, blank=True)
     personal_code = models.CharField(max_length=100, null=True, blank=True, unique=True)
     is_verified = models.BooleanField(default=False)
     
@@ -375,8 +329,8 @@ class PersonalDetail(models.Model):
                    f"{self.subgotra.code if self.subgotra else '00'}-" \
                    f"{self.kul.code if self.kul else '00'}-" \
                    f"{self.vansh.code if self.vansh else '00'}-" \
-                   f"{self.family.code if self.family else '00'}-" \
-                   f"{self.pidhi.code if self.pidhi else '00'}"
+                   f"{self.family.code if self.family else '00'}-"
+                #    f"{self.pidhi.code if self.pidhi else '00'}"
 
         # Save again *only* if the code has changed
         if self.personal_code != new_code:
@@ -385,6 +339,32 @@ class PersonalDetail(models.Model):
     
     def __str__(self):
         return f"{self.user} - {self.personal_code}"
+
+class PersonalCalibration(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    calibration = models.ForeignKey(configm.Calibration, on_delete=models.SET_NULL, null=True, blank=True)
+    value = models.FloatField(null=True, blank=True)
+    
+# class Relation(models.Model):
+#     relation_category_choices = [
+#         ('current','Current'),
+#         ('owner','Owner'),
+#         ('permanent','Permanent'),
+#         ('native','Native'),
+#         ('inlaws','InLaws'),
+#         ('maternal','Maternal'),
+#         ('business','Business')
+#     ]
+#     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
+#     relation_category = models.CharField(choices=relation_category_choices, max_length=20)
+#     from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (Father, mother)
+#     designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
+#     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
+#     post_no = models.FloatField(null=True, blank=True)
+    
+#     def __str__(self):
+#         return f"{self.relation_category}, {self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
+
 
 class Relation(models.Model):
     relation_category_choices = [
@@ -398,14 +378,17 @@ class Relation(models.Model):
     ]
     from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="from_user")
     relation_category = models.CharField(choices=relation_category_choices, max_length=20)
-    from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (Father, mother)
-    designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE) # option-1 (Father, mother)
+    from_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="from_user_designation") # option-1 (husband, wife)
+    relation_between_from_and_to = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="relation_between_from_and_to") # option-1 (husband, wife, son, daughter, guest, other)
+    to_user_designation = models.ForeignKey("configuration.Designation", on_delete=models.CASCADE, related_name="to_user_designation") # option-1 (husband, wife, son, daughter, guest-relation, other)
     to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="to_user")
     post_no = models.FloatField(null=True, blank=True)
     
     def __str__(self):
-        return f"{self.from_user} - '{self.from_user_designation.name} : {self.designation.name}' - {self.to_user}"
+        return f"""{self.relation_category}: {self.from_user} - {self.from_user_designation.name} "{self.relation_between_from_and_to.name}" {self.to_user} - {self.to_user_designation}"""
 
+    
+    
 class Document(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     adhar_card_no = models.CharField(max_length=12, unique=True, blank=True, null=True)
@@ -453,9 +436,9 @@ class ProfessionalDetail(models.Model):
     brand = models.ForeignKey(configm.Brand, on_delete=models.SET_NULL, null=True, blank=True)
     designation = models.ForeignKey(configm.Designation, on_delete=models.SET_NULL, null=True, blank=True)
     residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True)
-    pay_scale = models.CharField(max_length=20)
-    mfg_dt_time = models.DateTimeField("MFG date & time")
-    mfg_life = models.CharField("MFG life", max_length=20)
+    pay_scale = models.CharField(max_length=20, null=True, blank=True)
+    mfg_dt_time = models.DateTimeField("MFG date & time", null=True, blank=True)
+    mfg_life = models.CharField("MFG life", max_length=20, null=True, blank=True)
     professional_code = models.CharField("Professional ID", max_length=100, null=True, blank=True)
 
     def save(self, *args, **kwargs):
@@ -505,7 +488,7 @@ class ReportCard(models.Model):
     length = models.FloatField()
     width = models.FloatField()
     volume = models.FloatField()
-    used_item = models.CharField(max_length=20)
+    used_item = models.CharField(max_length=20) # gram, kg, liter
     used_rate = models.FloatField()
     used_quantity = models.IntegerField()
     capacity = models.FloatField("capacity/strength")

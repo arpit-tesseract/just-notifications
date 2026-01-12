@@ -20,9 +20,16 @@ urlpatterns = [
     path('<int:user_id>/', views.RegisterationView.as_view(), name='register'),
     path('upload-photo/<int:user_id>', views.UserPhotoUploadView.as_view(), name='upload_photo'),
     path('upload-documents/<int:user_id>', views.UserDocumentUploadView.as_view(), name='upload_documents'),
+    path('suggest-users-lst/', views.UserSuggestionsListView.as_view(), name='suggest_users_lst'),
+    path('suggest-users/<int:user_id>/', views.UserSuggestionsDetailView.as_view(), name='suggest_users'),
+    
     
     # path('', views.CustomUserViewSet.as_view(), name='users'),
     path('user-lst/', views.UserListView.as_view(), name='user_lst'),
+    path('filters/', views.UserFilterationView.as_view(), name='user_filters'),
+    path('personal-details/', views.PersonalDetailsGetView.as_view(), name='personal_details'),
+    path('bussiness-details/', views.BussinessDetailsGetView.as_view(), name='professional_details'),
+    path('residential-details/', views.ResidentialDetailsGetView.as_view(), name='residential_details'),
     
     path('roles/', views.GetUserRoleView.as_view(), name='user_roles'),
     path('roles/<int:user_id>/', views.GetUserRoleView.as_view(), name='user_roles'),
@@ -35,4 +42,5 @@ urlpatterns = [
     
     path('record-rules/', views.RecordRuleView.as_view(), name='record_rules'),
     path('record-rule-lst/', views.RecordRuleListView.as_view(), name='record_rules'),
+    path('search-key/', views.GetSearchKeyView.as_view(), name='search_key'),
 ]

@@ -8,6 +8,8 @@ from django.db import transaction
 from rest_framework.validators import UniqueTogetherValidator
 
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
+    code = serializers.SerializerMethodField()
+    
     """
     Base serializer that allows dynamic exclusion of fields
     via either context={'exclude_fields': [...]} or argument exclude_fields=[...].
@@ -21,18 +23,56 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 
         for field in exclude_fields:
             self.fields.pop(field, None)
+            
+    def get_code(self, obj):
+        # 1. Priority: Check if we manually forced raw code in context (for nested parents)
+        if self.context.get('use_raw_code'):
+            return get_two_digit(obj.code)
+
+        # 2. Check the View Action (List vs Detail)
+        view = self.context.get('view')
+        if view and hasattr(view, 'action'):
+            # If we are viewing a single item (api/<id>), return RAW code
+            if view.action == 'retrieve':
+                return get_two_digit(obj.code)
+            
+            # If we are listing items (api/), return FORMATTED code
+            if view.action == 'list':
+                return obj.get_formatted_code()
+
+        # Default fallback (e.g., inside other views)
+        return obj.get_formatted_code()
 
 
 # =================================================
 # Residential 
 # =================================================
-class GlobSerializer(DynamicFieldsModelSerializer):
+
+# ========== Glob ==========
+class GlobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Glob
         fields = '__all__'
         read_only_fields = ['id']
-    
 
+class GlobDetailSerializer(DynamicFieldsModelSerializer):
+    code = serializers.SerializerMethodField()
+    class Meta:
+        model = Glob
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class GlobIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Glob
+        fields = ["id", "name"] 
+
+
+# ========== Continent ==========
+class ContinentIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Continent
+        fields = ["id", "name"]
 
 class ContinentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -56,13 +96,22 @@ class ContinentDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = ['id']
     
     def get_glob(self, obj):
-        serializer = GlobSerializer(
+        serializer = GlobDetailSerializer(
             obj.glob,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
 
+# ========== Country ==========
+class CountryIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Country
+        fields = ["id", "name"]
+        
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:
         model = Country
@@ -86,11 +135,20 @@ class CountryDetailSerializer(DynamicFieldsModelSerializer):
     def get_continent(self, obj):
         serializer = ContinentDetailSerializer(
             obj.continent,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
 
+# ========== State ==========
+class StateIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = State
+        fields = ["id", "name"]
+        
 class StateSerializer(serializers.ModelSerializer):
     class Meta:
         model = State
@@ -106,7 +164,7 @@ class StateSerializer(serializers.ModelSerializer):
 
 
 class StateDetailSerializer(DynamicFieldsModelSerializer):
-    country = serializers.SerializerMethodField()
+    country = serializers.SerializerMethodField()  
     class Meta:
         model = State
         fields = '__all__'
@@ -115,11 +173,20 @@ class StateDetailSerializer(DynamicFieldsModelSerializer):
     def get_country(self, obj):
         serializer = CountryDetailSerializer(
             obj.country,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
     
+# ========== District ==========
+class DistrictIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = District
+        fields = ["id", "name"]
+        
 class DistrictSerializer(serializers.ModelSerializer):
     class Meta:
         model = District
@@ -144,11 +211,20 @@ class DistrictDetailSerializer(DynamicFieldsModelSerializer):
     def get_state(self, obj):
         serializer = StateDetailSerializer(
             obj.state,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
 
+# ========== Taluka ==========
+class TalukaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Taluka
+        fields = ["id", "name"]
+        
 class TalukaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Taluka
@@ -173,11 +249,20 @@ class TalukaDetailSerializer(DynamicFieldsModelSerializer):
     def get_district(self, obj):
         serializer = DistrictDetailSerializer(
             obj.district,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
 
+# ========== CityVillage ==========
+class CityVillageIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CityVillage
+        fields = ["id", "name"]
+        
 class CityVillageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CityVillage
@@ -191,7 +276,6 @@ class CityVillageSerializer(serializers.ModelSerializer):
             )
         ]
 
-
 class CityVillageDetailSerializer(DynamicFieldsModelSerializer):
     taluka = serializers.SerializerMethodField()
     class Meta:
@@ -202,16 +286,61 @@ class CityVillageDetailSerializer(DynamicFieldsModelSerializer):
     def get_taluka(self, obj):
         serializer = TalukaDetailSerializer(
             obj.taluka,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
-    
-class WardSerializer(serializers.ModelSerializer):
+class SectorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sector
+        fields = ["id", "name"]
+
+class BrandIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ["id", "name"]
+
+class ProductIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ["id", "name"]
+
+# ========== Ward ==========
+class WardIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ward
-        fields = '__all__'
-        read_only_fields = ['id']
+        fields = ["id", "name"]
+
+class WardFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
+    product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
+    class Meta:
+        model = WardFlash
+        fields = ['id', 'sector', 'brand', 'product', 'value']
+
+class WardFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False, allow_null=True)
+    class Meta:
+        model = WardFlash
+        fields = ['existing_id', 'product', 'value']
+
+class WardFlashBulkInputSerializer(serializers.Serializer):
+    flashes = WardFlashSerializer(many=True)
+    
+class WardSerializer(serializers.ModelSerializer):
+    flashes = WardFlashSerializer(
+        required=False, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Ward
+        fields = ['city_village', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
         validators = [
             UniqueTogetherValidator(
                 queryset=Ward.objects.all(),
@@ -219,39 +348,640 @@ class WardSerializer(serializers.ModelSerializer):
                 message="A ward with this name already exists in the selected city/village.",
             )
         ]
+    
+    def create(self, validated_data):
+        flashes = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            ward = Ward.objects.create(**validated_data)
+            for flash in flashes:
+                flash.pop("existing_id", None)
+                WardFlash.objects.create(ward=ward, **flash)
+            return ward
 
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update ward
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                WardFlash.objects.filter(ward=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        try:
+                            obj = WardFlash.objects.get(id=flash_id, ward=instance)
+                        except WardFlash.DoesNotExist:
+                            raise serializers.ValidationError(
+                                f"Flash with id {flash_id} does not exist."
+                            )
+                            
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        WardFlash.objects.create(ward=instance, **flash)
+            else:
+                ward_flash_objs = instance.ward_flashes.all()
+                if ward_flash_objs.exists():
+                    ward_flash_objs.delete()
+
+            return instance
 
 class WardDetailSerializer(DynamicFieldsModelSerializer):
     city_village = serializers.SerializerMethodField()
+    flashes = WardFlashOutputSerializer(source="ward_flashes", many=True)
     class Meta:
         model = Ward
         fields = '__all__'
         read_only_fields = [f for f in Ward._meta.fields]
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Ensure our method field overrides model FK field
-        self.fields['city_village'] = serializers.SerializerMethodField()
     
     def get_city_village(self, obj):
         if not obj.city_village:
             return None
         serializer = CityVillageDetailSerializer(
             obj.city_village,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
+
+# ========== Society ==========
+class SocietyIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Society
+        fields = ["id", "name"]
+
+class SocietyFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
+    product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
+    class Meta:
+        model = SocietyFlash
+        fields = ['id', 'sector', 'brand', 'product', 'value']
+        
+class SocietyFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = SocietyFlash
+        fields = ['existing_id', 'product', 'value']
+
+class SocietyFlashBulkInputSerializer(serializers.Serializer):
+    flashes = SocietyFlashSerializer(many=True)
+
+class SocietySerializer(serializers.ModelSerializer):
+    flashes = SocietyFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Society
+        fields = ['id', 'ward', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
+        read_only_fields = ['id']
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            society = Society.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                SocietyFlash.objects.create(society=society, **flash)
+            return society
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update society
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                SocietyFlash.objects.filter(society=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = SocietyFlash.objects.get(id=flash_id, society=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        SocietyFlash.objects.create(society=instance, **flash)
+            else:
+                society_flash_objs = instance.society_flashes.all()
+                if society_flash_objs.exists():
+                    society_flash_objs.delete()
+            
+            return instance
+
+class SocietyDetailSerializer(DynamicFieldsModelSerializer):
+    ward = serializers.SerializerMethodField()
+    flashes = SocietyFlashOutputSerializer(source="society_flashes", many=True)
+    class Meta:
+        model = Society
+        fields = '__all__'
+        read_only_fields = [f for f in Society._meta.fields]
+    
+    def get_ward(self, obj):
+        if not obj.ward:
+            return None
+        
+        serializer = WardDetailSerializer(
+            obj.ward,
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
+        )
+        return serializer.data
+
+
+# ========== Block ==========
+class BlockIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Block
+        fields = ["id", "name"]
+
+class BlockFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
+    product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
+    class Meta:
+        model = BlockFlash
+        fields = ['id', 'sector', 'brand', 'product', 'value']
+        
+class BlockFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = BlockFlash
+        fields = ['existing_id', 'product', 'value']
+
+class BlockFlashBulkInputSerializer(serializers.Serializer):
+    flashes = BlockFlashSerializer(many=True)
+
+class BlockSerializer(serializers.ModelSerializer):
+    flashes = BlockFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Block
+        fields = ['id', 'society', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
+        read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Block.objects.all(),
+                fields=['society', 'name'],
+                message="A block with this name already exists in the selected society.",
+            )
+        ]
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            block = Block.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                BlockFlash.objects.create(block=block, **flash)
+            return block
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update block
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                BlockFlash.objects.filter(block=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = BlockFlash.objects.get(id=flash_id, block=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        BlockFlash.objects.create(block=instance, **flash)
+            else:
+                block_flash_objs = instance.block_flashes.all()
+                if block_flash_objs.exists():
+                    block_flash_objs.delete()
+                    
+            return instance
+        
+class BlockDetailSerializer(DynamicFieldsModelSerializer):
+    society = serializers.SerializerMethodField()
+    flashes = BlockFlashOutputSerializer(source="block_flashes", many=True)
+    class Meta:
+        model = Block
+        fields = '__all__'
+        read_only_fields = [f for f in Block._meta.fields]
+    
+    def get_society(self, obj):
+        if not obj.society:
+            return None
+        serializer = SocietyDetailSerializer(
+            obj.society,
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
+        )
+        return serializer.data
+
+
+# ========== Floor ==========
+class FloorIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Floor
+        fields = ["id", "no"]
+
+class FloorFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
+    product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
+    class Meta:
+        model = FloorFlash
+        fields = ['id', 'sector', 'brand', 'product', 'value']
+        
+class FloorFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = FloorFlash
+        fields = ['existing_id', 'product', 'value']
+
+class FloorFlashBulkInputSerializer(serializers.Serializer):
+    flashes = FloorFlashSerializer(many=True)
+        
+class FloorSerializer(serializers.ModelSerializer):
+    flashes = FloorFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Floor
+        fields = ['id', 'block', 'no', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
+        read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Floor.objects.all(),
+                fields=['block', 'no'],
+                message="A floor with this name already exists in the selected block.",
+            )
+        ]
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            floor = Floor.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                FloorFlash.objects.create(floor=floor, **flash)
+            return floor
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update floor
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                FloorFlash.objects.filter(floor=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = FloorFlash.objects.get(id=flash_id, floor=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        FloorFlash.objects.create(floor=instance, **flash)
+            else:
+                floor_flash_objs = instance.floor_flashes.all()
+                if floor_flash_objs.exists():
+                    floor_flash_objs.delete()
+                    
+            return instance
+
+
+class FloorDetailSerializer(DynamicFieldsModelSerializer):
+    block = serializers.SerializerMethodField()
+    flashes = FloorFlashOutputSerializer(source="floor_flashes", many=True)
+    class Meta:
+        model = Floor
+        fields = '__all__'
+        read_only_fields = [f for f in Floor._meta.fields]
+    
+    def get_block(self, obj):
+        if not obj.block:
+            return None
+        serializer = BlockDetailSerializer(
+            obj.block,
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
+        )
+        return serializer.data
+
+
+# ========== House ==========
+class HouseIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = House
+        fields = ["id", "no"]
+
+class HouseFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
+    product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
+    class Meta:
+        model = HouseFlash
+        fields = ['id', 'sector', 'brand', 'product', 'value']
+        
+class HouseFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = HouseFlash
+        fields = ['existing_id', 'product', 'value']
+
+class HouseFlashBulkInputSerializer(serializers.Serializer):
+    flashes = HouseFlashSerializer(many=True)
+
+class HouseSerializer(serializers.ModelSerializer):
+    flashes = HouseFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = House
+        fields = ['floor', 'no', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
+        read_only_fields = ['id']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=House.objects.all(),
+                fields=['floor', 'no'],
+                message="A house with this name already exists in the selected block.",
+            )
+        ]
+        
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            house = House.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                HouseFlash.objects.create(house=house, **flash)
+            return house
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update house
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                HouseFlash.objects.filter(house=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = HouseFlash.objects.get(id=flash_id, house=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        HouseFlash.objects.create(house=instance, **flash)
+            else:
+                house_flash_objs = instance.house_flashes.all()
+                if house_flash_objs.exists():
+                    house_flash_objs.delete()
+                    
+            return instance
+
+class HouseDetailSerializer(DynamicFieldsModelSerializer):
+    floor = serializers.SerializerMethodField()
+    flashes = HouseFlashOutputSerializer(source="house_flashes", many=True)
+    class Meta:
+        model = House
+        fields = '__all__'
+        read_only_fields = [f for f in House._meta.fields]
+    
+    def get_floor(self, obj):
+        if not obj.floor:
+            return None
+        serializer = FloorDetailSerializer(
+            obj.floor,
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
+        )
+        return serializer.data
+
+
+# ========== Room ==========
+
+class RoomTypeIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomType
+        fields = ['id', 'name']
+        
+        
+class RoomIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room
+        fields = ["id", "no"]
+
+class RoomFlashOutputSerializer(serializers.ModelSerializer):
+    brand = BrandIdNameSerializer(source='product.brand')
+    product = ProductIdNameSerializer()
+    sector = SectorIdNameSerializer(source='product.brand.type.subdepartment.department.subsector.sector')
+
+    class Meta:
+        model = RoomFlash
+        fields = ['id', 'sector', 'brand', 'product', 'value']
+        
+class RoomFlashSerializer(serializers.ModelSerializer):
+    existing_id = serializers.IntegerField(required=False)
+    class Meta:
+        model = RoomFlash
+        fields = ['existing_id', 'product', 'value']
+
+class RoomFlashBulkInputSerializer(serializers.Serializer):
+    flashes = RoomFlashSerializer(many=True)
+        
+class RoomSerializer(serializers.ModelSerializer):
+    flashes = RoomFlashSerializer(
+        required=True, 
+        allow_null=True, 
+        many=True
+    )
+    class Meta:
+        model = Room
+        fields = ['id', 'house', 'no', 'code', 'is_hidden', 'on_hold', 'hold_date', 'flashes']
+        read_only_fields = ['id']
+    
+    def create(self, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            room = Room.objects.create(**validated_data)
+            for flash in flash_data:
+                flash.pop("existing_id", None)
+                RoomFlash.objects.create(room=room, **flash)
+            return room
+    
+    def update(self, instance, validated_data):
+        flash_data = validated_data.pop("flashes", [])
+        with transaction.atomic():
+            # update room
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # update flashes
+            if flash_data is not None:
+                incoming_flash_ids = [f.get("existing_id") for f in flash_data if f.get("existing_id")]
+
+                # Delete existing flashes which are not included in new request
+                RoomFlash.objects.filter(room=instance).exclude(id__in=incoming_flash_ids).delete()
+
+                # Process incoming flashes
+                for flash in flash_data:
+                    flash_id = flash.get("existing_id")
+
+                    if flash_id:
+                        # Update existing flash
+                        obj = RoomFlash.objects.get(id=flash_id, room=instance)
+                        for attr, value in flash.items():
+                            if attr != "existing_id":
+                                setattr(obj, attr, value)
+                        obj.save()
+
+                    else:
+                        # Create new flash
+                        flash.pop("existing_id", None)
+                        RoomFlash.objects.create(room=instance, **flash)
+            else:
+                room_flash_objs = instance.room_flashes.all()
+                if room_flash_objs.exists():
+                    room_flash_objs.delete()
+                    
+            return instance
+
+class RoomDetailSerializer(DynamicFieldsModelSerializer):
+    house = serializers.SerializerMethodField()
+    room_type = RoomTypeIdNameSerializer()
+    flashes = RoomFlashOutputSerializer(source="room_flashes", many=True)
+    class Meta:
+        model = Room
+        fields = '__all__'
+        read_only_fields = [f for f in Room._meta.fields]
+    
+    def get_house(self, obj):
+        if not obj.house:
+            return None
+        serializer = HouseDetailSerializer(
+            obj.house,
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
+        )
+        return serializer.data
+    
 # ======================================================
 # Personal 
 # ======================================================
-class ReligionSerializer(DynamicFieldsModelSerializer):
+class ReligionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Religion
         fields = '__all__'
         read_only_fields = ['id']
 
-
+class ReligionDetailSerializer(DynamicFieldsModelSerializer):
+    class Meta:
+        model = Religion
+        fields = '__all__'
+        
 class SampradaySerializer(serializers.ModelSerializer):
     class Meta:
         model = Sampraday
@@ -266,9 +996,12 @@ class SampradayDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = [f for f in Sampraday._meta.fields]
     
     def get_religion(self, obj):
-        serializer = ReligionSerializer(
+        serializer = ReligionDetailSerializer(
             obj.religion,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -289,10 +1022,36 @@ class PanthDetailSerializer(DynamicFieldsModelSerializer):
     def get_sampraday(self, obj):
         serializer = SampradayDetailSerializer(
             obj.sampraday,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
+
+class AwasthaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Awastha
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class AwasthaDetailSerializer(DynamicFieldsModelSerializer):
+    # panth = serializers.SerializerMethodField()
+    class Meta:
+        model = Awastha
+        fields = '__all__'
+        read_only_fields = [f for f in Awastha._meta.fields]
+    
+    # def get_panth(self, obj):
+    #     serializer = PanthDetailSerializer(
+    #         obj.panth,
+    #         context={
+            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+            #     'use_raw_code': True
+            # }
+    #     )
+    #     return serializer.data
 
 class VarnaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -310,7 +1069,10 @@ class VarnaDetailSerializer(DynamicFieldsModelSerializer):
     def get_panth(self, obj):
         serializer = PanthDetailSerializer(
             obj.panth,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -331,7 +1093,10 @@ class CasteDetailSerializer(DynamicFieldsModelSerializer):
     def get_varna(self, obj):
         serializer = VarnaDetailSerializer(
             obj.varna,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -352,7 +1117,10 @@ class SubCasteDetailSerializer(DynamicFieldsModelSerializer):
     def get_caste(self, obj):
         serializer = CasteDetailSerializer(
             obj.caste,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
@@ -373,7 +1141,10 @@ class GotraDetailSerializer(DynamicFieldsModelSerializer):
     def get_subcaste(self, obj):
         serializer = SubCasteDetailSerializer(
             obj.subcaste,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -394,7 +1165,10 @@ class SubGotraDetailSerializer(DynamicFieldsModelSerializer):
     def get_gotra(self, obj):
         serializer = GotraDetailSerializer(
             obj.gotra,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -415,7 +1189,10 @@ class KulDetailSerializer(DynamicFieldsModelSerializer):
     def get_subgotra(self, obj):
         serializer = SubGotraDetailSerializer(
             obj.subgotra,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -436,7 +1213,10 @@ class VanshDetailSerializer(DynamicFieldsModelSerializer):
     def get_kul(self, obj):
         serializer = KulDetailSerializer(
             obj.kul,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -457,39 +1237,58 @@ class FamilyDetailSerializer(DynamicFieldsModelSerializer):
     def get_vansh(self, obj):
         serializer = VanshDetailSerializer(
             obj.vansh,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
 
-class PidhiSerializer(serializers.ModelSerializer):
+# class PidhiSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Pidhi
+#         fields = '__all__'
+#         read_only_fields = ['id']
+
+# class PidhiIdNameSerializer(serializers.ModelSerializer):
+#     family = serializers.SerializerMethodField()
+#     class Meta:
+#         model = Pidhi
+#         fields = '__all__'
+#         read_only_fields = [f for f in Pidhi._meta.fields]
+    
+#     def get_family(self, obj):
+#         serializer = FamilyIdNameSerializer(
+#             obj.family,
+#             context={
+            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+            #     'use_raw_code': True
+            # }
+#         )
+#         return serializer.data
+
+
+class CalibrationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Pidhi
+        model = Calibration
         fields = '__all__'
         read_only_fields = ['id']
-
-class PidhiDetailSerializer(DynamicFieldsModelSerializer):
-    family = serializers.SerializerMethodField()
-    class Meta:
-        model = Pidhi
-        fields = '__all__'
-        read_only_fields = [f for f in Pidhi._meta.fields]
-    
-    def get_family(self, obj):
-        serializer = FamilyDetailSerializer(
-            obj.family,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
-        )
-        return serializer.data
 
 # ===================================================
 # Professional 
 # ===================================================
-class SectionSerializer(DynamicFieldsModelSerializer):
+class SectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Section
         fields = '__all__'
         read_only_fields = ['id']
+
+class SectionDetailSerializer(DynamicFieldsModelSerializer):
+    class Meta:
+        model = Section
+        fields = '__all__'
+        read_only_fields = [f for f in Section._meta.fields]
 
 
 class ClassSerializer(serializers.ModelSerializer):
@@ -506,9 +1305,12 @@ class ClassDetailSerializer(DynamicFieldsModelSerializer):
         read_only_fields = [f for f in Class._meta.fields]
     
     def get_section(self, obj):
-        serializer = SectionSerializer(
+        serializer = SectionDetailSerializer(
             obj.section,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -529,7 +1331,10 @@ class ProfCategoryDetailSerializer(DynamicFieldsModelSerializer):
     def get_profclass(self, obj):
         serializer = ClassDetailSerializer(
             obj.profclass,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
         
@@ -551,7 +1356,10 @@ class ProfSubCategoryDetailSerializer(DynamicFieldsModelSerializer):
     def get_category(self, obj):
         serializer = ProfCategoryDetailSerializer(
             obj.category,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
     
@@ -572,7 +1380,10 @@ class SectorDetailSerializer(DynamicFieldsModelSerializer):
     def get_subcategory(self, obj):
         serializer = ProfSubCategoryDetailSerializer(
             obj.subcategory,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -593,7 +1404,10 @@ class SubSectorDetailSerializer(DynamicFieldsModelSerializer):
     def get_sector(self, obj):
         serializer = SectorDetailSerializer(
             obj.sector,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -614,7 +1428,10 @@ class DepartmentDetailSerializer(DynamicFieldsModelSerializer):
     def get_subsector(self, obj):
         serializer = SubSectorDetailSerializer(
             obj.subsector,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -635,7 +1452,10 @@ class SubDepartmentDetailSerializer(DynamicFieldsModelSerializer):
     def get_department(self, obj):
         serializer = DepartmentDetailSerializer(
             obj.department,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -656,7 +1476,10 @@ class TypeDetailSerializer(DynamicFieldsModelSerializer):
     def get_subdepartment(self, obj):
         serializer = SubDepartmentDetailSerializer(
             obj.subdepartment,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -677,7 +1500,10 @@ class BrandDetailSerializer(DynamicFieldsModelSerializer):
     def get_type(self, obj):
         serializer = TypeDetailSerializer(
             obj.type,
-            context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
         )
         return serializer.data
 
@@ -688,6 +1514,28 @@ class DesignationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'
+        read_only_fields = ['id']
+
+class ProductDetailSerializer(DynamicFieldsModelSerializer):
+    brand = serializers.SerializerMethodField()
+    class Meta:
+        model = Product
+        fields = '__all__'
+        read_only_fields = [f for f in Product._meta.fields]
+    
+    def get_brand(self, obj):
+        serializer = BrandDetailSerializer(
+            obj.brand,
+            context={
+                'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+                'use_raw_code': True
+            }
+        )
+        return serializer.data
         
 # class PostModelSerializer(serializers.ModelSerializer):
 #     class Meta:
@@ -705,7 +1553,10 @@ class DesignationSerializer(serializers.ModelSerializer):
 #     def get_brand(self, obj):
 #         serializer = BrandDetailSerializer(
 #             obj.brand,
-#             context={'exclude_fields': ['is_hidden', 'on_hold', 'hold_date']}
+#             context={
+            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+            #     'use_raw_code': True
+            # }
 #         )
 #         return serializer.data
 
@@ -730,10 +1581,6 @@ class RoomTypeSerializer(serializers.ModelSerializer):
         # fields = ['id', 'name', 'code', 'is_hidden', 'on_hold', 'hold_date']
         read_only_fields = ['id', 'is_used']
 
-class RoomTypeIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RoomType
-        fields = ['id', 'name']
 
 class ModelNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -887,7 +1734,6 @@ class ModelAndRecordRuleAccessOutputSerializer(serializers.Serializer):
         return result
 
 
-
 class ResidentialSearchInputSerializer(serializers.Serializer):
     glob = serializers.CharField(required=False, allow_blank=True)
     continent = serializers.CharField(required=False, allow_blank=True)
@@ -897,47 +1743,12 @@ class ResidentialSearchInputSerializer(serializers.Serializer):
     taluka = serializers.CharField(required=False, allow_blank=True)
     city_village = serializers.CharField(required=False, allow_blank=True)
     ward = serializers.CharField(required=False, allow_blank=True)
-    search_key = serializers.CharField(required=False, allow_blank=True)
+    society = serializers.CharField(required=False, allow_blank=True)
+    block = serializers.CharField(required=False, allow_blank=True)
+    floor = serializers.CharField(required=False, allow_blank=True)
+    house = serializers.CharField(required=False, allow_blank=True)
+    search_key = serializers.CharField()
 
-class GlobIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Glob
-        fields = ["id", "name"]
-
-class ContinentIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Continent
-        fields = ["id", "name"]
-
-class CountryIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Country
-        fields = ["id", "name"]
-
-class StateIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = State
-        fields = ["id", "name"]
-
-class DistrictIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = District
-        fields = ["id", "name"]
-
-class TalukaIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Taluka
-        fields = ["id", "name"]
-
-class CityVillageIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CityVillage
-        fields = ["id", "name"]
-
-class WardIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Ward
-        fields = ["id", "name"]
     
 # Residential Unified Output Serializer (always same structure)
 class ResidentialOutputSerializer(serializers.Serializer):
@@ -949,15 +1760,25 @@ class ResidentialOutputSerializer(serializers.Serializer):
     taluka = TalukaIdNameSerializer(allow_null=True)
     city_village = CityVillageIdNameSerializer(allow_null=True)
     ward = WardIdNameSerializer(allow_null=True)
+    society = SocietyIdNameSerializer(allow_null=True)
+    block = BlockIdNameSerializer(allow_null=True)
+    floor = FloorIdNameSerializer(allow_null=True)
+    house = HouseIdNameSerializer(allow_null=True)
+    room = RoomIdNameSerializer(allow_null=True)
 
 class FileUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
     
 
 class ReligionIdNameSerializer(serializers.ModelSerializer):
+    # code = serializers.SerializerMethodField()
     class Meta:
         model = Religion
         fields = ["id", "name"]
+    
+    # def get_code(self, obj):
+    #     value = obj.code if hasattr(obj, "code") else obj.get("code")
+    #     return get_two_digit(value)
 
 class SampradayIdNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -967,6 +1788,11 @@ class SampradayIdNameSerializer(serializers.ModelSerializer):
 class PanthIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Panth
+        fields = ["id", "name"]
+
+class AwasthaIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Awastha
         fields = ["id", "name"]
 
 class VarnaIdNameSerializer(serializers.ModelSerializer):
@@ -1009,15 +1835,16 @@ class FamilyIdNameSerializer(serializers.ModelSerializer):
         model = Family
         fields = ["id", "name"]
 
-class PidhiIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Pidhi
-        fields = ["id", "name"]
+# class PidhiIdNameSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Pidhi
+#         fields = ["id", "name"]
 
 class PersonalInputSerializer(serializers.Serializer):
     religion = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     sampraday = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     panth = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    awastha = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     varna = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     caste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
     subcaste = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1033,6 +1860,7 @@ class PersonalOutputSerializer(serializers.Serializer):
     religion = ReligionIdNameSerializer(allow_null=True)
     sampraday = SampradayIdNameSerializer(allow_null=True)
     panth = PanthIdNameSerializer(allow_null=True)
+    awastha = AwasthaIdNameSerializer(allow_null=True, many=True)
     varna = VarnaIdNameSerializer(allow_null=True)
     caste = CasteIdNameSerializer(allow_null=True)
     subcaste = SubCasteIdNameSerializer(allow_null=True)
@@ -1041,7 +1869,7 @@ class PersonalOutputSerializer(serializers.Serializer):
     kul = KulIdNameSerializer(allow_null=True)
     vansh = VanshIdNameSerializer(allow_null=True)
     family = FamilyIdNameSerializer(allow_null=True)
-    pidhi = PidhiIdNameSerializer(allow_null=True)
+    # pidhi = PidhiIdNameSerializer(allow_null=True)
 
 
 class SectionIdNameSerializer(serializers.ModelSerializer):
@@ -1094,10 +1922,23 @@ class BrandIdNameSerializer(serializers.ModelSerializer):
         model = Brand
         fields = ["id", "name"]
 
+        
+        
 # class PostModelIdNameSerializer(serializers.ModelSerializer):
 #     class Meta:
 #         model = PostModel
 #         fields = ["id", "name"]
+
+class ProductSearchInputSerializer(serializers.Serializer):
+    sector = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    brand = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    product = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
+    search_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+class ProductSearchOutputSerializer(serializers.Serializer):
+    sector = SectorIdNameSerializer()
+    brand = BrandIdNameSerializer()
+    product = ProductIdNameSerializer()
 
 class ProfessionalInputSerializer(serializers.Serializer):
     section = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1125,22 +1966,10 @@ class ProfessionalOutputSerializer(serializers.Serializer):
     brand = BrandIdNameSerializer(allow_null=True)
 
 
-class DesignationSubCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DesignationSubCategory
-        fields = "__all__"
-
-
-class DesignationSubCategoryIdNameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DesignationSubCategory
-        fields = ["id", "name"]
-
-
 class DesignationIdNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
-        fields = ["id", "name", "code"]
+        fields = ["id", "name"]
 
 
 class DesignationSerializer(serializers.ModelSerializer):
@@ -1217,7 +2046,8 @@ class DesignationSerializer(serializers.ModelSerializer):
 
 class DesignationGetSerializer(serializers.ModelSerializer):
     reporting_designation = DesignationIdNameSerializer()
-    subcategory = DesignationSubCategoryIdNameSerializer()
     class Meta:
         model = Designation
         fields = "__all__"
+
+
