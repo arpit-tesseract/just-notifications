@@ -50,6 +50,7 @@ class PersonalDetailSerializer(serializers.ModelSerializer):
             'religion',
             'sampraday',
             'panth',
+            'awastha',
             'varna',
             'caste',
             'subcaste',
@@ -79,102 +80,93 @@ class ResidentialDetailSerializer(serializers.ModelSerializer):
                 'block',
                 'floor',
                 'house',
-                'total_no_of_rooms',
             ]
         # read_only_fields = ['id','user', 'residential_code', 'residential_type']
         # extra_kwargs = {
         #     'category_of_user': {'required': False},
         # } 
     
-    def validate_room_details(self, value):
-        if value is None:
-            return
+    # def validate_room_details(self, value):
+    #     if value is None:
+    #         return
         
-        for room_type_id, room_info in value.items():
-            # room_name = "hall"
-            try:
-                room_type_id = int(room_type_id)
-            except ValueError:
-                raise serializers.ValidationError(
-                    f"'{room_type_id}' must be an integer."
-                )
-            room_type_obj = get_obj_by_modle_and_id(RoomType, room_type_id)
-            if room_type_obj is None:
-                raise serializers.ValidationError(
-                    f"'{room_type_id}' not found in RoomType table."
-                )
-            else:
-                if room_type_obj.is_used == False:
-                    room_type_obj.is_used = True
-                    room_type_obj.save()
+    #     for room_type_id, room_info in value.items():
+    #         # room_name = "hall"
+    #         try:
+    #             room_type_id = int(room_type_id)
+    #         except ValueError:
+    #             raise serializers.ValidationError(
+    #                 f"'{room_type_id}' must be an integer."
+    #             )
+    #         room_type_obj = get_obj_by_modle_and_id(RoomType, room_type_id)
+    #         if room_type_obj is None:
+    #             raise serializers.ValidationError(
+    #                 f"'{room_type_id}' not found in RoomType table."
+    #             )
+    #         else:
+    #             if room_type_obj.is_used == False:
+    #                 room_type_obj.is_used = True
+    #                 room_type_obj.save()
                     
-            if not isinstance(room_info, dict):
-                raise serializers.ValidationError(
-                    f"'{room_type_id}' must be an object with 'count', 'room_flash_id' and 'room_type_name' keys."
-                )
+    #         if not isinstance(room_info, dict):
+    #             raise serializers.ValidationError(
+    #                 f"'{room_type_id}' must be an object with 'count', 'room_flash_id' and 'room_type_name' keys."
+    #             )
         
-            # required keys
-            required_keys = {"count", "room_flash_id"}
-            missing = required_keys - room_info.keys()
-            if missing:
-                raise serializers.ValidationError(
-                    f"Missing keys in '{room_type_id}': {', '.join(missing)}"
-                )
+    #         # required keys
+    #         required_keys = {"count", "room_flash_id"}
+    #         missing = required_keys - room_info.keys()
+    #         if missing:
+    #             raise serializers.ValidationError(
+    #                 f"Missing keys in '{room_type_id}': {', '.join(missing)}"
+    #             )
             
-            # type checks
-            if isinstance(room_info["count"], int):
-                if room_info["count"] < 1:
-                    raise serializers.ValidationError(
-                        f"'count' in '{room_type_id}' must be a positive integer."
-                    )
-            else:
-                raise serializers.ValidationError(
-                    f"'count' in '{room_type_id}' must be an integer."
-                )
+    #         # type checks
+    #         if isinstance(room_info["count"], int):
+    #             if room_info["count"] < 1:
+    #                 raise serializers.ValidationError(
+    #                     f"'count' in '{room_type_id}' must be a positive integer."
+    #                 )
+    #         else:
+    #             raise serializers.ValidationError(
+    #                 f"'count' in '{room_type_id}' must be an integer."
+    #             )
             
 
-            if isinstance(room_info["room_flash_id"], int):
-                if room_info["room_flash_id"] < 1:
-                    raise serializers.ValidationError(
-                        f"'room_flash_id' for '{room_type_id}' must be a positive integer."
-                    )
+    #         if isinstance(room_info["room_flash_id"], int):
+    #             if room_info["room_flash_id"] < 1:
+    #                 raise serializers.ValidationError(
+    #                     f"'room_flash_id' for '{room_type_id}' must be a positive integer."
+    #                 )
                     
-                room_flash_obj = get_obj_by_modle_and_id(RoomFlash, room_info.get("room_flash_id"))
-                if room_flash_obj is None:
-                    raise serializers.ValidationError(
-                        f"'room_flash_id' for '{room_type_id}' does not exist."
-                    )
-                else:
-                    if room_flash_obj.is_used == False:
-                        room_flash_obj.is_used = True
-                        room_flash_obj.save()
+    #             room_flash_obj = get_obj_by_modle_and_id(RoomFlash, room_info.get("room_flash_id"))
+    #             if room_flash_obj is None:
+    #                 raise serializers.ValidationError(
+    #                     f"'room_flash_id' for '{room_type_id}' does not exist."
+    #                 )
+    #             else:
+    #                 if room_flash_obj.is_used == False:
+    #                     room_flash_obj.is_used = True
+    #                     room_flash_obj.save()
                 
-                # store room_flash_obj
-                # room_info["room_flash_id"] = room_flash_obj
-            else:
-                raise serializers.ValidationError(
-                    f"'room_flash_id' in '{room_type_id}' must be an integer."
-                )
+    #             # store room_flash_obj
+    #             # room_info["room_flash_id"] = room_flash_obj
+    #         else:
+    #             raise serializers.ValidationError(
+    #                 f"'room_flash_id' in '{room_type_id}' must be an integer."
+    #             )
                 
-        return value
+    #     return value
     
-    def validate(self, attrs):
-        text_fields = [
-            'society',
-            'block',
-            'floor',
-            'house_no',
-            # 'total_no_of_rooms'
-        ]
+    # def validate(self, attrs):
+    #     text_fields = [
+    #         'society',
+    #         'block',
+    #         'floor',
+    #         'house_no',
+    #         # 'total_no_of_rooms'
+    #     ]
         
-        for field in text_fields:
-            if field in attrs:
-                try:
-                    temp = clean_str(attrs.get(field))
-                except:
-                    temp = None
-                attrs[field] = temp
-        return attrs
 
 class ProfessionalDetailSerializer(serializers.ModelSerializer):
     class Meta:
@@ -238,6 +230,13 @@ class UserSerializerForPost(serializers.ModelSerializer):
     residential_details = ResidentialDetailSerializer(many=False)
     personal_details = PersonalDetailSerializer(many=False)
     bussiness_details = BussinessDetailSerializer(many=True, required=True, allow_null=True)
+    
+    allocated_rooms = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=configm.Room.objects.all(),
+        required=False
+    )
+    
     class Meta:
         model = CustomUser
         fields = [
@@ -254,6 +253,7 @@ class UserSerializerForPost(serializers.ModelSerializer):
             'marital_status', 
             'is_verified', 
             'expired_date',
+            'allocated_rooms',
             'residential_details',
             'personal_details',
             'bussiness_details',

@@ -381,7 +381,7 @@ class RoomViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet)
         'glob': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
         'is_hidden': 'is_hidden',
         'on_hold': 'on_hold',
-        'search': 'no'
+        'search': 'room_type__name'
     }
     
     def get_base_queryset(self):
@@ -700,34 +700,34 @@ class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSe
         return FamilyDetailSerializer
 
 
-# class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-#     model = Pidhi
-#     queryset = Pidhi.objects.all()
-#     serializer_class = PidhiSerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-#     pagination_class = ConfigurationPagination
-#     FILTER_FIELDS = {
-#         'family': 'family__id',
-#         'vansh': 'family__vansh__id',
-#         'kul': 'family__vansh__kul__id',
-#         'subgotra': 'family__vansh__kul__subgotra__id',
-#         'gotra': 'family__vansh__kul__subgotra__gotra__id',
-#         'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
-#         'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
-#         'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
-#         'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
-#         'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-#         'is_hidden': 'is_hidden',
-#         'on_hold': 'on_hold',
-#         'search': 'name'
-#     }
-#     # def get_base_queryset(self):
-#     #     return get_regular_query(self.model) 
+class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
+    model = Pidhi
+    queryset = Pidhi.objects.all()
+    serializer_class = PidhiSerializer
+    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+    pagination_class = ConfigurationPagination
+    # FILTER_FIELDS = {
+    #     'family': 'family__id',
+    #     'vansh': 'family__vansh__id',
+    #     'kul': 'family__vansh__kul__id',
+    #     'subgotra': 'family__vansh__kul__subgotra__id',
+    #     'gotra': 'family__vansh__kul__subgotra__gotra__id',
+    #     'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
+    #     'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
+    #     'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
+    #     'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
+    #     'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
+    #     'is_hidden': 'is_hidden',
+    #     'on_hold': 'on_hold',
+    #     'search': 'name'
+    # }
+    # def get_base_queryset(self):
+    #     return get_regular_query(self.model) 
     
-#     def get_serializer_class(self):
-#         if self.action in ["create", "update", "partial_update"]:
-#             return PidhiSerializer   # For POST, PUT, PATCH
-#         return PidhiDetailSerializer
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return PidhiSerializer   # For POST, PUT, PATCH
+        return PidhiDetailSerializer
     
 class CalibrationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
     model = Calibration
@@ -5881,7 +5881,6 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
         
         elif search_key == "room":
             qs = get_regular_query(Room).select_related('house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
-            
             if glob_name:
                 filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
             if continent_name:
@@ -5911,7 +5910,7 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             
             qs = qs.filter(**filters)
             qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+            # qs = qs[:10]
 
             results = [
                 {
@@ -5957,8 +5956,9 @@ class ResidentialSearchView(APIView, RecordRuleMixin):
             ]
 
         # Return unified response structure
-        output = ResidentialOutputSerializer(results, many=True)
-        return Response(output.data) 
+        # output = ResidentialOutputSerializer(results, many=True)
+        # return Response(output.data, status=status.HTTP_200_OK)
+        return Response(results, status=status.HTTP_200_OK) 
        
             
 
@@ -5993,6 +5993,12 @@ class PersonalSearchView(APIView):
         else:
             awastha_data = []
             
+        pidhi_objs = get_regular_query(Pidhi)
+        if pidhi_objs.exists():
+            pidhi_data = PidhiIdNameSerializer(pidhi_objs, many=True).data
+        else:
+            pidhi_data = []
+            
         if search_key == "religion":
             qs = get_regular_query(Religion)
             if religion_name:
@@ -6012,7 +6018,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None,
+                    "pidhi": pidhi_data,
                 }
                 for obj in qs
             ]
@@ -6041,7 +6047,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None,
+                    "pidhi": pidhi_data,
                 }
                 for obj in qs
             ]
@@ -6072,7 +6078,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None,
+                    "pidhi": pidhi_data,
                 }
                 for obj in qs
             ]
@@ -6137,7 +6143,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None,
+                    "pidhi": pidhi_data,
                 }
                 for obj in qs
             ]
@@ -6173,7 +6179,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }
                 for obj in qs
             ] 
@@ -6211,7 +6217,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }
                 for obj in qs
             ] 
@@ -6251,7 +6257,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }
                 for obj in qs
             ]  
@@ -6293,7 +6299,7 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }
                 for obj in qs
             ]
@@ -6336,7 +6342,7 @@ class PersonalSearchView(APIView):
                     "kul": KulIdNameSerializer(obj).data,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }
                 for obj in qs
             ]
@@ -6381,7 +6387,7 @@ class PersonalSearchView(APIView):
                     "kul": KulIdNameSerializer(obj.kul).data,
                     "vansh": VanshIdNameSerializer(obj).data,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }
                 for obj in qs
             ]  
@@ -6428,7 +6434,7 @@ class PersonalSearchView(APIView):
                     "kul": KulIdNameSerializer(obj.vansh.kul).data,
                     "vansh": VanshIdNameSerializer(obj.vansh).data,
                     "family": FamilyIdNameSerializer(obj).data,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }                
                 for obj in qs
             ]
@@ -6503,14 +6509,15 @@ class PersonalSearchView(APIView):
                     "kul": None,
                     "vansh": None,
                     "family": None,
-                    "pidhi": None
+                    "pidhi": pidhi_data
                 }                
                 for obj in qs
             ]
         
         # return unified response structure
         output = PersonalOutputSerializer(results, many=True)
-        return Response(output.data, status=200)
+        return Response(results, status=status.HTTP_200_OK)
+        # return Response(output.data, status=200)
 
 
 class ProfessionalSearchView(APIView):
@@ -6867,7 +6874,8 @@ class ProfessionalSearchView(APIView):
             ]
         
         output = ProfessionalOutputSerializer(results, many=True)
-        return Response(output.data, status=status.HTTP_200_OK)
+        return Response(results, status=status.HTTP_200_OK)
+        # return Response(output.data, status=status.HTTP_200_OK)
     
     
 class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):

@@ -745,8 +745,8 @@ class Family(OrderByMixin, CommonFieldMixin):
         return f"{self.name} - {self.code}"
 
 class Pidhi(OrderByMixin, CommonFieldMixin):
-    family = models.ForeignKey(Family, on_delete=models.CASCADE)
-    name = models.CharField(max_length=200, db_index=True)
+    # family = models.ForeignKey(Family, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200, unique=True)
 
     def __str__(self):
         return f"{self.name} - {self.code}"

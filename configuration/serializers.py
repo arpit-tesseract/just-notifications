@@ -7,7 +7,17 @@ from django.apps import apps
 from django.db import transaction
 from rest_framework.validators import UniqueTogetherValidator
 
-class DynamicFieldsModelSerializer(serializers.ModelSerializer):
+class RemoveTimestampMixin:
+    """
+    Mixin to automatically exclude 'time_stamp' from the serializer fields.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Remove time_stamp if it exists in the fields
+        self.fields.pop('time_stamp', None)
+        
+
+class DynamicFieldsModelSerializer(RemoveTimestampMixin, serializers.ModelSerializer):
     code = serializers.SerializerMethodField()
     
     """
@@ -867,9 +877,15 @@ class RoomTypeIdNameSerializer(serializers.ModelSerializer):
         
         
 class RoomIdNameSerializer(serializers.ModelSerializer):
+    room_type_name = serializers.SerializerMethodField()
     class Meta:
         model = Room
-        fields = ["id", "no"]
+        fields = ["id", "no", "room_type_name"]
+    
+    def get_room_type_name(self, obj):
+        if not obj.room_type:
+            return None
+        return obj.room_type.name
 
 class RoomFlashOutputSerializer(serializers.ModelSerializer):
     brand = BrandIdNameSerializer(source='product.brand')
@@ -1245,28 +1261,35 @@ class FamilyDetailSerializer(DynamicFieldsModelSerializer):
         return serializer.data
 
 
-# class PidhiSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Pidhi
-#         fields = '__all__'
-#         read_only_fields = ['id']
+class PidhiSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pidhi
+        fields = '__all__'
+        read_only_fields = ['id']
+
+
+class PidhiDetailSerializer(DynamicFieldsModelSerializer):
+    class Meta:
+        model = Pidhi
+        fields = '__all__'
+        read_only_fields = [f for f in Pidhi._meta.fields]
 
 # class PidhiIdNameSerializer(serializers.ModelSerializer):
-#     family = serializers.SerializerMethodField()
+#     # family = serializers.SerializerMethodField()
 #     class Meta:
 #         model = Pidhi
 #         fields = '__all__'
 #         read_only_fields = [f for f in Pidhi._meta.fields]
     
-#     def get_family(self, obj):
-#         serializer = FamilyIdNameSerializer(
-#             obj.family,
-#             context={
-            #     'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
-            #     'use_raw_code': True
-            # }
-#         )
-#         return serializer.data
+    # def get_family(self, obj):
+    #     serializer = FamilyIdNameSerializer(
+    #         obj.family,
+    #         context={
+    #             'exclude_fields': ['is_hidden', 'on_hold', 'hold_date'],
+    #             'use_raw_code': True
+    #         }
+    #     )
+    #     return serializer.data
 
 
 class CalibrationSerializer(serializers.ModelSerializer):
@@ -1574,7 +1597,7 @@ class RoomFlashIdNameSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-class RoomTypeSerializer(serializers.ModelSerializer):
+class RoomTypeSerializer(RemoveTimestampMixin, serializers.ModelSerializer):
     class Meta:
         model = RoomType
         fields = "__all__"
@@ -1835,10 +1858,10 @@ class FamilyIdNameSerializer(serializers.ModelSerializer):
         model = Family
         fields = ["id", "name"]
 
-# class PidhiIdNameSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Pidhi
-#         fields = ["id", "name"]
+class PidhiIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pidhi
+        fields = ["id", "name"]
 
 class PersonalInputSerializer(serializers.Serializer):
     religion = serializers.CharField(required=False, allow_blank=True,  allow_null=True)
@@ -1869,7 +1892,7 @@ class PersonalOutputSerializer(serializers.Serializer):
     kul = KulIdNameSerializer(allow_null=True)
     vansh = VanshIdNameSerializer(allow_null=True)
     family = FamilyIdNameSerializer(allow_null=True)
-    # pidhi = PidhiIdNameSerializer(allow_null=True)
+    pidhi = PidhiIdNameSerializer(allow_null=True, many=True)
 
 
 class SectionIdNameSerializer(serializers.ModelSerializer):
@@ -2044,7 +2067,7 @@ class DesignationSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class DesignationGetSerializer(serializers.ModelSerializer):
+class DesignationGetSerializer(RemoveTimestampMixin, serializers.ModelSerializer):
     reporting_designation = DesignationIdNameSerializer()
     class Meta:
         model = Designation
