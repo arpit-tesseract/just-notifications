@@ -175,6 +175,12 @@ class Continent(OrderByMixin, CommonFieldMixin):
 
     parent_field_name = "glob"
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["glob", "name"], 
+                name="unique_continent_per_glob",
+            )
+        ]
         ordering = ['glob__code', 'code']
     # def get_formatted_code(self):
     #     continent_count = self.glob.continents.count()
