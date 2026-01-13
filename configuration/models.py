@@ -1018,17 +1018,22 @@ def sample_file_upload_path(instance, filename):
     return os.path.join('sample_files', category, filename)
 
 class SampleFile(models.Model):
-    # CATEGORY_CHOICES = [
-    #     ('personal', 'Personal'),
-    #     ('residential', 'Residential'),
-    #     ('professional', 'Professional'),
-    # ]
-    # category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
-    router = models.CharField(max_length=100)
+    CATEGORY_CHOICES = [
+        ('personal', 'Personal'),
+        ('residential', 'Residential'),
+        ('professional', 'Professional'),
+    ]
+
+    category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
+    model_name = models.CharField(max_length=100)
     file = models.FileField(upload_to=sample_file_upload_path, blank=True, null=True)
-    
+
+    class Meta:
+        unique_together = ('category', 'model_name')
+
     def __str__(self):
-        return f"{self.router} ({self.category})"
+        return f"{self.model_name} ({self.category})"
+
     
 
 
