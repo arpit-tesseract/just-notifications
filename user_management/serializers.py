@@ -504,8 +504,8 @@ class ResidentialDetailGetSerializer(serializers.ModelSerializer):
             'block',
             'floor',
             'house',
-            'total_no_of_rooms',
-            'residential_type'
+            # 'total_no_of_rooms',
+            # 'residential_type'
         ]    
 
 class PersonalDetailGetSerializer(serializers.ModelSerializer):

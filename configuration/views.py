@@ -1437,8 +1437,8 @@ class UploadCountriesView(APIView):
                 Country.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["continent","name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["continent","name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
