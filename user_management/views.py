@@ -122,288 +122,290 @@ class RegisterationView(RecordRuleMixin, APIView):
         existing_main_user_designation_obj = validated_data.get('existing_main_user_designation')
 
             
-        try:
-            with transaction.atomic():
-                higher_designation = None
-                relations = []
+        # try:
+        with transaction.atomic():
+            higher_designation = None
+            relations = []
 
-                posts = validated_data.get('posts', None)
-                response_data = []
+            posts = validated_data.get('posts', None)
+            response_data = []
+            
+            single_user = False
+            if len(posts) == 1:
+                single_user = True
                 
-                single_user = False
-                if len(posts) == 1:
-                    single_user = True
+            for index, post in enumerate(posts):
+                user_details = post.pop("user_details", None)
+                existing_user_obj = user_details.pop("user_id", None)
+                user_post_no = post.pop("post_no", None)
+                relation_between_from_and_to_obj = post.pop("relation_between_from_and_to", None)
+                user_designation_obj = post.pop("user_designation", None)
+                
+                if user_details:
+                    user_role_obj = user_details.pop("user_role", None)
+                    user_personal_details = user_details.pop("personal_details", None)
+                    user_bussiness_details = user_details.pop("bussiness_details", None)
+                    residential_details = user_details.pop('residential_details')
+                    allocated_room_objs = user_details.pop('allocated_rooms', [])
+                    residential_details['residential_type'] = "home"
                     
-                for index, post in enumerate(posts):
-                    user_details = post.pop("user_details", None)
-                    existing_user_obj = user_details.pop("user_id", None)
-                    user_post_no = post.pop("post_no", None)
-                    relation_between_from_and_to_obj = post.pop("relation_between_from_and_to", None)
-                    user_designation_obj = post.pop("user_designation", None)
+                    # create residential details
+                    if residential_category != "current":
+                        # room_details = residential_details.pop('room_details')
+                        category_of_user = user_details.pop('category_of_user')
                     
-                    if user_details:
-                        user_role_obj = user_details.pop("user_role", None)
-                        user_personal_details = user_details.pop("personal_details", None)
-                        user_bussiness_details = user_details.pop("bussiness_details", None)
-                        residential_details = user_details.pop('residential_details')
-                        residential_details['residential_type'] = "home"
+                    residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
+                    
+                    # if created:
+                    #     residential_obj.pending_rooms_to_allocate = {}
+                    #     for key, val in residential_obj.room_details.items():
+                    #         # print("Value:",val)
+                    #         residential_obj.pending_rooms_to_allocate[key] = val.copy()
+                    #         residential_obj.pending_rooms_to_allocate[key]["count"] = 1
+                    #     residential_obj.save()
                         
-                        # create residential details
-                        if residential_category != "current":
-                            room_details = residential_details.pop('room_details')
-                            category_of_user = user_details.pop('category_of_user')
-                        
-                        residential_obj, created = ResidentialDetail.objects.get_or_create(**residential_details)
-                        
-                        if created:
-                            residential_obj.pending_rooms_to_allocate = {}
-                            for key, val in residential_obj.room_details.items():
-                                # print("Value:",val)
-                                residential_obj.pending_rooms_to_allocate[key] = val.copy()
-                                residential_obj.pending_rooms_to_allocate[key]["count"] = 1
-                            residential_obj.save()
-                            
-                                    
-                        # if user_id exists in user_details then update existing user details
-                        if existing_user_obj is not None:
-                            # update existing user details
-                            user_obj = existing_user_obj
-                            for attr, value in user_details.items():
-                                setattr(user_obj, attr, value)
-                            user_obj.save()
-                        
-                        # if user_id not exists in user_details then create new user        
-                        else:    
-                            user_obj = CustomUser.objects.create_user(**user_details)
-                        
-                        # assign residential details to user
-                        if existing_main_user_obj:
-                            user_obj.current_residential_details = residential_obj
-                        else:
-                            if residential_category == "current":
-                                user_obj.current_residential_details = residential_obj
-                            
-                            if residential_category == "owner":
-                                user_obj.owner_residential_details = residential_obj
-                            
-                            if residential_category == "permanent":
-                                user_obj.permanent_residential_details = residential_obj
-                            
-                            if residential_category == "native":
-                                user_obj.native_residential_details = residential_obj
                                 
-                            if residential_category == "inlaws":
-                                user_obj.inlaws_residential_details = residential_obj
-                                
-                            if residential_category == "maternal":
-                                user_obj.maternal_residential_details = residential_obj
-                                
-                            if residential_category == "business":
-                                user_obj.business_residential_details = residential_obj
-                        
-                        # save user        
+                    # if user_id exists in user_details then update existing user details
+                    if existing_user_obj is not None:
+                        # update existing user details
+                        user_obj = existing_user_obj
+                        for attr, value in user_details.items():
+                            setattr(user_obj, attr, value)
                         user_obj.save()
                     
-                        # add user id in response data list it's help to submit data in next form
-                        response_data.append(user_obj.id)
+                    # if user_id not exists in user_details then create new user        
+                    else:    
+                        user_obj = CustomUser.objects.create_user(**user_details)
+                    
+                    # assign residential details to user
+                    if existing_main_user_obj:
+                        user_obj.current_residential_details = residential_obj
+                    else:
+                        if residential_category == "current":
+                            user_obj.current_residential_details = residential_obj
                         
-                        # add user role to user 
-                        user_obj.user_role.add(user_role_obj)
+                        if residential_category == "owner":
+                            user_obj.owner_residential_details = residential_obj
                         
-                        pending_relations_to_update = []
+                        if residential_category == "permanent":
+                            user_obj.permanent_residential_details = residential_obj
                         
-                        # create personal details 
-                        if user_personal_details is not None:   
-                            PersonalDetail.objects.update_or_create(
-                                user=user_obj,
-                                defaults= user_personal_details
-                                )
-                        
-                        # create professional details
-                        if user_bussiness_details is not None:
-                            for bussiness_detail in user_bussiness_details:
-                                user_professional_details = bussiness_detail.get("professional_details", None)
-                                user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
-                                if user_professional_residential_details is not None:
-                                    # Try to find if residential details already exists                            
-                                    user_professional_residential_details['residential_type'] = "bussiness"
-                                    # print(user_professional_residential_details)
-                                    user_professional_residential_obj, created = ResidentialDetail.objects.get_or_create(**user_professional_residential_details)
-                                    if isinstance(user_professional_residential_obj, Response):
-                                        return user_professional_residential_obj
-                                
-                                if user_professional_details is not None:
-                                    # user_professional_details['residential_details'] = residential_obj
-                                    ProfessionalDetail.objects.update_or_create(
-                                        user = user_obj,
-                                        residential_details = user_professional_residential_obj, 
-                                        defaults=user_professional_details
-                                    )
-                                
-                                # assign system admin role if brand is shashan
-                                brand_id = user_professional_details.get("brand", None)
-                                val = assign_system_admin_role_if_brand_is_shashan(user_obj, brand_id)
-                                if isinstance(val, Response):
-                                    return val
-                        
-                        # create relation between users
-                        if single_user:
-                            allocate_rooms_for_from_user(user_obj, residential_category)
-                            user_obj.is_verified = True
-                            user_obj.save()
-                            return Response(
-                                {
-                                    "posts":[user_obj.id],
-                                    "existing_main_user_id": user_obj.id,
-                                    "existing_main_user_designation": relation_between_from_and_to_obj.name
-                                }, status=status.HTTP_201_CREATED
+                        if residential_category == "native":
+                            user_obj.native_residential_details = residential_obj
+                            
+                        if residential_category == "inlaws":
+                            user_obj.inlaws_residential_details = residential_obj
+                            
+                        if residential_category == "maternal":
+                            user_obj.maternal_residential_details = residential_obj
+                            
+                        if residential_category == "business":
+                            user_obj.business_residential_details = residential_obj
+                    
+                    # save user        
+                    user_obj.save()
+                    
+                    if allocated_room_objs:
+                        user_obj.allocated_rooms.set(allocated_room_objs)
+                
+                    # add user id in response data list it's help to submit data in next form
+                    response_data.append(user_obj.id)
+                    
+                    # add user role to user 
+                    user_obj.user_role.add(user_role_obj)
+                    
+                    # create personal details 
+                    if user_personal_details is not None:   
+                        PersonalDetail.objects.update_or_create(
+                            user=user_obj,
+                            defaults= user_personal_details
                             )
+                    
+                    # create professional details
+                    if user_bussiness_details is not None:
+                        for bussiness_detail in user_bussiness_details:
+                            user_professional_details = bussiness_detail.get("professional_details", None)
+                            user_professional_residential_details = bussiness_detail.get("professional_residential_details", None)
+                            if user_professional_residential_details is not None:
+                                # Try to find if residential details already exists                            
+                                user_professional_residential_details['residential_type'] = "bussiness"
+                                # print(user_professional_residential_details)
+                                user_professional_residential_obj, created = ResidentialDetail.objects.get_or_create(**user_professional_residential_details)
+                                if isinstance(user_professional_residential_obj, Response):
+                                    return user_professional_residential_obj
                             
-                        if existing_main_user_obj and existing_main_user_obj != user_obj:
+                            if user_professional_details is not None:
+                                # user_professional_details['residential_details'] = residential_obj
+                                ProfessionalDetail.objects.update_or_create(
+                                    user = user_obj,
+                                    residential_details = user_professional_residential_obj, 
+                                    defaults=user_professional_details
+                                )
                             
-                            try:
-                                relation_obj = Relation.objects.get(
-                                    from_user = existing_main_user_obj, 
-                                    relation_category = residential_category, 
-                                    from_user_designation = existing_main_user_designation_obj,
-                                    relation_between_from_and_to = relation_between_from_and_to_obj,
-                                    to_user_designation = user_designation_obj, 
-                                    to_user = user_obj,
-                                    post_no = user_post_no
-                                )
-                            except Relation.DoesNotExist:
-                                relation_obj = Relation.objects.create(
-                                    from_user = existing_main_user_obj, 
-                                    relation_category = residential_category, 
-                                    from_user_designation = existing_main_user_designation_obj,
-                                    relation_between_from_and_to = relation_between_from_and_to_obj,
-                                    to_user_designation = user_designation_obj, 
-                                    to_user = user_obj,
-                                    post_no = user_post_no
-                                )
-                            except Exception as e:
-                                raise ValidationError(f"Error in creating relation between {from_user} and {to_user.get('user_obj')}.")
-                        # else:
-                        #     print("Different")
-                        #     pending_relation = {
-                        #         'from_user': None,
-                        #         'relation_category': residential_category,
-                        #         'from_user_designation': None,
-                        #         'designation': user_designation_obj,
-                        #         'to_user': user_obj,
-                        #         'post_no': user_post_no
-                        #     }
-                        #     pending_relations_to_update.append(pending_relation)
+                            # assign system admin role if brand is shashan
+                            brand_id = user_professional_details.get("brand", None)
+                            val = assign_system_admin_role_if_brand_is_shashan(user_obj, brand_id)
+                            if isinstance(val, Response):
+                                return val
+                    
+                    # create relation between users
+                    if single_user:
+                        # allocate_rooms_for_from_user(user_obj, residential_category)
+                        user_obj.is_verified = True
+                        user_obj.save()
+                        return Response(
+                            {
+                                "posts":[user_obj.id],
+                                "existing_main_user_id": user_obj.id,
+                                "existing_main_user_designation": relation_between_from_and_to_obj.name
+                            }, status=status.HTTP_201_CREATED
+                        )
                         
+                    if existing_main_user_obj and existing_main_user_obj != user_obj:
+                        
+                        try:
+                            relation_obj = Relation.objects.get(
+                                from_user = existing_main_user_obj, 
+                                relation_category = residential_category, 
+                                from_user_designation = existing_main_user_designation_obj,
+                                relation_between_from_and_to = relation_between_from_and_to_obj,
+                                to_user_designation = user_designation_obj, 
+                                to_user = user_obj,
+                                post_no = user_post_no
+                            )
+                        except Relation.DoesNotExist:
+                            relation_obj = Relation.objects.create(
+                                from_user = existing_main_user_obj, 
+                                relation_category = residential_category, 
+                                from_user_designation = existing_main_user_designation_obj,
+                                relation_between_from_and_to = relation_between_from_and_to_obj,
+                                to_user_designation = user_designation_obj, 
+                                to_user = user_obj,
+                                post_no = user_post_no
+                            )
+                        except Exception as e:
+                            raise ValidationError(f"Error in creating relation between {from_user} and {to_user.get('user_obj')}.")
+                    # else:
+                    #     print("Different")
+                    #     pending_relation = {
+                    #         'from_user': None,
+                    #         'relation_category': residential_category,
+                    #         'from_user_designation': None,
+                    #         'designation': user_designation_obj,
+                    #         'to_user': user_obj,
+                    #         'post_no': user_post_no
+                    #     }
+                    #     pending_relations_to_update.append(pending_relation)
+                    
 
-                        if higher_designation is None:
-                            if user_obj.expired_date is None:
-                                higher_designation = relation_between_from_and_to_obj
-                                
-                        else:
-                            if higher_designation.code > relation_between_from_and_to_obj.code and user_obj.expired_date is None:
-                                higher_designation = relation_between_from_and_to_obj
-                        
-                                
-                    relations.append(
-                        {
-                            'relation_category': "current" if existing_main_user_designation_obj else residential_category,
-                            'relation_between_from_and_to': relation_between_from_and_to_obj,
-                            'user_designation': user_designation_obj,
-                            'user_obj': user_obj,
-                            'post_no': user_post_no,
-                        }
-                    )
-                
-                
-                from_user, from_user_designation_obj, to_users = get_from_user_and_to_users(higher_designation, relations)
-                
-                
-                relation_obj_lst = []
-                for to_user in to_users:
-                    
-                    try:
-                        relation_obj = Relation.objects.get(
-                            from_user = from_user, 
-                            relation_category = to_user.get('relation_category'), 
-                            from_user_designation = from_user_designation_obj,
-                            relation_between_from_and_to = to_user.get('relation_between_from_and_to'), 
-                            to_user_designation = to_user.get('user_designation'),
-                            to_user = to_user.get('user_obj'),
-                            post_no = to_user.get('post_no')
-                        )
-                    except Relation.DoesNotExist:
-                        relation_obj = Relation.objects.create(
-                            from_user = from_user, 
-                            relation_category = to_user.get('relation_category'), 
-                            from_user_designation = from_user_designation_obj,
-                            relation_between_from_and_to = to_user.get('relation_between_from_and_to'), 
-                            to_user_designation = to_user.get('user_designation'),
-                            to_user = to_user.get('user_obj'),
-                            post_no = to_user.get('post_no')
-                        )
-                    except Exception as e:
-                        raise ValidationError(f"Error in creating relation between {from_user} and {to_user.get('user_obj')}.")
-                    
-                    relation_obj_lst.append(relation_obj)
-                
-                # for pending_relation in pending_relations_to_update:
-                #     try:
-                #         Relation.objects.update_or_create(
-                #             from_user = from_user, 
-                #             relation_category = pending_relation.get('relation_category'), 
-                #             to_user = pending_relation.get('to_user'),
-                #             defaults= { 
-                #                 'from_user_designation' : from_user_designation,
-                #                 'designation' : pending_relation.get('designation'), 
-                #                 'post_no' : pending_relation.get('post_no')
-                #             }
-                #         )
-                #     # except Relation.DoesNotExist:
-                #     #     Relation.objects.create(
-                #     #         from_user = from_user, 
-                #     #         relation_category = pending_relation.get('relation_category'), 
-                #     #         from_user_designation = from_user_designation,
-                #     #         designation = pending_relation.get('designation'), 
-                #     #         to_user = pending_relation.get('to_user'),
-                #     #         post_no = pending_relation.get('post_no')
-                #     #     )
-                #     except Exception as e:
-                #         raise ValidationError(f"Error in creating relation between {pending_relation.get('from_user')} and {pending_relation.get('to_user')}.")
-                
-                
-                # if from_user_exists then residential != "current" so don't need to verify or room sharing logic
-                if existing_main_user_obj:
-                    pass
-                else:
-                    # 1. Process the FROM_USER
-                    # if residential == "current"
-                    if from_user.expired_date is None:
-                        from_user.is_verified = True
-                        from_user.save()
-                        allocate_rooms_for_from_user(from_user, residential_category)
-                    
-                    # 2. Process the TO_USER (for ex: wife, son)
-                    for relation_obj in relation_obj_lst:
-                        mark_as_verify_or_unverify_user(relation_obj.to_user, relation_obj.relation_category)
-                        
-                        if relation_obj.to_user.expired_date is not None:
-                            continue
-                        
-                        if relation_obj.to_user_designation.name == "wife" or relation_obj.to_user_designation.name == "Wife":
-                            allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
-                        else:
-                            if relation_obj.to_user.marital_status == "single" and relation_obj.to_user_designation.name in ['son', 'daughter']:
-                                allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
+                    if higher_designation is None:
+                        if user_obj.expired_date is None:
+                            higher_designation = relation_between_from_and_to_obj
                             
-                            if relation_obj.to_user.category_of_user == "grp_tenant":
-                                allocate_rooms_for_to_user(relation_obj.to_user, relation_obj.relation_category)
-                                    
-        except Exception as e:
-            return Response(
-                {"error": "Something went wrong", "details": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+                    else:
+                        if higher_designation.code > relation_between_from_and_to_obj.code and user_obj.expired_date is None:
+                            higher_designation = relation_between_from_and_to_obj
+                    
+                            
+                relations.append(
+                    {
+                        'relation_category': "current" if existing_main_user_designation_obj else residential_category,
+                        'relation_between_from_and_to': relation_between_from_and_to_obj,
+                        'user_designation': user_designation_obj,
+                        'user_obj': user_obj,
+                        'post_no': user_post_no,
+                    }
+                )
+            
+            
+            from_user, from_user_designation_obj, to_users = get_from_user_and_to_users(higher_designation, relations)
+            
+            
+            relation_obj_lst = []
+            for to_user in to_users:
+                
+                try:
+                    relation_obj = Relation.objects.get(
+                        from_user = from_user, 
+                        relation_category = to_user.get('relation_category'), 
+                        from_user_designation = from_user_designation_obj,
+                        relation_between_from_and_to = to_user.get('relation_between_from_and_to'), 
+                        to_user_designation = to_user.get('user_designation'),
+                        to_user = to_user.get('user_obj'),
+                        post_no = to_user.get('post_no')
+                    )
+                except Relation.DoesNotExist:
+                    relation_obj = Relation.objects.create(
+                        from_user = from_user, 
+                        relation_category = to_user.get('relation_category'), 
+                        from_user_designation = from_user_designation_obj,
+                        relation_between_from_and_to = to_user.get('relation_between_from_and_to'), 
+                        to_user_designation = to_user.get('user_designation'),
+                        to_user = to_user.get('user_obj'),
+                        post_no = to_user.get('post_no')
+                    )
+                except Exception as e:
+                    raise ValidationError(f"Error in creating relation between {from_user} and {to_user.get('user_obj')}.")
+                
+                relation_obj_lst.append(relation_obj)
+            
+            # for pending_relation in pending_relations_to_update:
+            #     try:
+            #         Relation.objects.update_or_create(
+            #             from_user = from_user, 
+            #             relation_category = pending_relation.get('relation_category'), 
+            #             to_user = pending_relation.get('to_user'),
+            #             defaults= { 
+            #                 'from_user_designation' : from_user_designation,
+            #                 'designation' : pending_relation.get('designation'), 
+            #                 'post_no' : pending_relation.get('post_no')
+            #             }
+            #         )
+            #     # except Relation.DoesNotExist:
+            #     #     Relation.objects.create(
+            #     #         from_user = from_user, 
+            #     #         relation_category = pending_relation.get('relation_category'), 
+            #     #         from_user_designation = from_user_designation,
+            #     #         designation = pending_relation.get('designation'), 
+            #     #         to_user = pending_relation.get('to_user'),
+            #     #         post_no = pending_relation.get('post_no')
+            #     #     )
+            #     except Exception as e:
+            #         raise ValidationError(f"Error in creating relation between {pending_relation.get('from_user')} and {pending_relation.get('to_user')}.")
+            
+            
+            # if from_user_exists then residential != "current" so don't need to verify or room sharing logic
+            # if existing_main_user_obj:
+            #     pass
+            # else:
+            #     # 1. Process the FROM_USER
+            #     # if residential == "current"
+            #     if from_user.expired_date is None:
+            #         from_user.is_verified = True
+            #         from_user.save()
+            #         allocate_rooms_for_from_user(from_user, residential_category)
+                
+            #     # 2. Process the TO_USER (for ex: wife, son)
+            #     for relation_obj in relation_obj_lst:
+            #         mark_as_verify_or_unverify_user(relation_obj.to_user, relation_obj.relation_category)
+                    
+            #         if relation_obj.to_user.expired_date is not None:
+            #             continue
+                    
+            #         if relation_obj.to_user_designation.name == "wife" or relation_obj.to_user_designation.name == "Wife":
+            #             allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
+            #         else:
+            #             if relation_obj.to_user.marital_status == "single" and relation_obj.to_user_designation.name in ['son', 'daughter']:
+            #                 allocate_room_same_as_parent(relation_obj.to_user, relation_obj.relation_category)
+                        
+            #             if relation_obj.to_user.category_of_user == "grp_tenant":
+            #                 allocate_rooms_for_to_user(relation_obj.to_user, relation_obj.relation_category)
+                                
+        # except Exception as e:
+        #     return Response(
+        #         {"error": "Something went wrong", "details": str(e)},
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
         
         return Response(
             {
@@ -956,32 +958,32 @@ class ModelAccessView(APIView):
         all_models = ModelName.objects.all()
         
         user_access_map = {
-            access.model: access 
+            access.model_id: access 
             for access in ModelAccess.objects.filter(user=user_obj)
         }
         
+        model_access_objs = ModelAccess.objects.filter(user=user_obj)
+        
         response_data = []
         for model_name_obj in all_models:
-            model_identifier = model_name_obj.model
-            
-            if model_identifier in user_access_map:
-                # CASE 1: Logic found in table -> Return stored logic
-                access_obj = user_access_map[model_identifier]
+            if model_name_obj.id in user_access_map:
+                # CASE 1: Logic found -> Return stored logic
+                access_obj = user_access_map[model_name_obj.id]
                 response_data.append({
-                    "model": model_identifier,
+                    "model": model_name_obj.model, # Return the string name for frontend
                     "can_read": access_obj.can_read,
                     "can_create": access_obj.can_create,
                     "can_update": access_obj.can_update,
                     "can_delete": access_obj.can_delete,
                 })
             else:
-                # CASE 2: Logic NOT found -> Return TRUE (As per your request)
+                # CASE 2: Logic NOT found -> Return Default
                 response_data.append({
-                    "model": model_identifier,
-                    "can_read": True,   # Default Allowed
-                    "can_create": False, # Default Allowed
-                    "can_update": False, # Default Allowed
-                    "can_delete": False, # Default Allowed
+                    "model": model_name_obj.model,
+                    "can_read": True,   
+                    "can_create": False, 
+                    "can_update": False, 
+                    "can_delete": False, 
                 })
         
         return Response(
@@ -1067,7 +1069,21 @@ class ModelAccessView(APIView):
                 update_perm = item.get("can_update", False)
                 delete_perm = item.get("can_delete", False)
                 
-                if read_perm == False or True in [create_perm, update_perm, delete_perm]:
+                is_default_state = (
+                    read_perm is True and 
+                    create_perm is False and 
+                    update_perm is False and 
+                    delete_perm is False
+                )
+
+                if is_default_state:
+                    # CASE 1: User set it back to Default.
+                    # We must DELETE the record so the GET API falls back to "Default True".
+                    ModelAccess.objects.filter(user=user_obj, model=model_obj).delete()
+                    
+                else:
+                    # CASE 2: Special logic exists (Read=False OR Create=True, etc.)
+                    # We must STORE this in the database.
                     ModelAccess.objects.update_or_create(
                         user=user_obj,
                         model=model_obj,
@@ -1078,6 +1094,7 @@ class ModelAccessView(APIView):
                             "can_delete": delete_perm,
                         }
                     )
+                
             return Response(
                 {
                     "message": "Model access rights successfully updated.",

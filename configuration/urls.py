@@ -32,7 +32,7 @@ router.register(r'subgotras', SubGotraViewSet)
 router.register(r'kuls', KulViewSet)
 router.register(r'vanshes', VanshViewSet)
 router.register(r'families', FamilyViewSet)
-# router.register(r'pidhis', PidhiViewSet)
+router.register(r'pidhis', PidhiViewSet)
 router.register(r'calibrations', CalibrationViewSet)
 
 router.register(r'sections', SectionViewSet)
