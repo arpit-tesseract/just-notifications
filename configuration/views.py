@@ -1341,8 +1341,8 @@ class UploadContinentsView(APIView):
                 Continent.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["glob", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["glob", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1535,8 +1535,8 @@ class UploadStatesView(APIView):
                 State.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["country", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["country", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1634,8 +1634,8 @@ class UploadDistrictsView(APIView):
                 District.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["state", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["state", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1738,8 +1738,8 @@ class UploadTalukasView(APIView):
                 Taluka.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["district", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["district", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1844,8 +1844,8 @@ class UploadCityVillagesView(APIView):
                 CityVillage.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["taluka", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["taluka", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -1951,8 +1951,8 @@ class UploadWardsView(APIView):
                 Ward.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["city_village", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["city_village", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -2062,8 +2062,8 @@ class UploadSocietiesView(APIView):
                 Society.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["ward", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["ward", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -2177,8 +2177,8 @@ class UploadBlocksView(APIView):
                 Block.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["society", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["society", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -2295,8 +2295,8 @@ class UploadFloorsView(APIView):
                 Floor.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["block", "no", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["block", "no"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -2417,8 +2417,8 @@ class UploadHousesView(APIView):
                 House.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["floor","no", "is_hidden", "on_hold", "hold_date"]
+                    unique_fields=["floor","no"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"]
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2929,8 +2929,8 @@ class UploadSampradayView(APIView):
                 Sampraday.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["religion", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["religion", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3026,8 +3026,8 @@ class UploadPanthView(APIView):
                 Panth.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["sampraday", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["sampraday", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3215,8 +3215,8 @@ class UploadVarnaView(APIView):
                 Varna.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["panth", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["panth", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3318,8 +3318,8 @@ class UploadCasteView(APIView):
                 Caste.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["varna", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["varna", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3423,8 +3423,8 @@ class UploadSubCasteView(APIView):
                 SubCaste.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["caste", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["caste", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3530,8 +3530,8 @@ class UploadGotraView(APIView):
                 Gotra.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["subcaste", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["subcaste", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3639,8 +3639,8 @@ class UploadSubGotraView(APIView):
                 SubGotra.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["gotra", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["gotra", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3750,8 +3750,8 @@ class UploadKulView(APIView):
                 Kul.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["subgotra", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["subgotra", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3862,8 +3862,8 @@ class UploadVanshView(APIView):
                 Vansh.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["kul", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["kul", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:  
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -3975,8 +3975,8 @@ class UploadFamilyView(APIView):
                 Family.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["vansh", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["vansh", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -4278,8 +4278,8 @@ class UploadClassView(APIView):
                 Class.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["section", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["section", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -4375,8 +4375,8 @@ class UploadProfCategoryView(APIView):
                 ProfCategory.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["profclass", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["profclass", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=400)
@@ -4475,8 +4475,8 @@ class UploadProfSubCategoryView(APIView):
                 ProfSubCategory.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["category", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["category", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -4577,8 +4577,8 @@ class UploadSectorView(APIView):
                 Sector.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["subcategory", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["subcategory", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -4682,8 +4682,8 @@ class UploadSubSectorView(APIView):
                 SubSector.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["sector", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["sector", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -4788,8 +4788,8 @@ class UploadDepartmentView(APIView):
                 Department.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["subsector", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["subsector", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -4897,8 +4897,8 @@ class UploadSubDepartmentView(APIView):
                 SubDepartment.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["department", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["department", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -5006,8 +5006,8 @@ class UploadTypeView(APIView):
                 Type.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["subdepartment", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["subdepartment", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -5118,8 +5118,8 @@ class UploadBrandView(APIView):
                 Brand.objects.bulk_create(
                     objs,
                     update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["type", "name", "is_hidden", "on_hold", "hold_date"],
+                    unique_fields=["type", "name"],
+                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
                 )
         except Exception as e:
             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
