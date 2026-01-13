@@ -51,7 +51,7 @@ class WalletToWalletTransfer(APIView):
                     raise serializers.ValidationError("Insufficient balance.")
                 
                 # accept money request
-                request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("RequestMoney", "ACCEPTED")
+                request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "ACCEPTED")
                 money_request_obj.current_status = request_money_status_obj
                 money_request_obj.save()
                 money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=summary)
@@ -109,7 +109,7 @@ class WalletToWalletTransfer(APIView):
                 transaction_obj.current_status = status_success
                 transaction_obj.save()
                 
-                request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("RequestMoney", "PAID")
+                request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "PAID")
                 money_request_obj.current_status = request_money_status_obj
                 money_request_obj.transaction = transaction_obj
                 money_request_obj.save()
@@ -119,7 +119,7 @@ class WalletToWalletTransfer(APIView):
             return Response({"message": "Transaction successfully completed."}, status=status.HTTP_200_OK)
                     
         except Exception as e:
-            request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("RequestMoney", "FAILED")
+            request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "FAILED")
             money_request_obj.current_status = request_money_status_obj
             money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=str(e))
             
