@@ -8,6 +8,7 @@ from django.db.models import Q
 from .utils import *
 from .serializers import *
 from .models import *
+from django.db.models import Exists, OuterRef
 # Create your views here.
 
 
@@ -318,6 +319,29 @@ class GetWalletMemberInfo(APIView):
         return Response(output_data, status=status.HTTP_200_OK)
 
 
+class GetUserBasicInfoByContactNo(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        contact_no = request.query_params.get('contact_no', '').strip()
+        if not contact_no:
+            return Response({"error": "Query paramter 'contact_no' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # normalize number (remove spaces, +, -)
+        contact_no = ''.join(filter(str.isdigit, contact_no))
+
+        wallet_member_subquery = WalletMember.objects.filter(
+            user=OuterRef('pk')
+        )
+
+        users = CustomUser.objects.annotate(
+            has_wallet=Exists(wallet_member_subquery)
+        ).filter(has_wallet=True)
+
+        serializer = UserBasicInfoOutputSerializer(users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+
 class MoneyRequestView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -366,16 +390,19 @@ class MoneyRequestView(APIView):
         validated_data = serializer.validated_data
         
         request_wallet_member_obj = validated_data.get('request_wallet_member')
-        payer_wallet_member_obj = validated_data.get('payer_wallet_member')
+        payer_user_obj = validated_data.get('payer_user')
         amount = validated_data.get('amount')
         summary = validated_data.get('summary')
+        
+        wallet_member_obj = WalletMember.objects.filter(user=payer_user_obj)
+        if not wallet_member_obj.exists():
+            return Response({"error": "Invalid payer user"}, status=status.HTTP_400_BAD_REQUEST)
         
         status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "REQUESTED")
         money_request_obj = MoneyRequest.objects.create(
             request_user = logged_user,
             request_wallet_member = request_wallet_member_obj,
-            payer_wallet_member = payer_wallet_member_obj,
-            payer_user = payer_wallet_member_obj.user,
+            payer_user = payer_user_obj,
             amount = amount,
             summary = summary,
             current_status = status_obj

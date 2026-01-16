@@ -229,6 +229,39 @@ class WalletLedgerSerializer(serializers.ModelSerializer):
         return obj.transaction.amount
 
 
+class UserBasicInfoOutputSerializer(serializers.ModelSerializer):
+    country = serializers.SerializerMethodField()
+    state = serializers.SerializerMethodField()
+    district = serializers.SerializerMethodField()
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id',
+            'full_name',
+            'contact_no',
+            'country',
+            'state',
+            'district'
+        ]
+    
+    def get_country(self, obj):
+        residential = obj.current_residential_details
+        if residential and residential.country:
+            return residential.country.name
+        return None
+    
+    def get_state(self, obj):
+        residential = obj.current_residential_details
+        if residential and residential.state:
+            return residential.state.name
+        return None
+    
+    def get_district(self, obj):
+        residential = obj.current_residential_details
+        if residential and residential.district:
+            return residential.district.name
+        return None
+
 class WalletMemberInfoOutputSerializer(serializers.ModelSerializer):
     fullname = serializers.SerializerMethodField()
     # email = serializers.SerializerMethodField()
@@ -272,15 +305,15 @@ class WalletMemberInfoOutputSerializer(serializers.ModelSerializer):
 
 
 class MoneyRequestInputSerializer(serializers.ModelSerializer):
-    payer_wallet_member = serializers.PrimaryKeyRelatedField(
-        queryset=WalletMember.objects.filter(can_transfer=True),
+    payer_user = serializers.PrimaryKeyRelatedField(
+        queryset=CustomUser.objects.filter(is_verified=True),
         required=True
     )
     class Meta:
         model = MoneyRequest
         fields = [
             'request_wallet_member',
-            'payer_wallet_member',
+            'payer_user',
             'amount',
             'summary'
         ]
@@ -293,13 +326,13 @@ class MoneyRequestInputSerializer(serializers.ModelSerializer):
         
         logged_user = self.context.get('logged_user')
         request_wallet_member_obj = attrs.get('request_wallet_member')
-        payer_wallet_member_obj = attrs.get('payer_wallet_member')
+        payer_user_obj = attrs.get('payer_user')
         amount = attrs.get('amount')
         
         if request_wallet_member_obj.user != logged_user:
             raise serializers.ValidationError({"error": "You do not have access to this wallet."})
         
-        if payer_wallet_member_obj == request_wallet_member_obj:
+        if payer_user_obj == logged_user:
             raise serializers.ValidationError({"error": "You cannot request money from yourself."})
         
         # Check amount
