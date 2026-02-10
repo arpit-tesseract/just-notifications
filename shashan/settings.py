@@ -138,7 +138,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
@@ -160,3 +160,72 @@ STATIC_URL = "static/"
 
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_URL = "/media/"
+
+
+# Logger Setup
+# Ensure the 'logs' directory exists
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {name} {message}', # Changed {module} to {name} for better visibility
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'errors.log'),
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'level_file': {
+            'level': 'DEBUG',  # Catch EVERYTHING (Info, Debug, Error)
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'Levels.log'), # <--- Your specific file
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'Levels': {  # Matches logging.getLogger('Levels')
+            'handlers': ['level_file', 'console'], # Use the new handler
+            'level': 'DEBUG', # Set to DEBUG to capture everything
+            'propagate': False, # Stop it from duplicating into 'root' or 'django' logs
+        },
+    },
+    # === ADD THIS SECTION ===
+    # This catches ANY custom logger name you use (LevelSystem, DimensionManager, etc.)
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO', 
+    },
+}
+
+

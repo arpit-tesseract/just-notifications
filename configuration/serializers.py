@@ -6,6 +6,303 @@ from .utils import *
 from django.apps import apps
 from django.db import transaction
 from rest_framework.validators import UniqueTogetherValidator
+from django.db.models import F, Max
+
+import logging
+
+logger = logging.getLogger("Levels")
+
+class DimensionIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dimension
+        fields = ['id', 'name']
+
+
+class LevelSerializer(serializers.ModelSerializer):
+    child = serializers.PrimaryKeyRelatedField(
+        queryset=Level.objects.filter(is_archived=False),
+        required=False,
+        allow_null=True,
+        write_only=True
+    )
+    single_mode = serializers.BooleanField(required=False, allow_null=True, write_only=True)
+    class Meta:
+        model = Level
+        fields = [
+            'id',
+            'name',
+            'dimension',
+            'parent',
+            'child',
+            'sort_order',
+            'single_mode'
+        ]
+        extra_kwargs = {
+            'sort_order': {'allow_null': True}
+        }
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Level.objects.all(),
+                fields=['dimension', 'name'],
+                message="Level with this name already exists in the selected dimension."
+            )
+        ]
+        
+    # v4
+    def create(self, validated_data):
+        single_mode = validated_data.pop('single_mode', False)
+        
+        # We don't need 'child' input from user. We find it automatically.
+        validated_data.pop('child', None) 
+        
+        dimension = validated_data['dimension']
+        parent = validated_data.get('parent')
+        requested_order = validated_data.get('sort_order')
+        
+        try:
+            with transaction.atomic():
+                logger.info(f"Try to create level {validated_data.get('name')}: {validated_data}")
+                qs = Level.objects.select_for_update().filter(
+                    dimension=dimension,
+                    is_archived=False
+                )
+                
+                final_order = None
+                
+                if single_mode:
+                    if qs.exists():
+                        if requested_order is None:
+                            max_order = qs.aggregate(Max('sort_order'))['sort_order__max']
+                            final_order = (max_order or 0) + 1
+                        else:   
+                            final_order = requested_order
+                    else:
+                        final_order = 1
+                    
+                    qs.filter(sort_order__gte=final_order).update(sort_order=F('sort_order') + 1)
+                    validated_data['sort_order'] = final_order
+                    return super().create(validated_data)
+                
+                elif parent:
+                    final_order = parent.sort_order + 1
+                else:
+                    final_order = 1
+                
+                # GET THE CHILD
+                child = qs.filter(sort_order=final_order).first()
+                
+                # SHIFT EVERYONE DOWN
+                qs.filter(sort_order__gte=final_order).update(sort_order=F('sort_order') + 1)
+                
+                # CREATE THE NEW NODE
+                validated_data['sort_order'] = final_order
+                level_obj = super().create(validated_data)
+                
+                if child:
+                    child.parent = level_obj
+                    child.save(update_fields=['parent'])
+                
+                return level_obj
+        except Exception as e:
+            logger.exception("Failed to create level:", e)
+            raise serializers.ValidationError({"error": "Failed to create level."})
+    
+    def update(self, instance, validated_data):
+        try:
+            # Only update name
+            logger.info(f"Try to updating level {instance.name} to {validated_data.get('name')}")
+            instance.name = validated_data.get('name', instance.name)
+            instance.save(update_fields=['name'])
+        except Exception as e:
+            logger.exception("Failed to update level:", e)
+            raise serializers.ValidationError({"error": "Failed to update level."})
+        return instance
+    
+    # v3 Working
+    # def create(self, validated_data):
+    #     single_mode = validated_data.pop('single_mode', False)
+    #     child = validated_data.pop('child', None)
+    #     dimension = validated_data['dimension']
+    #     parent = validated_data.get('parent')
+    #     sort_order = validated_data.get('sort_order')
+
+    #     try:
+    #         with transaction.atomic():
+    #             # Always operate on the same set of rows
+    #             qs = Level.objects.select_for_update().filter(
+    #                 dimension=dimension,
+    #                 is_archived=False
+    #             )
+
+    #             # End position or Middle position
+    #             if single_mode:
+    #                 if qs.exists():
+    #                     if sort_order is None:
+    #                         sort_order = qs.aggregate(Max('sort_order'))['sort_order__max']
+    #                     qs.filter(sort_order__gte=sort_order).update(sort_order=F('sort_order') + 1)
+    #                 else:
+    #                     sort_order = 1
+                    
+    #                 validated_data['sort_order'] = sort_order
+    #                 return super().create(validated_data)
+                    
+    #             if parent:
+    #                 sort_order = parent.sort_order + 1
+
+    #             # Start position
+    #             if parent is None:
+    #                 sort_order = 1
+                    
+    #             qs.filter(sort_order__gte=sort_order).update(sort_order=F('sort_order') + 1)
+
+    #             validated_data['sort_order'] = sort_order
+    #             level_obj = super().create(validated_data)
+                
+    #             # Set parent of middle position or start position
+    #             if (parent is None and child) or  (parent and child):
+    #                 child.parent = level_obj
+    #                 child.save(update_fields=['parent'])
+                    
+    #         return level_obj
+        
+    #     except Exception as e:
+    #         raise ValidationError({"error": "Failed to create level."})
+            
+    # v2
+    # def create(self, validated_data):
+    #     child = validated_data.pop('child', None)
+
+    #     dimension = validated_data['dimension']
+    #     sort_order = validated_data.get('sort_order')
+
+    #     with transaction.atomic():
+    #         qs = Level.objects.select_for_update().filter(dimension=dimension, is_archived=False)
+
+    #         # normalize sort_order
+    #         if sort_order is None:
+    #             last = qs.aggregate(m=Max('sort_order'))['m'] or 0
+    #             sort_order = last + 1
+    #         else:
+    #             sort_order = max(1, int(sort_order))  # prevent 0/negative
+    #             qs.filter(sort_order__gte=sort_order).update(sort_order=F('sort_order') + 1)
+
+    #         validated_data['sort_order'] = sort_order
+    #         level_obj = super().create(validated_data)
+
+    #         if child:
+    #             # move child right after new level
+    #             child_new_order = sort_order + 1
+    #             qs.exclude(pk=child.pk).filter(sort_order__gte=child_new_order).update(sort_order=F('sort_order') + 1)
+    #             child.parent = level_obj
+    #             child.sort_order = child_new_order
+    #             child.save(update_fields=['parent', 'sort_order'])
+
+    #         return level_obj
+    
+    # v1
+    # def create(self, validated_data):
+    #     child = validated_data.pop('child', None)
+    #     parent = validated_data.get('parent')
+    #     dimension = validated_data.get('dimension')
+    #     sort_order = validated_data.get('sort_order')
+        
+    #     with transaction.atomic():
+    #         if parent and parent.sort_order is not None:
+    #             sort_order = parent.sort_order + 1
+                
+    #         if sort_order is None:
+    #             # If no order provided, put it at the end
+    #             last_level = Level.objects.filter(dimension=dimension).aggregate(models.Max('sort_order'))
+    #             sort_order = (last_level['sort_order__max'] or 0) + 1
+    #         else:
+    #             Level.objects.filter(
+    #                 dimension=dimension, 
+    #                 sort_order__gte=sort_order
+    #             ).update(sort_order=F('sort_order') + 1)
+                
+    #         validated_data['sort_order'] = sort_order
+    #         level_obj = super().create(validated_data)
+            
+    #         if child:
+    #             # make space right after the new level
+    #             child_new_order = level_obj.sort_order + 1
+
+    #             Level.objects.filter(
+    #                 dimension=dimension,
+    #                 is_archived=False,
+    #                 sort_order__gte=child_new_order
+    #             ).exclude(pk=child.pk).update(sort_order=F('sort_order') + 1)
+
+    #             child.parent = level_obj
+    #             child.sort_order = child_new_order
+    #             child.save(update_fields=['parent', 'sort_order'])
+                
+    #     return level_obj
+    
+        
+class LevelIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Level
+        fields = ['id', 'name']
+
+class LevelDetailSerializer(serializers.ModelSerializer):
+    parent = LevelIdNameSerializer()
+    dimension = DimensionIdNameSerializer()
+    class Meta:
+        model = Level
+        fields = ['id', 'name', 'parent', 'dimension', 'sort_order']
+
+
+
+class NodeIdNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Node
+        fields = ['id', 'name', 'code', 'parent']
+
+class NodeOutputSerializer(serializers.ModelSerializer):
+    dimension = DimensionIdNameSerializer()
+    level = LevelIdNameSerializer()
+    parent = NodeIdNameSerializer()
+    class Meta:
+        model = Node
+        fields = [
+            'id', 
+            'dimension',
+            'level', 
+            'parent', 
+            'name',
+            'code',
+            'is_hidden',
+            'on_hold',
+            'hold_date',
+            'created_at',
+            'updated_at' 
+        ]
+
+
+class NodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Node
+        exclude = ['created_at', 'updated_at']
+    
+    def validate(self, attrs):
+        instance = self.instance
+        
+        dimension = attrs.get('dimension')
+        level = attrs.get('level')
+        parent = attrs.get('parent')
+        
+        if parent:
+            if parent.dimension != dimension:
+                raise serializers.ValidationError({"parent": "Parent must be in the same dimension."})
+            
+            # if parent.level != level:
+            #     raise serializers.ValidationError({"parent": "Parent must be in the same level."})
+            
+            if instance and parent.id == instance.id:
+                raise serializers.ValidationError({"parent": "Parent cannot be self."})
+        
+        return attrs
 
 class RemoveTimestampMixin:
     """

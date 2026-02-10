@@ -3,118 +3,129 @@ from django.urls import path, include
 from .views import *
 
 router = DefaultRouter()
-router.register(r'globs', GlobViewSet)
-router.register(r'continents', ContinentViewSet)
-router.register(r'countries', CountryViewSet)
-router.register(r'states', StateViewSet)
-router.register(r'districts', DistrictViewSet)
-router.register(r'talukas', TalukaViewSet)
-router.register(r'cityvillages', CityVillageViewSet)
-router.register(r'wards', WardViewSet)
-router.register(r'societies', SocietyViewSet)
-router.register(r'blocks', BlockViewSet)
-router.register(r'floors', FloorViewSet)
-router.register(r'houses', HouseViewSet)
-router.register(r'rooms', RoomViewSet)
-
-router.register(r'roomflashes', RoomFlashViewSet)
-router.register(r'roomtypes', RoomTypeViewSet)
-
-router.register(r'religions', ReligionViewSet)
-router.register(r'sampradays', SampradayViewSet)
-router.register(r'panths', PanthViewSet)
-router.register(r'awasthas', AwasthaViewSet)
-router.register(r'varnas', VarnaViewSet)
-router.register(r'castes', CasteViewSet)
-router.register(r'subcastes', SubCasteViewSet)
-router.register(r'gotras', GotraViewSet)
-router.register(r'subgotras', SubGotraViewSet)
-router.register(r'kuls', KulViewSet)
-router.register(r'vanshes', VanshViewSet)
-router.register(r'families', FamilyViewSet)
-router.register(r'pidhis', PidhiViewSet)
-router.register(r'calibrations', CalibrationViewSet)
-
-router.register(r'sections', SectionViewSet)
-router.register(r'profclasses', ClassViewSet)
-router.register(r'categories', ProfCategoryViewSet)
-router.register(r'subcategories', ProfSubCategoryViewSet)
-router.register(r'sectors', SectorViewSet)
-router.register(r'subsectors', SubSectorViewSet)
-router.register(r'departments', DepartmentViewSet)
-router.register(r'subdepartments', SubDepartmentViewSet)
-router.register(r'types', TypeViewSet)
-router.register(r'brands', BrandViewSet)
-
-router.register(r'designations', DesignationViewSet)
+router.register(r'levels', LevelViewSet)
+router.register(r'nodes', NodeViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    
-    path('upload/globs/', UploadGlobsView.as_view()),
-    path('upload/continents/', UploadContinentsView.as_view()),
-    path('upload/countries/', UploadCountriesView.as_view()),
-    path('upload/states/', UploadStatesView.as_view()),
-    path('upload/districts/', UploadDistrictsView.as_view()),
-    path('upload/talukas/', UploadTalukasView.as_view()),
-    path('upload/cityvillages/', UploadCityVillagesView.as_view()),
-    path('upload/wards/', UploadWardsView.as_view()),
-    path('upload/societies/', UploadSocietiesView.as_view()),
-    path('upload/blocks/', UploadBlocksView.as_view()),
-    path('upload/floors/', UploadFloorsView.as_view()),
-    path('upload/houses/', UploadHousesView.as_view()),
-    path('upload/rooms/', UploadRoomsView.as_view()),
-    # path('upload/roomflashes/', UploadRoomFlashesView.as_view()),
-    path('upload/roomtypes/', UploadRoomTypesView.as_view()),
-    
-    path('upload/religions/', UploadReligionView.as_view()),
-    path('upload/sampradays/', UploadSampradayView.as_view()),
-    path('upload/panths/', UploadPanthView.as_view()),
-    path('upload/awasthas/', UploadAwasthaView.as_view()),
-    path('upload/varnas/', UploadVarnaView.as_view()),
-    path('upload/castes/', UploadCasteView.as_view()),
-    path('upload/subcastes/', UploadSubCasteView.as_view()),
-    path('upload/gotras/', UploadGotraView.as_view()),
-    path('upload/subgotras/', UploadSubGotraView.as_view()),
-    path('upload/kuls/', UploadKulView.as_view()),
-    path('upload/vanshes/', UploadVanshView.as_view()),
-    path('upload/families/', UploadFamilyView.as_view()),
-    # path('upload/pidhis/', UploadPidhiView.as_view()),
-    
-    path('upload/sections/', UploadSectionView.as_view()),
-    path('upload/profclasses/', UploadClassView.as_view()),
-    path('upload/categories/', UploadProfCategoryView.as_view()),
-    path('upload/subcategories/', UploadProfSubCategoryView.as_view()),
-    path('upload/sectors/', UploadSectorView.as_view()),
-    path('upload/subsectors/', UploadSubSectorView.as_view()),
-    path('upload/departments/', UploadDepartmentView.as_view()),
-    path('upload/subdepartments/', UploadSubDepartmentView.as_view()),
-    path('upload/types/', UploadTypeView.as_view()),
-    path('upload/brands/', UploadBrandView.as_view()),
-
-    path('download-sample-file/', DownloadSampleFile.as_view(), name="download_sample_file"),
-    
-    path("models/", ModelNameView.as_view(), name="get_models"),
-    path("model-access-rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
-    path("model-access-rules/<int:user_id>/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
-    
-    path("residential_search/", ResidentialSearchView.as_view(), name="search_residential"),
-    path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
-    path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
-    path("product-search/", ProductSearchView.as_view(), name="product_search"),
-    
-    path("designation-lst/", DesignationListView.as_view(), name="designation_lst"),
-    
-    path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
-    path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
-    path("brand-lst/", BrandListView.as_view(), name="brand_lst"),
-    path("product-lst/", ProductListView.as_view(), name="product_lst"),
-    path("calibration-lst/", CalibrationListView.as_view(), name="calibration_lst"),
-    
-    path("ward-flashes/", WardFlashView.as_view(), name="ward_flashes"),
-    path("society-flashes/", SocietyFlashView.as_view(), name="society_flashes"),
-    path("block-flashes/", BlockFlashView.as_view(), name="block_flashes"),
-    path("floor-flashes/", FloorFlashView.as_view(), name="floor_flashes"),
-    path("house-flashes/", HouseFlashView.as_view(), name="house_flashes"),
-    path("room-flashes/", RoomFlashView.as_view(), name="room_flashes"),
+    path('level-lst/', LevelListView.as_view()),
+    path('dimension-lst/', DimensionListView.as_view()),
 ]
+
+
+# router = DefaultRouter()
+# router.register(r'globs', GlobViewSet)
+# router.register(r'continents', ContinentViewSet)
+# router.register(r'countries', CountryViewSet)
+# router.register(r'states', StateViewSet)
+# router.register(r'districts', DistrictViewSet)
+# router.register(r'talukas', TalukaViewSet)
+# router.register(r'cityvillages', CityVillageViewSet)
+# router.register(r'wards', WardViewSet)
+# router.register(r'societies', SocietyViewSet)
+# router.register(r'blocks', BlockViewSet)
+# router.register(r'floors', FloorViewSet)
+# router.register(r'houses', HouseViewSet)
+# router.register(r'rooms', RoomViewSet)
+
+# router.register(r'roomflashes', RoomFlashViewSet)
+# router.register(r'roomtypes', RoomTypeViewSet)
+
+# router.register(r'religions', ReligionViewSet)
+# router.register(r'sampradays', SampradayViewSet)
+# router.register(r'panths', PanthViewSet)
+# router.register(r'awasthas', AwasthaViewSet)
+# router.register(r'varnas', VarnaViewSet)
+# router.register(r'castes', CasteViewSet)
+# router.register(r'subcastes', SubCasteViewSet)
+# router.register(r'gotras', GotraViewSet)
+# router.register(r'subgotras', SubGotraViewSet)
+# router.register(r'kuls', KulViewSet)
+# router.register(r'vanshes', VanshViewSet)
+# router.register(r'families', FamilyViewSet)
+# router.register(r'pidhis', PidhiViewSet)
+# router.register(r'calibrations', CalibrationViewSet)
+
+# router.register(r'sections', SectionViewSet)
+# router.register(r'profclasses', ClassViewSet)
+# router.register(r'categories', ProfCategoryViewSet)
+# router.register(r'subcategories', ProfSubCategoryViewSet)
+# router.register(r'sectors', SectorViewSet)
+# router.register(r'subsectors', SubSectorViewSet)
+# router.register(r'departments', DepartmentViewSet)
+# router.register(r'subdepartments', SubDepartmentViewSet)
+# router.register(r'types', TypeViewSet)
+# router.register(r'brands', BrandViewSet)
+
+# router.register(r'designations', DesignationViewSet)
+
+# urlpatterns = [
+#     path('', include(router.urls)),
+    
+#     path('upload/globs/', UploadGlobsView.as_view()),
+#     path('upload/continents/', UploadContinentsView.as_view()),
+#     path('upload/countries/', UploadCountriesView.as_view()),
+#     path('upload/states/', UploadStatesView.as_view()),
+#     path('upload/districts/', UploadDistrictsView.as_view()),
+#     path('upload/talukas/', UploadTalukasView.as_view()),
+#     path('upload/cityvillages/', UploadCityVillagesView.as_view()),
+#     path('upload/wards/', UploadWardsView.as_view()),
+#     path('upload/societies/', UploadSocietiesView.as_view()),
+#     path('upload/blocks/', UploadBlocksView.as_view()),
+#     path('upload/floors/', UploadFloorsView.as_view()),
+#     path('upload/houses/', UploadHousesView.as_view()),
+#     path('upload/rooms/', UploadRoomsView.as_view()),
+#     # path('upload/roomflashes/', UploadRoomFlashesView.as_view()),
+#     path('upload/roomtypes/', UploadRoomTypesView.as_view()),
+    
+#     path('upload/religions/', UploadReligionView.as_view()),
+#     path('upload/sampradays/', UploadSampradayView.as_view()),
+#     path('upload/panths/', UploadPanthView.as_view()),
+#     path('upload/awasthas/', UploadAwasthaView.as_view()),
+#     path('upload/varnas/', UploadVarnaView.as_view()),
+#     path('upload/castes/', UploadCasteView.as_view()),
+#     path('upload/subcastes/', UploadSubCasteView.as_view()),
+#     path('upload/gotras/', UploadGotraView.as_view()),
+#     path('upload/subgotras/', UploadSubGotraView.as_view()),
+#     path('upload/kuls/', UploadKulView.as_view()),
+#     path('upload/vanshes/', UploadVanshView.as_view()),
+#     path('upload/families/', UploadFamilyView.as_view()),
+#     # path('upload/pidhis/', UploadPidhiView.as_view()),
+    
+#     path('upload/sections/', UploadSectionView.as_view()),
+#     path('upload/profclasses/', UploadClassView.as_view()),
+#     path('upload/categories/', UploadProfCategoryView.as_view()),
+#     path('upload/subcategories/', UploadProfSubCategoryView.as_view()),
+#     path('upload/sectors/', UploadSectorView.as_view()),
+#     path('upload/subsectors/', UploadSubSectorView.as_view()),
+#     path('upload/departments/', UploadDepartmentView.as_view()),
+#     path('upload/subdepartments/', UploadSubDepartmentView.as_view()),
+#     path('upload/types/', UploadTypeView.as_view()),
+#     path('upload/brands/', UploadBrandView.as_view()),
+
+#     path('download-sample-file/', DownloadSampleFile.as_view(), name="download_sample_file"),
+    
+#     path("models/", ModelNameView.as_view(), name="get_models"),
+#     path("model-access-rules/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
+#     path("model-access-rules/<int:user_id>/", ModelAndAccessRulesView.as_view(), name="model_access_rules"),
+    
+#     path("residential_search/", ResidentialSearchView.as_view(), name="search_residential"),
+#     path("personal_search/", PersonalSearchView.as_view(), name="search_personal"),
+#     path("professional_search/", ProfessionalSearchView.as_view(), name="search_professional"),
+#     path("product-search/", ProductSearchView.as_view(), name="product_search"),
+    
+#     path("designation-lst/", DesignationListView.as_view(), name="designation_lst"),
+    
+#     path("room-flash-lst/", RoomFlashListView.as_view(), name="room_flash_lst"),
+#     path("room-type-lst/", RoomTypeListView.as_view(), name="room_type_lst"),
+#     path("brand-lst/", BrandListView.as_view(), name="brand_lst"),
+#     path("product-lst/", ProductListView.as_view(), name="product_lst"),
+#     path("calibration-lst/", CalibrationListView.as_view(), name="calibration_lst"),
+    
+#     path("ward-flashes/", WardFlashView.as_view(), name="ward_flashes"),
+#     path("society-flashes/", SocietyFlashView.as_view(), name="society_flashes"),
+#     path("block-flashes/", BlockFlashView.as_view(), name="block_flashes"),
+#     path("floor-flashes/", FloorFlashView.as_view(), name="floor_flashes"),
+#     path("house-flashes/", HouseFlashView.as_view(), name="house_flashes"),
+#     path("room-flashes/", RoomFlashView.as_view(), name="room_flashes"),
+# ]
