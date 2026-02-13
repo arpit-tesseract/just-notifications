@@ -13,8 +13,19 @@ class LevelAdmin(SimpleHistoryAdmin):
     list_filter = ['dimension', 'parent']
     sortable_by = ['sort_order']
     
-admin.site.register(Node)
-admin.site.register(NodeClosure)
+@admin.register(Node)
+class NodeAdmin(SimpleHistoryAdmin):
+    list_display = ['dimension', 'level', 'parent', 'name', 'code',  'created_at', 'updated_at']
+    list_filter = ['dimension', 'level', 'parent']
+
+@admin.register(NodeAlias)
+class NodeAliasAdmin(SimpleHistoryAdmin):
+    list_display = ['node', 'name']
+
+@admin.register(NodeClosure)
+class NodeClosureAdmin(admin.ModelAdmin):
+    list_display = ['ancestor', 'descendant', 'depth']
+    list_filter = ['ancestor__level', 'ancestor__level__dimension__name']
 
 # admin.site.register(SampleFile)
 # admin.site.register(Glob)

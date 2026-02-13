@@ -4,13 +4,13 @@ from shashan.utils.validators import get_object_by_name_or_error
 from user_management.models import CustomUser
 from .utils import *
 from django.apps import apps
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from rest_framework.validators import UniqueTogetherValidator
 from django.db.models import F, Max
 
 import logging
 
-logger = logging.getLogger("Levels")
+level_logger = logging.getLogger("Levels")
 
 class DimensionIdNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -35,7 +35,8 @@ class LevelSerializer(serializers.ModelSerializer):
             'parent',
             'child',
             'sort_order',
-            'single_mode'
+            'single_mode',
+            'code_digits',
         ]
         extra_kwargs = {
             'sort_order': {'allow_null': True}
@@ -61,7 +62,8 @@ class LevelSerializer(serializers.ModelSerializer):
         
         try:
             with transaction.atomic():
-                logger.info(f"Try to create level {validated_data.get('name')}: {validated_data}")
+                print(f"Try to create level {validated_data.get('name')}")
+                level_logger.info(f"Try to create level {validated_data.get('name')}: {validated_data}")
                 qs = Level.objects.select_for_update().filter(
                     dimension=dimension,
                     is_archived=False
@@ -70,6 +72,7 @@ class LevelSerializer(serializers.ModelSerializer):
                 final_order = None
                 
                 if single_mode:
+                    print("Is single mode.")
                     if qs.exists():
                         if requested_order is None:
                             max_order = qs.aggregate(Max('sort_order'))['sort_order__max']
@@ -84,12 +87,15 @@ class LevelSerializer(serializers.ModelSerializer):
                     return super().create(validated_data)
                 
                 elif parent:
+                    print("Has parent:", parent.name if parent else None)
                     final_order = parent.sort_order + 1
                 else:
+                    print("No parent.")
                     final_order = 1
                 
                 # GET THE CHILD
-                child = qs.filter(sort_order=final_order).first()
+                child = qs.filter(parent=parent).first()
+                print("Child:", child.name if child else None)
                 
                 # SHIFT EVERYONE DOWN
                 qs.filter(sort_order__gte=final_order).update(sort_order=F('sort_order') + 1)
@@ -104,17 +110,19 @@ class LevelSerializer(serializers.ModelSerializer):
                 
                 return level_obj
         except Exception as e:
-            logger.exception("Failed to create level:", e)
+            level_logger.exception("Failed to create level:", e)
             raise serializers.ValidationError({"error": "Failed to create level."})
     
     def update(self, instance, validated_data):
+        print("validated_data", validated_data)
         try:
             # Only update name
-            logger.info(f"Try to updating level {instance.name} to {validated_data.get('name')}")
+            level_logger.info(f"Try to updating level {instance.name} to {validated_data.get('name')}")
+            instance.code_digits = validated_data.get('code_digits', instance.code_digits)
             instance.name = validated_data.get('name', instance.name)
-            instance.save(update_fields=['name'])
+            instance.save(update_fields=['name', 'code_digits'])
         except Exception as e:
-            logger.exception("Failed to update level:", e)
+            level_logger.exception("Failed to update level:", e)
             raise serializers.ValidationError({"error": "Failed to update level."})
         return instance
     
@@ -238,12 +246,27 @@ class LevelSerializer(serializers.ModelSerializer):
     #             child.save(update_fields=['parent', 'sort_order'])
                 
     #     return level_obj
-    
-        
-class LevelIdNameSerializer(serializers.ModelSerializer):
+
+
+class LevelIdNameSerializerWithCustomColumn(serializers.ModelSerializer):
+    parent_name = serializers.SerializerMethodField()
     class Meta:
         model = Level
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'parent_name', 'code_digits', 'extra_fields_schema']
+    
+    def get_parent_name(self, obj):
+        if obj.parent:
+            return obj.parent.name
+        
+class LevelIdNameSerializer(serializers.ModelSerializer):
+    parent_name = serializers.SerializerMethodField()
+    class Meta:
+        model = Level
+        fields = ['id', 'name', 'parent_name']
+    
+    def get_parent_name(self, obj):
+        if obj.parent:
+            return obj.parent.name
 
 class LevelDetailSerializer(serializers.ModelSerializer):
     parent = LevelIdNameSerializer()
@@ -252,7 +275,193 @@ class LevelDetailSerializer(serializers.ModelSerializer):
         model = Level
         fields = ['id', 'name', 'parent', 'dimension', 'sort_order']
 
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
+import datetime
 
+class ColumnDefinitionSerializer(serializers.Serializer):
+    TYPE_CHOICES = [
+        ('char', 'Text (Short)'),
+        ('text', 'Text (Long)'),
+        ('int', 'Integer'),
+        ('positive_int', 'Positive Integer'),
+        # ('bigint', 'Big Integer'),
+        ('float', 'Decimal/Float'),
+        ('boolean', 'Boolean (Checkbox)'),
+        ('date', 'Date'),
+        ('datetime', 'Date & Time'),
+    ]
+
+    name = serializers.CharField(
+        required=True, 
+        max_length=50,
+        help_text="Column identifier (e.g., 'total_area', 'is_active'). Lowercase & underscores only."
+    )
+    
+    type = serializers.ChoiceField(choices=TYPE_CHOICES, required=True)
+    required = serializers.BooleanField(default=False)
+    
+    # 1. Add default_value field
+    default_value = serializers.CharField(
+        required=False, 
+        allow_blank=True, 
+        allow_null=True,
+        help_text="Optional default value"
+    )
+
+    max_length = serializers.IntegerField(
+        required=False, 
+        min_value=1,
+        help_text="Only applicable for 'char' type"
+    )
+    
+    def check_name_regex(self, value):
+        """
+        STRICT RULE: Lowercase letters and underscores only.
+        """
+        if not re.match(r'^[a-z_]+$', value):
+            raise serializers.ValidationError("Name must be lowercase and contain only lettersand underscores (e.g., 'total_area').")
+        return value
+    
+    def validate_name(self, value):
+        return self.check_name_regex(value)
+
+    def validate(self, data):
+        """
+        1. Validate max_length constraints.
+        2. Validate default_value type consistency.
+        """
+        field_type = data.get('type')
+        max_len = data.get('max_length')
+        default_val = data.get('default_value')
+        is_required = data.get('required', False)
+        
+        if is_required and (default_val is None or default_val == ""):
+             raise serializers.ValidationError({
+                 "default_value": "You cannot create a 'Required' column without a 'Default Value'."
+             })
+
+        # --- A. Validate Max Length Usage ---
+        if field_type != 'char' and max_len:
+            raise serializers.ValidationError({"max_length": "This field is only valid for type 'char'."})
+        
+        if field_type == 'char' and not max_len:
+             raise serializers.ValidationError({"max_length": "This field is required for type 'char'."})
+
+        # --- B. Validate Default Value ---
+        # Only validate if a default value is actually provided
+        if default_val is not None and default_val != "":
+            try:
+                self._validate_value_type(default_val, field_type, max_len)
+            except ValueError:
+                raise serializers.ValidationError({
+                    "default_value": f"The value '{default_val}' is not a valid {field_type}."
+                })
+            except ValidationError as e:
+                raise serializers.ValidationError({"default_value": e.detail})
+
+        return data
+
+    def _validate_value_type(self, value, field_type, max_len=None):
+        """
+        Helper method to check if 'value' matches 'field_type'
+        """
+        # 1. Integer Checks
+        if field_type in ['int', 'bigint']:
+            # Allow "-50" but reject "50.5" or "abc"
+            if not str(value).lstrip('-').isdigit():
+                 raise ValueError("The value must be an integer.")
+
+        elif field_type == 'positive_int':
+            if not str(value).isdigit(): # isdigit() rejects negative signs
+                 raise ValueError
+            if int(value) < 0:
+                raise ValueError("The value must be a positive integer.")
+
+        # 2. Float Check
+        elif field_type == 'float':
+            try:
+                float(value)
+            except ValueError:
+                raise ValueError("The value must be a float.")
+
+        # 3. Boolean Check
+        elif field_type == 'boolean':
+            # normalize to verify it looks like a boolean
+            if str(value).lower() not in ['true', '1', 'yes', 'on', 'false', '0', 'no', 'off']:
+                raise ValueError("The value must be a boolean.")
+
+        # 4. Date Checks
+        elif field_type == 'date':
+            # Format: YYYY-MM-DD
+            try:
+                datetime.datetime.strptime(str(value), '%Y-%m-%d')
+            except ValueError:
+                raise serializers.ValidationError("Date must be in YYYY-MM-DD format.")
+
+        elif field_type == 'datetime':
+            # Format: YYYY-MM-DD HH:MM:SS
+            try:
+                datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                # Try ISO format just in case
+                try:
+                    datetime.datetime.strptime(str(value), '%Y-%m-%dT%H:%M:%S')
+                except ValueError:
+                    raise serializers.ValidationError("DateTime must be in YYYY-MM-DD HH:MM:SS format.")
+
+        # 5. Char / Text Checks
+        elif field_type == 'char':
+            if max_len and len(str(value)) > max_len:
+                raise serializers.ValidationError(f"Default value cannot exceed {max_len} characters.")
+
+
+# serializers.py
+import re
+from rest_framework import serializers
+
+class CustomDefinationUpdateSerializer(serializers.Serializer):
+    # New Name (Optional - For Renaming)
+    new_name = serializers.CharField(
+        required=False,
+        max_length=50,
+        help_text="Provide ONLY if renaming."
+    )
+    
+    # Metadata Updates
+    required = serializers.BooleanField(default=False)
+    
+    default_value = serializers.CharField(
+        required=False, 
+        allow_blank=True, 
+        allow_null=True
+    )
+
+    max_length = serializers.IntegerField(
+        required=False, 
+        min_value=1,
+        help_text="Only applicable if the existing column is type 'char'"
+    )
+
+    def check_name_regex(self, value):
+        """
+        STRICT RULE: Lowercase letters, numbers, and underscores only.
+        """
+        if not re.match(r'^[a-z_]+$', value):
+            raise serializers.ValidationError("Name must be lowercase and contain only letters, numbers, and underscores.")
+        return value
+
+    def validate_new_name(self, value):
+        if value:
+            return self.check_name_regex(value)
+        return value
+
+
+class NodeAliasSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NodeAlias
+        fields = ['name', 'note']
+    
 
 class NodeIdNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -260,37 +469,102 @@ class NodeIdNameSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'code', 'parent']
 
 class NodeOutputSerializer(serializers.ModelSerializer):
-    dimension = DimensionIdNameSerializer()
-    level = LevelIdNameSerializer()
-    parent = NodeIdNameSerializer()
+    attributes = serializers.SerializerMethodField()
+    code = serializers.SerializerMethodField()
+    alias = serializers.SerializerMethodField()
     class Meta:
         model = Node
         fields = [
             'id', 
-            'dimension',
-            'level', 
-            'parent', 
             'name',
             'code',
             'is_hidden',
             'on_hold',
             'hold_date',
             'created_at',
-            'updated_at' 
+            'updated_at',
+            'attributes',
+            'alias', 
         ]
+    
+    def get_code(self, obj):
+        if not obj:
+            return None
+        
+        digits = obj.level.code_digits if obj.level else 2
+        
+        try:
+            current_code = str(obj.code).zfill(digits)
+        except:
+            current_code =  obj.code  
+        
+        #2. Get the total count from our annotation
+        # We use getattr because parent_total_count only exists if we annotate it
+        if obj.parent_id is None:
+            return current_code
+        
+        total_siblings = getattr(obj, 'parent_total_count', 0)
+        padded_total = str(total_siblings).zfill(digits)
+
+        # 3. Format as (current/total)
+        return f"{current_code}/{padded_total}" 
+    
+    def get_alias(self, obj):
+        return list(obj.aliases.values('name')) 
+    
+    
+    def get_attributes(self, obj):
+        """
+        Returns a list of attribute objects with metadata:
+        [
+            { "name": "total_area", "value": 500, "type": "int", "label": "Total Area" },
+            { "name": "is_active", "value": true, "type": "boolean", "label": "Active?" }
+        ]
+        """
+        # 1. Get stored data (or empty dict)
+        stored_data = obj.attributes or {}
+
+        # 2. Get Schema (Columns Definition)
+        # Check if level exists to avoid errors
+        if not obj.level or not obj.level.extra_fields_schema:
+            return []
+
+        # 3. Build the List
+        attribute_list = []
+        
+        for col_def in obj.level.extra_fields_schema:
+            name = col_def.get('name')
+            data_type = col_def.get('type')
+            default_value = col_def.get('default_value')
+            value = stored_data.get(name, default_value)
+            
+            attribute_list.append({
+                "name": name,        # The database key (e.g., "total_area")
+                "value": value,     # The actual data (e.g., 500 or None)
+                "type": data_type,  # The type (e.g., "int")
+            })
+
+        return attribute_list
+
 
 
 class NodeSerializer(serializers.ModelSerializer):
+    alias = NodeAliasSerializer(many=True, required=False, allow_null=True)
     class Meta:
         model = Node
         exclude = ['created_at', 'updated_at']
     
     def validate(self, attrs):
-        instance = self.instance
+        instance = getattr(self, 'instance', None)
         
         dimension = attrs.get('dimension')
+        # Fallback to existing dimension for partial updates
+        if dimension is None and instance:
+            dimension = instance.dimension
+            
         level = attrs.get('level')
         parent = attrs.get('parent')
+        attributes = attrs.get('attributes', {})
         
         if parent:
             if parent.dimension != dimension:
@@ -302,7 +576,82 @@ class NodeSerializer(serializers.ModelSerializer):
             if instance and parent.id == instance.id:
                 raise serializers.ValidationError({"parent": "Parent cannot be self."})
         
+        if instance:
+            if not level: 
+                level = instance.level
+            if not attributes: 
+                # If user didn't send attributes, assume they want to keep existing ones
+                # OR validation might skip if attributes aren't touched. 
+                # Ideally, merge them or validate the new partial data.
+                attributes = instance.attributes or {}
+        
+        # STRICT SCHEMA VALIDATION 
+        # ---------------------------------------------------------
+        if level and attributes:
+            # A. Get allowed keys from Level Schema
+            schema = level.extra_fields_schema or []
+            allowed_keys = {col.get('name') for col in schema}
+            
+            # B. Get incoming keys
+            incoming_keys = set(attributes.keys())
+            
+            # C. Find 'Junk' keys (Incoming - Allowed)
+            unknown_keys = incoming_keys - allowed_keys
+            
+            if unknown_keys:
+                print("Unknown keys:", unknown_keys)
+                raise serializers.ValidationError({
+                    "attributes": f"Invalid custom columns detected: {list(unknown_keys)}. Allowed columns: {list(allowed_keys)}"
+                })
+        # ---------------------------------------------------------
+        
+        # 2. Create a temporary Node instance to run validation logic
+        # We don't save this, we just use it to run the .clean() logic
+        temp_node = Node(level=level, attributes=attributes)
+        
+        try:
+            # This calls the validate_attributes() method we wrote in models.py
+            temp_node.validate_attributes()
+        except ValidationError as e:
+            # Convert Django Error to DRF Error
+            # e.message usually contains the specific string we raised
+            raise serializers.ValidationError({"attributes": e.messages})
+        
         return attrs
+
+    def create(self, validated_data):
+        alias_data = validated_data.pop('alias', [])
+        try:
+            with transaction.atomic():
+                node = super().create(validated_data)
+                
+                # create alias
+                if alias_data:
+                    for alias in alias_data:
+                        NodeAlias.objects.create(node=node, **alias)
+        except Exception as e:
+            raise ValidationError({"error": "Error creating node: "})
+                
+        return node
+
+    def update(self, instance, validated_data):
+        alias_data = validated_data.pop('alias', [])
+        instance = super().update(instance, validated_data)
+        
+        if alias_data:
+            incoming_name = [alias['name'] for alias in alias_data]
+            # delete alias where name not in incoming
+            NodeAlias.objects.filter(node=instance).exclude(name__in=incoming_name).delete()
+            
+            # update or create alias
+            for alias in alias_data:
+                NodeAlias.objects.update_or_create(
+                        node=instance,
+                        name=alias.get('name'),
+                        defaults={}
+                    )
+                
+        return instance
 
 class RemoveTimestampMixin:
     """

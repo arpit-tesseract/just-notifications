@@ -164,6 +164,7 @@ class Level(models.Model):
     name = models.CharField(max_length=100, validators=[tech_key_validator])
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     sort_order = models.PositiveIntegerField(default=1)
+    code_digits = models.PositiveIntegerField(default=2)
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -235,7 +236,11 @@ class Node(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    history = HistoricalRecords()
+    
     class Meta:
+        # unique_together = ('dimension', 'level', 'code')
+        unique_together = ('parent', 'level', 'code')
         indexes = [
             models.Index(fields=["dimension", "level"]),
             models.Index(fields=["dimension", "parent"]),
@@ -256,74 +261,114 @@ class Node(models.Model):
             self.on_hold = False
             
         super().save(*args, **kwargs)
+
     
     def clean(self):
+        """
+        Django's standard validation hook. 
+        We call our custom validator here.
+        """
         super().clean()
         self.validate_attributes()
 
     def validate_attributes(self):
         """
-        Ensures the JSON data matches the types defined in the Level schema.
+        Validates 'attributes' JSON against 'level.extra_fields_schema'.
         """
         if not self.level:
             return
 
+        # 1. Get Schema (Columns Definition)
         schema = self.level.extra_fields_schema or []
+        
+        # 2. Get Data (User Input)
         data = self.attributes or {}
 
         for field_def in schema:
-            key = field_def.get('key')
+            name = field_def.get('name')
             field_type = field_def.get('type')
             is_required = field_def.get('required', False)
-            label = field_def.get('label', key)
+            max_len = field_def.get('max_length') # Custom constraint for char
+
+            # Fetch value from JSON
+            value = data.get(name)
+
+            # --- A. Check Required ---
+            # If value is missing/empty and field is required -> Error
+            if value in [None, ""] and is_required:
+                raise ValidationError({'attributes': f"The field '{name}' is required."})
             
-            value = data.get(key)
-
-            # 1. Check Required
-            if is_required and value in [None, ""]:
-                raise ValidationError(f"Attribute '{label}' is required.")
-
-            # If empty and not required, skip validation
+            # If value is missing and NOT required -> Allow it (it stays Null/None)
             if value in [None, ""]:
                 continue
 
-            # 2. Type Validation
+            # --- B. Type Validation ---
             try:
-                if field_type == 'int':
-                    if not isinstance(value, int):
-                        # Try converting string "10" to int 10
-                        value = int(value) 
-                
+                # 1. Char (String with Limit)
+                if field_type == 'char':
+                    if not isinstance(value, str):
+                        raise ValidationError(f"'{name}' must be a text string.")
+                    
+                    # Enforce Max Length if defined in schema
+                    if max_len and isinstance(max_len, int):
+                        if len(value) > max_len:
+                            raise ValidationError(f"'{name}' cannot exceed {max_len} characters.")
+
+                # 2. Text (Unlimited String)
+                elif field_type == 'text':
+                    if not isinstance(value, str):
+                        raise ValidationError(f"'{name}' must be a text string.")
+
+                # 3. Integers (int, bigint, positive_int)
+                elif field_type in ['int', 'bigint']:
+                    # Allow string inputs like "123" but ensure they are numbers
+                    if not str(value).lstrip('-').isdigit():
+                         raise ValueError
+                    int(value) # Test conversion
+
                 elif field_type == 'positive_int':
-                    value = int(value)
-                    if value < 0:
-                        raise ValidationError(f"'{label}' must be a positive integer.")
+                    if not str(value).isdigit():
+                         raise ValueError
+                    if int(value) < 0:
+                        raise ValueError
 
+                # 4. Float
                 elif field_type == 'float':
-                    value = float(value)
+                    float(value)
 
+                # 5. Boolean
                 elif field_type == 'boolean':
-                    if not isinstance(value, bool):
-                        if str(value).lower() in ['true', '1', 'yes']:
-                            value = True
-                        elif str(value).lower() in ['false', '0', 'no']:
-                            value = False
-                        else:
-                            raise ValueError
+                    if str(value).lower() not in ['true', '1', 'yes', 'on', 'false', '0', 'no', 'off']:
+                        raise ValueError
 
+                # 6. Date / DateTime
                 elif field_type == 'date':
-                    # Fixed: Used datetime.datetime correctly
                     datetime.datetime.strptime(str(value), '%Y-%m-%d')
 
                 elif field_type == 'datetime':
-                    # Fixed: Used datetime.datetime correctly
+                     # Try strictly ISO format first, fallback if needed
                     datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
 
             except (ValueError, TypeError):
-                raise ValidationError(f"Attribute '{label}' must be of type {field_type}. Got: {value}")
+                raise ValidationError(f"The value '{value}' for '{name}' is invalid. Expected type: {field_type}.")
+    
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
+
+class NodeAlias(models.Model):
+    node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="aliases")
+    name = models.CharField(max_length=255)
+    note = models.TextField(null=True, blank=True)
+    
+    history = HistoricalRecords()
+    
+    class Meta:
+        unique_together = (("node", "name"),)
+        ordering = ["node", "name"]
+    def __str__(self):
+        return f"{self.node.name} -> {self.name}"
 
 class NodeClosure(models.Model):
     dimension = models.ForeignKey(Dimension, on_delete=models.CASCADE)

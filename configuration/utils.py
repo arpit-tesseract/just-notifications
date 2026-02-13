@@ -3,6 +3,7 @@ from configuration.models import ModelAccess, ModelName, Designation
 from django.db.models import Q, ForeignKey
 from django.utils import timezone
 import re
+import datetime
 
 # def get_two_degit(num):
 #     return str(num).zfill(2)
@@ -193,3 +194,70 @@ def get_designation_obj_by_name(desingation_name):
         return None
     except Exception as e:
         return None
+
+
+def parse_bool(v: str) -> bool:
+    value = (v or "").strip().lower()
+    if value in ["true", "t", "1", "yes", "y"]:
+        return True
+    elif value in ["false", "f", "0", "no", "n"]:
+        return False
+    else:
+        raise ValueError(f"Invalid boolean value: {value}")
+
+
+def cast_value_by_type(value:str, field_type:str):
+    value = (value or "").strip()
+    if value == "":
+        return None
+    
+    if field_type in ["char", "text"]:
+        return value, "icontains"
+    
+    if field_type in ["int", "bigint"]:
+        if not value.lsstrip('-').isdigit():
+            raise ValueError("The value must be an integer.")
+        return int(value), "exact"
+    
+    if field_type == "positive_int":
+        if not value.isdigit():
+            raise ValueError("The value must be a positive integer.")
+        val = int(value)
+        if val < 0:
+            raise ValueError("The value must be a positive integer.")
+        return val, "exact"
+    
+    if field_type == ["float"]:
+        try:
+            val = float(value)
+        except ValueError:
+            raise ValueError("The value must be a float.")
+        
+        return val, "exact"
+    
+    if field_type == "date":
+        # stored as string "YYYY-MM-DD" usually, but exact still works
+        try:
+            datetime.datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("The value must be a date.")
+        
+        return value, "exact"
+
+    
+    if field_type == "date_time":
+        try:
+            datetime.datetime.strptime(value, "%y-%m_%d %H%M%S")
+        except ValueError:
+            raise ValueError("The value must be a datetime.")
+    
+    if field_type == "boolean":
+        if value in ["true", "t", "1", "yes", "y"]:
+            return True, "exact"
+        elif value in ["false", "f", "0", "no", "n"]:
+            return False, "exact"
+        else:
+            raise ValueError(f"Invalid boolean value: {value}")
+        
+    
+    return value, "exact"

@@ -10,6 +10,9 @@ urlpatterns = [
     path('', include(router.urls)),
     path('level-lst/', LevelListView.as_view()),
     path('dimension-lst/', DimensionListView.as_view()),
+    
+    path('levels/<int:pk>/custom-columns/', CustomColumnView.as_view()),
+    path("search-nodes/", NodeSearchAPIView.as_view(), name="search_nodes"),
 ]
 
 
