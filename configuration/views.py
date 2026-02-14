@@ -437,14 +437,31 @@ class NodeSearchAPIView(APIView):
             
             # --- HIERARCHY VALIDATION ---
             is_valid = True
-            for req_level, req_name in parent_filters.items():
-                if req_level not in my_path:
-                    # Special case: If the user filters by "Country" and we ARE the Country, check self.
-                    # But usually parent filters are strictly ancestors.
-                    is_valid = False 
-                    continue
+            # for req_level, req_name in parent_filters.items():
+            #     if req_level not in my_path:
+            #         # Special case: If the user filters by "Country" and we ARE the Country, check self.
+            #         # But usually parent filters are strictly ancestors.
+            #         is_valid = False 
+            #         continue
                 
-                ancestor_node = my_path[req_level]
+            #     ancestor_node = my_path[req_level]
+            #     if ancestor_node.name.lower() != req_name.lower():
+            #         is_valid = False
+            #         break
+            for req_level, req_name in parent_filters.items():
+                req_name = str(req_name).strip()
+                if not req_name:
+                    continue  # ignore empty filters
+
+                ancestor_node = my_path.get(req_level)
+
+                if not ancestor_node:
+                    # allow missing Zone for old data
+                    if req_level.lower() == "zone":
+                        continue
+                    is_valid = False
+                    break
+
                 if ancestor_node.name.lower() != req_name.lower():
                     is_valid = False
                     break
