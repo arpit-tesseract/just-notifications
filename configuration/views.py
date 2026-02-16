@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -37,7 +38,6 @@ class LevelViewSet(viewsets.ModelViewSet):
                 level_logger.info(f"Try to delete(archived) level {instance.name}")
                 qs = Level.objects.select_for_update().filter(
                     dimension=instance.dimension,
-                    is_archived=False
                 )
                 
                 # update children
@@ -50,12 +50,11 @@ class LevelViewSet(viewsets.ModelViewSet):
                 qs.filter(sort_order__gt=instance.sort_order).update(sort_order=F('sort_order') - 1)
 
                 # ACTUAL DELETE
-                instance.is_archived = True
-                instance.save(update_fields=['is_archived'])
+                instance.soft_delete(user=self.request.user)
                 
         except Exception as e:
             level_logger.exception("Failed to delete level:", e)
-            raise ValidationError({"error": "Failed to delete level. Please try again."})
+            raise ValidationError({"error": "Failed to delete. Please try again."})
                 
         # return super().perform_destroy(instance)
 
@@ -69,7 +68,6 @@ class LevelListView(APIView):
         
         levels = Level.objects.filter(
             dimension_id=dimension_id,
-            is_archived=False
         )
         serializer = LevelIdNameSerializerWithCustomColumn(levels, many=True)
         return Response(serializer.data)
@@ -87,6 +85,13 @@ class NodeViewSet(viewsets.ModelViewSet):
             return NodeSerializer
         return NodeIdNameSerializer
     
+    def perform_destroy(self, instance):
+        try:
+            instance.soft_delete(user=self.request.user)
+        except Exception as e:
+            raise ValidationError({"error": "Failed to delete. Please try again."})
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
     def list(self, request, *args, **kwargs):
         dimension = request.query_params.get("dimension", "").strip()
@@ -103,7 +108,6 @@ class NodeViewSet(viewsets.ModelViewSet):
         queryset = Node.objects.filter(
             dimension_id=int(dimension),
             level_id=int(level),
-            level__is_archived=False
         ).annotate(
             # This calculates the count of nodes having the same parent_id 
             # and same level_id across the entire table
@@ -188,7 +192,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                 # Apply filter
                 queryset = queryset.filter(**{filter_key: value})
         
-        print("queryset:", queryset)
+        # print("queryset:", queryset)
 
         # 2. Apply Pagination (Get only 10 records)
         page = self.paginate_queryset(queryset)
@@ -218,6 +222,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                 for c in closures:
                     level_name = c.ancestor.level.name
                     grouped_paths[c.descendant_id][level_name] = {
+                        "id": c.ancestor.id,
                         "name": c.ancestor.name,
                         "code": c.ancestor.code
                     }
@@ -340,9 +345,417 @@ class NodeViewSet(viewsets.ModelViewSet):
                 "updated_ids": [r['id'] for r in results],
             }, status=status.HTTP_200_OK
         )
-                        
+        
+    
+    # In views.py, inside NodeViewSet class
+
+    @action(detail=False, methods=['post'], url_path='merge-to-existing')
+    def merge_nodes(self, request):
+        """
+        Merge multiple source nodes into one target node.
+        1. Source Node names become Aliases for Target.
+        2. Children of Source are moved to Target.
+        3. Source Nodes are deleted.
+        """
+        serializer = NodeMergeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        target = serializer.validated_data['target_node']
+        sources = serializer.validated_data['source_nodes']
+
+        # Counters for response
+        moved_children_count = 0
+        created_aliases_count = 0
+
+        try:
+            with transaction.atomic():
+                for source in sources:
+                    # A. Create Alias
+                    # We save the old name so users searching for "Old Country" find "New Country"
+                    if not NodeAlias.objects.filter(node=target, name=source.name).exists():
+                        NodeAlias.objects.create(
+                            node=target, 
+                            name=source.name, 
+                            note=f"Merged from Node ID {source.id}"
+                        )
+                        created_aliases_count += 1
                     
+                    # Also move existing aliases from Source to Target
+                    existing_aliases = NodeAlias.objects.filter(node=source)
+                    for alias in existing_aliases:
+                        alias.node = target
+                        alias.save()
+
+                    # B. Reparent Children (CRITICAL STEP)
+                    # We must iterate and .save() to trigger the 'manage_node_closure' signal
+                    # found in your signals.py. If we do .update(), the closure table won't fix itself.
+                    children = Node.objects.filter(parent=source)
+                    for child in children:
+                        child.parent = target
+                        child.save() # This triggers signals.py to fix ancestry
+                        moved_children_count += 1
+
+                    # C. Delete Source
+                    # (Optional: You could set is_archived=True instead of deleting)
+                    source.soft_delete(user=request.user)
+
+            return Response({
+                "message": "Merge successful",
+                "target_node": {
+                    "id": target.id,
+                    "name": target.name
+                },
+                "summary": {
+                    "merged_nodes_count": len(sources),
+                    "children_moved": moved_children_count,
+                    "aliases_created": created_aliases_count
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            level_logger.exception("Merge failed:", str(e))
+            return Response(
+                {
+                    "error": "Failed to merge nodes",
+                    "details": str(e)
+                }, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    
+    @action(detail=False, methods=['post'], url_path='merge-to-new')
+    def merge_to_new_node(self, request):
+        serializer = NodeMergeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Everything is already validated and fetched!
+        data = serializer.validated_data
+        
+        new_name = data['name']
+        new_code = data.get('code')
+        dimension = data['dimension'] # Actual Dimension Object
+        level = data['level']         # Actual Level Object
+        parent = data.get('parent')   # Actual Node Object (or None)
+        attributes = data.get('attributes', {})
+        sources = data['source_nodes_objects'] # The list of Node objects we stored in validate()
+
+        try:
+            with transaction.atomic():
+                # 1. Create New Node
+                new_node = Node.objects.create(
+                    name=new_name,
+                    code=new_code,
+                    dimension=dimension,
+                    level=level,
+                    parent=parent,
+                    attributes=attributes
+                )
+
+                # 2. Merge Logic (Aliases & Children)
+                summary = {"children_moved": 0, "aliases_created": 0}
+
+                for source in sources:
+                    # Create Alias (History)
+                    if not NodeAlias.objects.filter(node=new_node, name=source.name).exists():
+                        NodeAlias.objects.create(
+                            node=new_node, 
+                            name=source.name, 
+                            note=f"Merged from deleted Node ID {source.id}"
+                        )
+                        summary['aliases_created'] += 1
+                    
+                    # Move existing aliases
+                    NodeAlias.objects.filter(node=source).update(node=new_node)
+
+                    # Move Children
+                    children = Node.objects.filter(parent=source)
+                    for child in children:
+                        child.parent = new_node
+                        child.save() # Trigger Signal
+                        summary['children_moved'] += 1
+
+                    # Delete Source
+                    source.soft_delete(user=request.user)
+
+            return Response({
+                "message": "Merge successful",
+                "new_node": {
+                    "id": new_node.id, 
+                    "name": new_node.name,
+                    "attributes": new_node.attributes
+                },
+                "summary": summary
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+    @action(detail=False, methods=['get'], url_path='export-selected')
+    def export_selected(self, request):
+        level_id = request.query_params.get('level_id')
+        ids_param = request.query_params.get('ids')
+        
+        target_level = None
+        nodes = []
+
+        # Case A: Export Selected Nodes by ID
+        if ids_param:
+            try:
+                ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return Response({"error": "Invalid ids format"}, status=400)
             
+            if not ids:
+                return Response({"error": "No ids provided"}, status=400)
+                
+            nodes = Node.objects.filter(id__in=ids).select_related('level', 'parent', 'parent__parent', 'parent__parent__parent')
+            
+            if not nodes.exists():
+                return Response({"error": "No nodes found for the provided IDs"}, status=404)
+            
+            # Validation: Ensure all nodes are from the SAME level
+            first_node = nodes.first()
+            target_level = first_node.level
+            
+            if nodes.exclude(level=target_level).exists():
+                return Response({
+                    "error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."
+                }, status=400)
+
+        # Case B: Export All Nodes by Level ID
+        elif level_id:
+            target_level = get_object_or_404(Level, pk=level_id)
+            nodes = Node.objects.filter(level=target_level).select_related('parent', 'parent__parent', 'parent__parent__parent')
+        
+        else:
+            return Response({"error": "Either 'level_id' or 'ids' parameter is required"}, status=400)
+
+        # ---------------------------------------------------------
+        # GENERATE EXCEL DATA (Same logic as before)
+        # ---------------------------------------------------------
+        
+        dimension = target_level.dimension
+        
+        # 1. Identify Ancestor Levels (for columns like Glob | Continent | ...)
+        ancestor_levels = Level.objects.filter(
+            dimension=dimension,
+            sort_order__lt=target_level.sort_order
+        ).order_by('sort_order')
+        
+        ancestor_col_names = [lvl.name for lvl in ancestor_levels]
+
+        data = []
+        for node in nodes:
+            row = {}
+            
+            # A. Fill Ancestor Columns (Walk up the parent chain)
+            curr = node
+            for ancestor_name in reversed(ancestor_col_names):
+                if curr.parent:
+                    row[ancestor_name] = curr.parent.name
+                    curr = curr.parent
+                else:
+                    row[ancestor_name] = "" 
+
+            # B. Fill Self Data
+            row[target_level.name] = node.name
+            row['Code'] = node.code
+            row['Hidden'] = node.is_hidden
+            row['On Hold'] = node.on_hold
+            row['Hold Date'] = node.hold_date
+
+            # C. Fill Custom Columns (Attributes)
+            attributes = node.attributes or {}
+            for key, value in attributes.items():
+                row[key] = value
+                
+            data.append(row)
+
+        if not data:
+            return Response({"message": "No data to export"}, status=200)
+
+        # 2. Build DataFrame
+        df = pd.DataFrame(data)
+        
+        # 3. Order Columns
+        custom_schema_keys = [col['name'] for col in (target_level.extra_fields_schema or [])]
+        final_columns = ancestor_col_names + [target_level.name, 'Code', 'Hidden', 'On Hold'] + custom_schema_keys
+        
+        # Ensure all columns exist (fill missing with None)
+        for col in final_columns:
+            if col not in df.columns:
+                df[col] = None
+
+        df = df[final_columns]
+
+        # 4. Return Response
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        filename = f"{target_level.name}_Export.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name=target_level.name)
+            
+        return response
+                    
+    
+    @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser])
+    def upload_excel(self, request):
+        """
+        Uploads an Excel file formatted exactly like the 'export-selected' output.
+        Required params: file, level_id
+        """
+        file_obj = request.FILES.get('file')
+        level_id = request.query_params.get('level_id')
+
+        if not file_obj:
+            return Response({"error": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not level_id:
+            return Response({"error": "level_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_level = Level.objects.get(pk=level_id)
+        except Level.DoesNotExist:
+            return Response({"error": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 1. Read Excel
+        try:
+            df = pd.read_excel(file_obj)
+            # Clean up: Replace NaN with None, strip whitespace from headers
+            df = df.where(pd.notnull(df), None)
+            df.columns = df.columns.str.strip()
+        except Exception as e:
+            return Response({"error": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Identify Critical Columns
+        # The main name column is the Level Name itself (e.g., "Country")
+        node_name_col = target_level.name 
+        
+        if node_name_col not in df.columns:
+            return Response({
+                "error": f"Invalid format. Missing required column '{node_name_col}' (Level Name)."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Identify Parent Column (Immediate parent level name)
+        # We only need the immediate parent to link the hierarchy.
+        parent_level = target_level.parent
+        parent_col_name = parent_level.name if parent_level else None
+        
+        # Identify Custom Attribute Columns
+        schema = target_level.extra_fields_schema or []
+        custom_keys = [col['name'] for col in schema]
+
+        stats = {"created": 0, "updated": 0, "errors": []}
+
+        # 3. Process Rows
+        try:
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    row_index = index + 2  # Excel row number (1-based + header)
+                    row_data = row.to_dict()
+                    
+                    # A. Get Name
+                    name = row_data.get(node_name_col)
+                    if not name:
+                        continue # Skip empty rows
+
+                    # B. Resolve Parent
+                    parent_node = None
+                    if parent_col_name:
+                        parent_name_val = row_data.get(parent_col_name)
+                        if parent_name_val:
+                            # Look up parent. 
+                            # Note: Strictly, we should filter by the grandparent to be safe, 
+                            # but usually Name+Level is unique enough in a context.
+                            parent_node = Node.objects.filter(
+                                name=parent_name_val,
+                                level=parent_level,
+                                dimension=target_level.dimension
+                            ).first()
+                            
+                            if not parent_node:
+                                stats["errors"].append(f"Row {row_index}: Parent '{parent_name_val}' ({parent_col_name}) not found.")
+                                continue
+                        else:
+                            # If parent is required by hierarchy but missing in file
+                            stats["errors"].append(f"Row {row_index}: Missing parent value for '{parent_col_name}'.")
+                            continue
+
+                    # C. Extract Standard Fields
+                    # Maps Excel headers 'Code', 'Hidden', 'On Hold' to model fields
+                    code_val = row_data.get('Code')
+                    is_hidden_val = bool(row_data.get('Hidden', False))
+                    on_hold_val = bool(row_data.get('On Hold', False))
+                    
+                    # Handle Date format for 'Hold Date'
+                    hold_date_val = row_data.get('Hold Date')
+                    if hold_date_val and pd.isna(hold_date_val):
+                        hold_date_val = None
+                    
+                    # D. Extract Custom Attributes
+                    attributes = {}
+                    for key in custom_keys:
+                        if key in row_data:
+                            val = row_data[key]
+                            attributes[key] = val
+
+                    # E. Update or Create
+                    # We identify the node by Name + Parent (or just Name if root)
+                    lookup_kwargs = {
+                        "name": name,
+                        "level": target_level,
+                        "parent": parent_node
+                    }
+                    
+                    defaults = {
+                        "code": code_val,
+                        "is_hidden": is_hidden_val,
+                        "on_hold": on_hold_val,
+                        "hold_date": hold_date_val,
+                        "attributes": attributes,
+                        "dimension": target_level.dimension
+                    }
+
+                    node, created = Node.objects.update_or_create(
+                        **lookup_kwargs,
+                        defaults=defaults
+                    )
+
+                    # F. Validate Custom Attributes (Model Logic)
+                    try:
+                        node.validate_attributes()
+                        node.save()
+                    except ValidationError as e:
+                        # Re-raise to trigger atomic rollback or catch to log error
+                        # Here we catch to log, but since we are in atomic, 
+                        # you might want to raise Exception to rollback the whole batch.
+                        raise Exception(f"Row {row_index} Validation Error: {e.messages}")
+
+                    if created:
+                        stats["created"] += 1
+                    else:
+                        stats["updated"] += 1
+
+        except Exception as e:
+            # If any strict error occurs (like Validation), the atomic block rolls back everything.
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # If we collected specific row errors (like missing parents) without raising Exception
+        if stats["errors"]:
+            return Response({
+                "message": "Upload completed with errors.",
+                "stats": stats
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "message": "Upload successful.",
+            "stats": {
+                "created": stats["created"],
+                "updated": stats["updated"]
+            }
+        }, status=status.HTTP_200_OK)
         
         
 
@@ -525,7 +938,7 @@ class CustomColumnView(APIView):
     
     def post(self, request, pk):
         level = get_object_or_404(Level, pk=pk)
-        input_serializer = ColumnDefinitionSerializer(data=request.data)
+        input_serializer = ColumnDefinitionSerializer(data=request.data, context={"level": level})
         input_serializer.is_valid(raise_exception=True)
         
         new_col = input_serializer.validated_data
@@ -617,6 +1030,7 @@ class CustomColumnView(APIView):
         if existing_type == 'char':
             existing_max = existing_col.get('max_length')
             new_max_length = validated_data.get('max_length', existing_max)
+            print("new_max_length", new_max_length)
             
         if new_required and not existing_required:
             if new_default_value in [None, ""]:

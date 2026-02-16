@@ -20,7 +20,7 @@ class DimensionIdNameSerializer(serializers.ModelSerializer):
 
 class LevelSerializer(serializers.ModelSerializer):
     child = serializers.PrimaryKeyRelatedField(
-        queryset=Level.objects.filter(is_archived=False),
+        queryset=Level.objects.all(),
         required=False,
         allow_null=True,
         write_only=True
@@ -66,7 +66,6 @@ class LevelSerializer(serializers.ModelSerializer):
                 level_logger.info(f"Try to create level {validated_data.get('name')}: {validated_data}")
                 qs = Level.objects.select_for_update().filter(
                     dimension=dimension,
-                    is_archived=False
                 )
                 
                 final_order = None
@@ -334,9 +333,14 @@ class ColumnDefinitionSerializer(serializers.Serializer):
         field_type = data.get('type')
         max_len = data.get('max_length')
         default_val = data.get('default_value')
-        is_required = data.get('required', False)
+        is_required = data.get('required', False)  
         
-        if is_required and (default_val is None or default_val == ""):
+        level_obj = self.context.get('level_obj')
+        node_count = 0
+        if level_obj:
+            node_count = Node.objects.filter(level=level_obj).count()
+             
+        if is_required and node_count > 0 and (default_val is None or default_val == ""):
              raise serializers.ValidationError({
                  "default_value": "You cannot create a 'Required' column without a 'Default Value'."
              })
@@ -579,44 +583,47 @@ class NodeSerializer(serializers.ModelSerializer):
         if instance:
             if not level: 
                 level = instance.level
-            if not attributes: 
-                # If user didn't send attributes, assume they want to keep existing ones
-                # OR validation might skip if attributes aren't touched. 
-                # Ideally, merge them or validate the new partial data.
+                
+            # To this:
+            if 'attributes' not in attrs:
                 attributes = instance.attributes or {}
         
         # STRICT SCHEMA VALIDATION 
         # ---------------------------------------------------------
-        if level and attributes:
+        if level:
             # A. Get allowed keys from Level Schema
             schema = level.extra_fields_schema or []
-            allowed_keys = {col.get('name') for col in schema}
             
-            # B. Get incoming keys
-            incoming_keys = set(attributes.keys())
+            if attributes:
+                allowed_keys = {col.get('name') for col in schema}
+                
+                # B. Get incoming keys
+                incoming_keys = set(attributes.keys())
+                
+                # C. Find 'Junk' keys (Incoming - Allowed)
+                unknown_keys = incoming_keys - allowed_keys
+                
+                if unknown_keys:
+                    print("Unknown keys:", unknown_keys)
+                    raise serializers.ValidationError({
+                        "attributes": f"Invalid custom columns detected: {list(unknown_keys)}. Allowed columns: {list(allowed_keys)}"
+                    })
+            # ---------------------------------------------------------
             
-            # C. Find 'Junk' keys (Incoming - Allowed)
-            unknown_keys = incoming_keys - allowed_keys
+            # 2. Create a temporary Node instance to run validation logic
+            # We don't save this, we just use it to run the .clean() logic
+            temp_node = Node(level=level, attributes=attributes)
             
-            if unknown_keys:
-                print("Unknown keys:", unknown_keys)
-                raise serializers.ValidationError({
-                    "attributes": f"Invalid custom columns detected: {list(unknown_keys)}. Allowed columns: {list(allowed_keys)}"
-                })
-        # ---------------------------------------------------------
+            try:
+                # This calls the validate_attributes() method we wrote in models.py
+                temp_node.validate_attributes()
+            except ValidationError as e:
+                # Convert Django Error to DRF Error
+                if hasattr(e, 'messages'):
+                     raise serializers.ValidationError({"attributes": e.messages})
+                raise serializers.ValidationError({"attributes": e.messages})
         
-        # 2. Create a temporary Node instance to run validation logic
-        # We don't save this, we just use it to run the .clean() logic
-        temp_node = Node(level=level, attributes=attributes)
-        
-        try:
-            # This calls the validate_attributes() method we wrote in models.py
-            temp_node.validate_attributes()
-        except ValidationError as e:
-            # Convert Django Error to DRF Error
-            # e.message usually contains the specific string we raised
-            raise serializers.ValidationError({"attributes": e.messages})
-        
+        attrs['attributes'] = attributes
         return attrs
 
     def create(self, validated_data):
@@ -2720,3 +2727,141 @@ class DesignationGetSerializer(RemoveTimestampMixin, serializers.ModelSerializer
         fields = "__all__"
 
 
+class NodeMergeSerializer(serializers.Serializer):
+    target_node_id = serializers.IntegerField(
+        help_text="The ID of the node to keep (the winner)."
+    )
+    source_node_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text="List of IDs to merge INTO the target (these will be deleted)."
+    )
+
+    def validate(self, data):
+        target_id = data['target_node_id']
+        source_ids = data['source_node_ids']
+
+        # 1. Check if Target exists
+        try:
+            target = Node.objects.get(id=target_id)
+        except Node.DoesNotExist:
+            raise serializers.ValidationError({"target_node_id": "Target node not found."})
+
+        # 2. Validate Sources
+        sources = Node.objects.filter(id__in=source_ids)
+        if len(sources) != len(set(source_ids)):
+            raise serializers.ValidationError({"source_node_ids": "One or more source nodes not found."})
+
+        for source in sources:
+            # Prevent merging into self
+            if source.id == target.id:
+                raise serializers.ValidationError("Cannot merge a node into itself.")
+            
+            # Prevent merging different Levels (e.g., Cannot merge State into Country)
+            if source.level_id != target.level_id:
+                raise serializers.ValidationError(
+                    f"Level mismatch: Cannot merge '{source.level.name}' into '{target.level.name}'."
+                )
+                
+            # Prevent merging different Dimensions
+            if source.dimension_id != target.dimension_id:
+                raise serializers.ValidationError("Dimension mismatch: Cannot merge nodes from different dimensions.")
+
+        data['target_node'] = target
+        data['source_nodes'] = sources
+        return data
+
+
+class NodeMergeCreateSerializer(serializers.Serializer):
+    source_node_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False
+    )
+    dimension = serializers.PrimaryKeyRelatedField(
+        queryset=Dimension.objects.filter(is_active=True)
+    )
+    level = serializers.PrimaryKeyRelatedField(
+        queryset=Level.objects.all()
+    )
+    
+    name = serializers.CharField(max_length=255)
+    code = serializers.IntegerField()
+    
+    parent = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all())
+    
+    # 1. Add Attributes Field
+    attributes = serializers.JSONField(
+        required=False, 
+        default=dict,
+        help_text="Custom column values for the new node."
+    )
+    
+    def validate(self, attrs):
+        # Get the actual objects (DRF fetched them for us)
+        target_dimension = attrs.get('dimension')
+        target_level = attrs.get('level')
+        parent = attrs.get('parent')
+        source_ids = attrs.get('source_node_ids')
+        attributes = attrs.get('attributes')
+        
+        # --- A. Validate Parent ---
+        if parent:
+            if parent.dimension != target_dimension:
+                raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
+
+        # --- B. Validate Source Nodes (The Logic You Requested) ---
+        # Fetch all unique source nodes
+        source_nodes = Node.objects.filter(id__in=source_ids)
+        
+        # 1. Check if all IDs exist
+        if len(source_nodes) != len(set(source_ids)):
+            raise serializers.ValidationError({"source_node_ids": "One or more source nodes do not exist."})
+
+        # 2. Check Consistency
+        for source in source_nodes:
+            # Check Dimension
+            if source.dimension != target_dimension:
+                raise serializers.ValidationError({
+                    "source_node_ids": f"Node '{source.name}' (ID: {source.id}) does not belong to the selected dimension."
+                })
+            
+            # Check Level
+            if source.level != target_level:
+                raise serializers.ValidationError({
+                    "source_node_ids": f"Node '{source.name}' (ID: {source.id}) does not belong to the selected level."
+                })
+
+        # Store the node objects in attrs so the View doesn't have to query them again
+        attrs['source_nodes_objects'] = source_nodes
+        
+        
+        if target_level:
+            # 1. Get Schema
+            schema = target_level.extra_fields_schema or []
+            
+            # 2. Check for Junk Keys (Only if attributes were actually sent)
+            if attributes:
+                allowed_keys = {col.get('name') for col in schema}
+                incoming_keys = set(attributes.keys())
+                unknown_keys = incoming_keys - allowed_keys
+                
+                if unknown_keys:
+                    raise serializers.ValidationError({
+                        "attributes": f"Invalid custom columns detected: {list(unknown_keys)}. Allowed columns: {list(allowed_keys)}"
+                    })
+            
+            # 3. Check for REQUIRED fields and TYPES
+            # We create a temporary Node instance to run the model's strict validation
+            temp_node = Node(level=target_level, attributes=attributes)
+            
+            try:
+                # This checks for missing required fields AND invalid types
+                temp_node.validate_attributes()
+            except ValidationError as e:
+                # Convert Django Error to DRF Error
+                if hasattr(e, 'messages'):
+                     raise serializers.ValidationError({"attributes": e.messages})
+                raise serializers.ValidationError({"attributes": str(e)})
+        
+        # Update attrs with the safe dictionary in case it was None
+        attrs['attributes'] = attributes
+        return attrs
