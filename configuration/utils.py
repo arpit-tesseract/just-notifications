@@ -206,58 +206,136 @@ def parse_bool(v: str) -> bool:
         raise ValueError(f"Invalid boolean value: {value}")
 
 
-def cast_value_by_type(value:str, field_type:str):
-    value = (value or "").strip()
+import datetime
+
+def cast_value_by_type(value, field_type):
+    """
+    Parses the string value from the request into the correct Python type
+    and returns the appropriate Django lookup (e.g., 'exact', 'icontains').
+    """
+    if value is None:
+        return None, "exact"
+        
+    value = str(value).strip()
+    
+    # Empty string handling depends on your needs. 
+    # Usually for filters, empty string might be ignored or treated as None.
     if value == "":
-        return None
+        return None, "exact"
     
+    # 1. Text Fields
     if field_type in ["char", "text"]:
-        return value, "icontains"
+        return value, "icontains"  # Use partial match for text
     
+    # 2. Integers
     if field_type in ["int", "bigint"]:
-        if not value.lsstrip('-').isdigit():
-            raise ValueError("The value must be an integer.")
+        # Fix: lstrip (not lsstrip)
+        if not value.lstrip('-').isdigit():
+            raise ValueError(f"Value '{value}' must be an integer.")
         return int(value), "exact"
     
+    # 3. Positive Integer
     if field_type == "positive_int":
         if not value.isdigit():
-            raise ValueError("The value must be a positive integer.")
-        val = int(value)
-        if val < 0:
-            raise ValueError("The value must be a positive integer.")
-        return val, "exact"
+            raise ValueError(f"Value '{value}' must be a positive integer.")
+        return int(value), "exact"
     
-    if field_type == ["float"]:
+    # 4. Float
+    # Fix: compare to string "float", not list ["float"]
+    if field_type == "float":
         try:
             val = float(value)
         except ValueError:
-            raise ValueError("The value must be a float.")
-        
+            raise ValueError(f"Value '{value}' must be a float.")
         return val, "exact"
     
+    # 5. Date
     if field_type == "date":
-        # stored as string "YYYY-MM-DD" usually, but exact still works
         try:
+            # Validate format, but return string for Django to handle
             datetime.datetime.strptime(value, "%Y-%m-%d")
         except ValueError:
-            raise ValueError("The value must be a date.")
-        
+            raise ValueError(f"Value '{value}' must be a YYYY-MM-DD date.")
         return value, "exact"
 
-    
-    if field_type == "date_time":
+    # 6. DateTime
+    if field_type == "datetime":
         try:
-            datetime.datetime.strptime(value, "%y-%m_%d %H%M%S")
+            # Standard ISO format is safer
+            datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            raise ValueError("The value must be a datetime.")
+            # Try ISO with T
+            try:
+                datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                raise ValueError(f"Value '{value}' must be a YYYY-MM-DD HH:MM:SS datetime.")
+        return value, "exact"
     
+    # 7. Boolean
     if field_type == "boolean":
-        if value in ["true", "t", "1", "yes", "y"]:
+        lower_val = value.lower()
+        if lower_val in ["true", "t", "1", "yes", "y", "on"]:
             return True, "exact"
-        elif value in ["false", "f", "0", "no", "n"]:
+        elif lower_val in ["false", "f", "0", "no", "n", "off"]:
             return False, "exact"
         else:
             raise ValueError(f"Invalid boolean value: {value}")
+            
+    # Default fallback
+    return value, "exact"
+
+# def cast_value_by_type(value:str, field_type:str):
+#     value = (value or "").strip()
+#     if value == "":
+#         return None
+    
+#     if field_type in ["char", "text"]:
+#         return value, "icontains"
+    
+#     if field_type in ["int", "bigint"]:
+#         if not value.lsstrip('-').isdigit():
+#             raise ValueError("The value must be an integer.")
+#         return int(value), "exact"
+    
+#     if field_type == "positive_int":
+#         if not value.isdigit():
+#             raise ValueError("The value must be a positive integer.")
+#         val = int(value)
+#         if val < 0:
+#             raise ValueError("The value must be a positive integer.")
+#         return val, "exact"
+    
+#     if field_type == ["float"]:
+#         try:
+#             val = float(value)
+#         except ValueError:
+#             raise ValueError("The value must be a float.")
+        
+#         return val, "exact"
+    
+#     if field_type == "date":
+#         # stored as string "YYYY-MM-DD" usually, but exact still works
+#         try:
+#             datetime.datetime.strptime(value, "%Y-%m-%d")
+#         except ValueError:
+#             raise ValueError("The value must be a date.")
+        
+#         return value, "exact"
+
+    
+#     if field_type == "date_time":
+#         try:
+#             datetime.datetime.strptime(value, "%y-%m_%d %H%M%S")
+#         except ValueError:
+#             raise ValueError("The value must be a datetime.")
+    
+#     if field_type == "boolean":
+#         if value in ["true", "t", "1", "yes", "y"]:
+#             return True, "exact"
+#         elif value in ["false", "f", "0", "no", "n"]:
+#             return False, "exact"
+#         else:
+#             raise ValueError(f"Invalid boolean value: {value}")
         
     
-    return value, "exact"
+#     return value, "exact"

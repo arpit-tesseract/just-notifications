@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.db.models import F
 from simple_history.models import HistoricalRecords
+from django.db.models import Q
 
 def get_two_digit(num):
     return str(num).zfill(2)
@@ -186,7 +187,7 @@ import datetime
 TECH_KEY_REGEX = r"^[A-Z][a-zA-Z0-9 ]*$"
 tech_key_validator = RegexValidator(
     TECH_KEY_REGEX,
-    message="Name must start with an uppercase letter and can contain letters, numbers, and spaces.",
+    message="Name must start with an uppercase letter and can not contain letters, numbers, and spaces.",
 )
 
 class Dimension(models.Model):
@@ -210,7 +211,7 @@ class Level(SoftDeleteMixin):
     updated_at = models.DateTimeField(auto_now=True)
     
     # Structure: [{"key": "slug", "label": "Name", "type": "date", "required": True}]
-    extra_fields_schema = models.JSONField(default=list, blank=True)
+    extra_fields_schema = models.JSONField(default=list, blank=True, null=True)
     
     history = HistoricalRecords()
     
@@ -282,11 +283,25 @@ class Node(SoftDeleteMixin):
     
     class Meta:
         # unique_together = ('dimension', 'level', 'code')
-        unique_together = ('parent', 'level', 'code')
         indexes = [
             models.Index(fields=["dimension", "level"]),
             models.Index(fields=["dimension", "parent"]),
             models.Index(fields=["dimension", "name"]),
+        ]
+        constraints = [
+            # 1. Constraint for Child Nodes (parent is NOT NULL)
+            models.UniqueConstraint(
+                fields=['parent', 'level', 'code'], 
+                name='unique_code_per_parent_level',
+                condition=Q(parent__isnull=False)
+            ),
+            # 2. Constraint for Global/Top Nodes (parent IS NULL)
+            # This ensures only one 'Code 1' exists at the top of a Level/Dimension
+            models.UniqueConstraint(
+                fields=['dimension', 'level', 'code'], 
+                name='unique_code_at_top_level',
+                condition=Q(parent__isnull=True)
+            )
         ]
     
     def save(self, *args, **kwargs):

@@ -117,22 +117,14 @@ class NodeViewSet(viewsets.ModelViewSet):
             )
         ).order_by('id') # Ordering is mandatory for pagination!
         
-        # 4. Apply Name Search
-        # if search_query:
-        #     queryset = queryset.filter(
-        #         Q(name__icontains=search_query) |      # Match Name
-        #         Q(code__icontains=search_query) |      # Match Code (Optional)
-        #         Q(attributes__icontains=search_query)  # Match ANY text inside attributes JSON
-        #     )
-
+        # 2. Apply Name/Code Search
         if search_query:
             queryset = queryset.filter(
                 Q(name__icontains=search_query) |      # Match Name
                 Q(code__icontains=search_query)       # Match Code (Optional)
             )        
-        # ==============================================
-        # Filteration logic
-        # ==============================================
+
+        # 3. Standard Filters (Hidden / On Hold)
         is_hidden_param = request.query_params.get("is_hidden", "").strip()
         if is_hidden_param != "":
             is_hidden_bool = is_hidden_param.lower() == "true"
@@ -143,18 +135,16 @@ class NodeViewSet(viewsets.ModelViewSet):
             on_hold_bool = on_hold_param.lower() == "true"
             queryset = queryset.filter(on_hold=on_hold_bool)
             
+        # 4. Ancestor Filtering
         ancestor_ids_param = request.query_params.get("ancestor_ids", "").strip()
         if ancestor_ids_param != "":
             try:
                 # Convert "1,5" -> [1, 5]
-                ancestor_ids_param = [int(x) for x in ancestor_ids_param.split(',') if x.strip().isdigit()]
+                ancestor_ids = [int(x) for x in ancestor_ids_param.split(',') if x.strip().isdigit()]
                 
-                if ancestor_ids_param:
-                    # Logic: We need nodes that descend from ALL selected ancestors.
-                    # Since it's a hierarchy, usually filtering by the 'deepest' ancestor (last one) 
-                    # is sufficient, but looping through all ensures 100% data integrity.
-                    for ancestor_id in ancestor_ids_param:
-                        # Use NodeClosure for efficient lookup (no recursive DB queries)
+                if ancestor_ids:
+                    for ancestor_id in ancestor_ids:
+                        # Use NodeClosure for efficient lookup
                         queryset = queryset.filter(
                             id__in=NodeClosure.objects.filter(
                                 ancestor_id=ancestor_id
@@ -163,38 +153,61 @@ class NodeViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass # Ignore invalid format
             
+        # ==============================================
+        # 5. Dynamic Attribute Filtering (The Fix)
+        # ==============================================
+        
+        # A. Get Schema for this level
         level_obj = Level.objects.filter(id=level).first()
-        allowed_custom_keys = []
-        if level_obj and level_obj.extra_fields_schema:
-            allowed_custom_keys = [col['name'] for col in level_obj.extra_fields_schema]
+        defined_schema = level_obj.extra_fields_schema if level_obj else []
         
-        # 2. Iterate over all query params
-        skip_keys = {"page", "dimension", "level", "search", "is_hidden", "on_hold", "ancestor_ids"}
-        for param, value in request.query_params.items():
-            if param in skip_keys: 
-                continue
-            
-            if param == "alias":
-                alias_value = value.strip()
-                if alias_value:
-                    queryset = queryset.filter(aliases__name__icontains=alias_value)
-            
-            print("param:", param, "value:", value)
-            value = value.strip()
-            if not value: continue
-            
-            # If the param matches a custom column name (e.g., 'color')
-            if param in allowed_custom_keys:
-                # Construct the JSON lookup: attributes -> color
-                # Use 'icontains' for text, 'exact' for booleans/numbers if preferred
-                filter_key = f"attributes__{param}__exact" 
-                
-                # Apply filter
-                queryset = queryset.filter(**{filter_key: value})
-        
-        # print("queryset:", queryset)
+        # Map schema for easy lookup: {'isgenz': {'type': 'boolean', ...}}
+        schema_map = {col['name']: col for col in defined_schema} 
 
-        # 2. Apply Pagination (Get only 10 records)
+        # B. Loop through request parameters
+        # We explicitly exclude standard params to avoid collisions
+        standard_params = ['dimension', 'level', 'search', 'page', 'page_size', 'is_hidden', 'on_hold', 'ancestor_ids']
+        
+        for param, raw_value in request.query_params.items():
+            if param in standard_params:
+                continue
+
+            # Check if this param is actually in your schema
+            if param in schema_map:
+                column_def = schema_map[param]
+                field_type = column_def.get('type', 'char')
+                default_val_raw = column_def.get('default_value')
+                
+                try:
+                    # 1. Cast the Request Value
+                    typed_value, lookup = cast_value_by_type(raw_value, field_type)
+                    if typed_value is None:
+                        continue
+
+                    # 2. Cast the Default Value
+                    typed_default, _ =  (default_val_raw, field_type)
+                    
+                    # 3. Check if user is searching for the default
+                    is_searching_default = (typed_default is not None) and (typed_value == typed_default)
+
+                    if is_searching_default:
+                        # LOGIC: Implicit Default (Missing Key) OR Explicit Default (Saved Value)
+                        queryset = queryset.filter(
+                            Q(**{f"attributes__{param}__{lookup}": typed_value}) | 
+                            ~Q(attributes__has_key=param)
+                        )
+                    else:
+                        # LOGIC: Standard search (Must exist and match)
+                        queryset = queryset.filter(**{f"attributes__{param}__{lookup}": typed_value})
+
+                except ValueError as e:
+                    # Handle invalid input format (e.g. user sent "abc" for an int field)
+                    print(f"Skipping filter for {param}: {e}")
+                    continue
+
+        # ==============================================
+        # 6. Pagination & Response Construction
+        # ==============================================
         page = self.paginate_queryset(queryset)
         
         if page is not None:
@@ -203,9 +216,11 @@ class NodeViewSet(viewsets.ModelViewSet):
             
             # Extract IDs for just this page
             node_map = {n['id']: n for n in node_data_list}
-            target_ids = node_map.keys()
+            target_ids = list(node_map.keys())
 
-            # 3. Fetch Paths (Closures) ONLY for these 10 items
+            # Fetch Paths (Closures) ONLY for these items
+            grouped_paths = defaultdict(dict)
+            
             if target_ids:
                 closures = NodeClosure.objects.filter(
                     descendant_id__in=target_ids
@@ -217,19 +232,20 @@ class NodeViewSet(viewsets.ModelViewSet):
                     '-depth' 
                 )
 
-                # 4. Build Path Dictionary
-                grouped_paths = defaultdict(dict)
                 for c in closures:
-                    level_name = c.ancestor.level.name
-                    grouped_paths[c.descendant_id][level_name] = {
-                        "id": c.ancestor.id,
-                        "name": c.ancestor.name,
-                        "code": c.ancestor.code
-                    }
+                    if c.ancestor.level: # Check just in case root has no level
+                        level_name = c.ancestor.level.name
+                        grouped_paths[c.descendant_id][level_name] = {
+                            "id": c.ancestor.id,
+                            "name": c.ancestor.name,
+                            "code": c.ancestor.code
+                        }
 
-            # 5. Combine & Return Paginated Response
+            # Combine & Return Paginated Response
             result = []
-            for nid, node_data in node_map.items():
+            # Iterate over the LIST to preserve order from node_data_list
+            for node_data in node_data_list:
+                nid = node_data['id']
                 result.append({
                     "node": node_data,
                     "path": grouped_paths.get(nid, {})
@@ -239,25 +255,39 @@ class NodeViewSet(viewsets.ModelViewSet):
 
         # Fallback if pagination is disabled
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data)    
     
     @action(detail=False, methods=['get'], url_path='bulk-edit-details')
     def get_bulk_edit_details(self, request):
-        ids_param = request.query_params.get('ids', "")
+        ids_param = request.query_params.get('ids', [])
+        all_ids = request.query_params.get('all_ids', False)
+        level_id = request.query_params.get('level_id', None)
+
         
-        if not ids_param:
-             return Response({"error": "ids parameter is required (e.g. ?ids=1,2)"}, status=status.HTTP_400_BAD_REQUEST)
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"error": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            nodes = Node.objects.filter(level_id=level_id)
+        
+        elif ids_param:
+            try:
+                ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return Response({"error": "Invalid ids format"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Convert "1,2,3" string to list of integers [1, 2, 3]
-        try:
-            ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
-        except ValueError:
-            return Response({"error": "Invalid ids format"}, status=status.HTTP_400_BAD_REQUEST)
+            if not ids:
+                return Response({"error": "No valid numeric ids provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not ids:
-            return Response({"error": "No valid numeric ids provided"}, status=status.HTTP_400_BAD_REQUEST)
-         
-        nodes = Node.objects.filter(id__in=ids)
+            nodes = Node.objects.filter(id__in=ids)
+
+        else:
+            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
+        
+        if not nodes.exists():
+            return Response({"error": "No valid nodes found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
         total_selected = nodes.count()
         
         if total_selected == 0:
@@ -281,8 +311,8 @@ class NodeViewSet(viewsets.ModelViewSet):
             # We exclude 'Self' (depth=0) usually, but for dropdowns it's fine to keep all
             level_name = row['ancestor__level__name']
             common_parents[level_name] = {
+                "id": row['ancestor_id'],
                 "name": row['ancestor__name'], 
-                "id": row['ancestor_id']
             }
         
         return Response(
@@ -294,18 +324,27 @@ class NodeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['put'], url_path='bulk-update')
     def bulk_update(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
-        all_ids = request.data.get('all_ids', [])
+        all_ids = request.data.get('all_ids', False)
+        level_id = request.data.get('level_id', None)
+
         payload = request.data.get('payload', {})
         
         if not payload:
             return Response({"error": "Payload is required"}, status=status.HTTP_400_BAD_REQUEST)
         
-        if all_ids not in ['true', 'True']:
-            if ids and not isinstance(ids, list):
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"error": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            nodes = Node.objects.filter(level_id=level_id)
+        
+        elif ids:
+            if not isinstance(ids, list):
                 return Response({"error": "Invalid 'ids' format"}, status=status.HTTP_400_BAD_REQUEST)
+            
             nodes = Node.objects.filter(id__in=ids)
         else:
-            nodes = Node.objects.all()   
+            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
         
         if not nodes.exists():
             return Response({"error": "No valid nodes found"}, status=status.HTTP_404_NOT_FOUND)
@@ -494,13 +533,25 @@ class NodeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='export-selected')
     def export_selected(self, request):
         level_id = request.query_params.get('level_id')
+        all_ids = request.query_params.get('all_ids', False)
         ids_param = request.query_params.get('ids')
         
         target_level = None
         nodes = []
 
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"error": "level_id is required"}, status=400)
+            
+            try:
+                target_level = Level.objects.get(id=level_id)
+            except Level.DoesNotExist:
+                return Response({"error": "Level not found"}, status=404)
+
+            nodes = Node.objects.filter(level_id=level_id).select_related('parent', 'parent__parent', 'parent__parent__parent')
+
         # Case A: Export Selected Nodes by ID
-        if ids_param:
+        elif ids_param:
             try:
                 ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
             except ValueError:
@@ -522,14 +573,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                 return Response({
                     "error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."
                 }, status=400)
-
-        # Case B: Export All Nodes by Level ID
-        elif level_id:
-            target_level = get_object_or_404(Level, pk=level_id)
-            nodes = Node.objects.filter(level=target_level).select_related('parent', 'parent__parent', 'parent__parent__parent')
         
         else:
-            return Response({"error": "Either 'level_id' or 'ids' parameter is required"}, status=400)
+            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
 
         # ---------------------------------------------------------
         # GENERATE EXCEL DATA (Same logic as before)
@@ -647,7 +693,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         schema = target_level.extra_fields_schema or []
         custom_keys = [col['name'] for col in schema]
 
-        stats = {"created": 0, "updated": 0, "errors": []}
+        summary = {"created": 0, "updated": 0, "errors": []}
 
         # 3. Process Rows
         try:
@@ -676,11 +722,11 @@ class NodeViewSet(viewsets.ModelViewSet):
                             ).first()
                             
                             if not parent_node:
-                                stats["errors"].append(f"Row {row_index}: Parent '{parent_name_val}' ({parent_col_name}) not found.")
+                                summary["errors"].append(f"Row {row_index}: Parent '{parent_name_val}' ({parent_col_name}) not found.")
                                 continue
                         else:
                             # If parent is required by hierarchy but missing in file
-                            stats["errors"].append(f"Row {row_index}: Missing parent value for '{parent_col_name}'.")
+                            summary["errors"].append(f"Row {row_index}: Missing parent value for '{parent_col_name}'.")
                             continue
 
                     # C. Extract Standard Fields
@@ -688,11 +734,45 @@ class NodeViewSet(viewsets.ModelViewSet):
                     code_val = row_data.get('Code')
                     is_hidden_val = bool(row_data.get('Hidden', False))
                     on_hold_val = bool(row_data.get('On Hold', False))
+
+                    if code_val is not None:
+                        collision_qs = Node.objects.filter(
+                            level=target_level,
+                            code=code_val,
+                            parent=parent_node
+                        )
+
+                        existing_node_with_code = collision_qs.first()
+    
+                        if existing_node_with_code and existing_node_with_code.name != name:
+                            raise Exception(
+                                f"Row {row_index}: Code '{code_val}' is already used by {target_level.name} '{existing_node_with_code.name}'. "
+                                f"Codes must be unique within this level."
+                            )
                     
                     # Handle Date format for 'Hold Date'
-                    hold_date_val = row_data.get('Hold Date')
-                    if hold_date_val and pd.isna(hold_date_val):
-                        hold_date_val = None
+                    # hold_date_val = row_data.get('Hold Date')
+                    # if hold_date_val and pd.isna(hold_date_val):
+                    #     hold_date_val = None
+
+                    # 1. Get the raw value
+                    raw_hold_date = row_data.get('Hold Date')
+                    hold_date_val = None
+
+                    # 2. Check if it has a value (isn't None or NaN)
+                    if raw_hold_date and not pd.isna(raw_hold_date):
+                        try:
+                            # Force conversion to datetime. 
+                            # dayfirst=True ensures 19-02-2026 is read as Feb 19th, not invalid month 19.
+                            dt_obj = pd.to_datetime(raw_hold_date, dayfirst=True)
+                            
+                            # Convert to Python date object (YYYY-MM-DD) for Django
+                            hold_date_val = dt_obj.date()
+                            
+                        except (ValueError, TypeError):
+                            # Optional: Log a warning or error if the date format is totally wrong
+                            print(f"Warning: Row {row_index} has invalid date '{raw_hold_date}'")
+                            hold_date_val = None
                     
                     # D. Extract Custom Attributes
                     attributes = {}
@@ -708,6 +788,8 @@ class NodeViewSet(viewsets.ModelViewSet):
                         "level": target_level,
                         "parent": parent_node
                     }
+
+                    print("Hold date:", hold_date_val)
                     
                     defaults = {
                         "code": code_val,
@@ -734,26 +816,26 @@ class NodeViewSet(viewsets.ModelViewSet):
                         raise Exception(f"Row {row_index} Validation Error: {e.messages}")
 
                     if created:
-                        stats["created"] += 1
+                        summary["created"] += 1
                     else:
-                        stats["updated"] += 1
+                        summary["updated"] += 1
 
         except Exception as e:
             # If any strict error occurs (like Validation), the atomic block rolls back everything.
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         # If we collected specific row errors (like missing parents) without raising Exception
-        if stats["errors"]:
+        if summary["errors"]:
             return Response({
                 "message": "Upload completed with errors.",
-                "stats": stats
+                "summary": summary
             }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "message": "Upload successful.",
-            "stats": {
-                "created": stats["created"],
-                "updated": stats["updated"]
+            "summary": {
+                "created": summary["created"],
+                "updated": summary["updated"]
             }
         }, status=status.HTTP_200_OK)
         
@@ -947,6 +1029,9 @@ class CustomColumnView(APIView):
         
         current_schema = level.extra_fields_schema or []
         
+        default_value = new_col.get("default_value")
+        if default_value:
+            pass
         
         if any([col['name'] == new_col['name'] for col in current_schema]):
             return Response({"detail": f"Column with name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1016,6 +1101,10 @@ class CustomColumnView(APIView):
         # Use new default if provided, otherwise keep existing
         # checking "if key in validated_data" allows clearing the default (setting to None)
         if 'default_value' in validated_data:
+            default_value = validated_data['default_value']
+            if existing_type == 'boolean' and (default_value == "" or default_value is None):
+                default_value = "false"
+
             new_default_value = validated_data['default_value']
         else:
             new_default_value = existing_col.get('default_value')
@@ -1041,7 +1130,7 @@ class CustomColumnView(APIView):
         
         # 5. Validate Consistency
         try:
-            self._validate_value_type(new_default_value, existing_type, new_max_length)
+            new_default_value = self._validate_value_type(new_default_value, existing_type, new_max_length)
         except (ValidationError, ValueError) as e: # FIX: Catch both error types
             # Unwrap the error message safely
             msg = e.detail[0] if isinstance(e, ValidationError) and isinstance(e.detail, list) else str(e)
@@ -1096,52 +1185,67 @@ class CustomColumnView(APIView):
         """
         Helper method to check if 'value' matches 'field_type'
         """
-        if value in [None, ""]:
-            return
-        
+        s_value = str(value)
+
         # 1. Integer Checks
         if field_type in ['int', 'bigint']:
-            if not str(value).lstrip('-').isdigit():
+            if not s_value.lstrip('-').isdigit():
                  raise ValueError("The value must be an integer.")
+            return int(s_value) # <--- RETURN INT
 
         elif field_type == 'positive_int':
-            if not str(value).isdigit(): 
-                 raise ValueError("The value must be a positive integer.")
-            if int(value) < 0:
+            if not s_value.isdigit():
+                 raise ValueError
+            val = int(s_value)
+            if val < 0:
                 raise ValueError("The value must be a positive integer.")
+            return val # <--- RETURN INT
 
         # 2. Float Check
         elif field_type == 'float':
             try:
-                float(value)
+                val = float(s_value)
+                return val # <--- RETURN FLOAT
             except ValueError:
                 raise ValueError("The value must be a float.")
 
         # 3. Boolean Check
         elif field_type == 'boolean':
-            if str(value).lower() not in ['true', '1', 'yes', 'on', 'false', '0', 'no', 'off']:
+            lower_val = s_value.lower()
+            if lower_val in ['true', '1', 'yes', 'on']:
+                return True # <--- RETURN TRUE (bool)
+            elif lower_val in ['false', '0', 'no', 'off']:
+                return False # <--- RETURN FALSE (bool)
+            else:
                 raise ValueError("The value must be a boolean.")
 
-        # 4. Date Checks
+        # 4. Date Checks (Keep as string for JSON, but ensure format)
         elif field_type == 'date':
             try:
-                datetime.datetime.strptime(str(value), '%Y-%m-%d')
+                datetime.datetime.strptime(s_value, '%Y-%m-%d')
+                return s_value # Return sanitized string
             except ValueError:
                 raise serializers.ValidationError("Date must be in YYYY-MM-DD format.")
 
         elif field_type == 'datetime':
             try:
-                datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
+                datetime.datetime.strptime(s_value, '%Y-%m-%d %H:%M:%S')
+                return s_value
             except ValueError:
                 try:
-                    datetime.datetime.strptime(str(value), '%Y-%m-%dT%H:%M:%S')
+                    # Allow T separator
+                    datetime.datetime.strptime(s_value, '%Y-%m-%dT%H:%M:%S')
+                    return s_value
                 except ValueError:
                     raise serializers.ValidationError("DateTime must be in YYYY-MM-DD HH:MM:SS format.")
 
-        # 5. Char Check
+        # 5. Char / Text Checks
         elif field_type == 'char':
-            if max_len and len(str(value)) > max_len:
+            if max_len and len(s_value) > max_len:
                 raise serializers.ValidationError(f"Default value cannot exceed {max_len} characters.")
+            return s_value
         
-        
-        
+        elif field_type == 'text':
+            return s_value
+
+        return s_value

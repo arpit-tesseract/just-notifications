@@ -7,6 +7,7 @@ from django.apps import apps
 from django.db import transaction, IntegrityError
 from rest_framework.validators import UniqueTogetherValidator
 from django.db.models import F, Max
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 import logging
 
@@ -354,9 +355,15 @@ class ColumnDefinitionSerializer(serializers.Serializer):
 
         # --- B. Validate Default Value ---
         # Only validate if a default value is actually provided
+
+        if field_type == "boolean":
+            if default_val is None or str(default_val).strip() == "":
+                default_val = "false"
+                data['default_value'] = "false"
+
         if default_val is not None and default_val != "":
             try:
-                self._validate_value_type(default_val, field_type, max_len)
+                data['default_value'] = self._validate_value_type(default_val, field_type, max_len)
             except ValueError:
                 raise serializers.ValidationError({
                     "default_value": f"The value '{default_val}' is not a valid {field_type}."
@@ -370,54 +377,70 @@ class ColumnDefinitionSerializer(serializers.Serializer):
         """
         Helper method to check if 'value' matches 'field_type'
         """
+        s_value = str(value)
+
         # 1. Integer Checks
         if field_type in ['int', 'bigint']:
-            # Allow "-50" but reject "50.5" or "abc"
-            if not str(value).lstrip('-').isdigit():
+            if not s_value.lstrip('-').isdigit():
                  raise ValueError("The value must be an integer.")
+            return int(s_value) # <--- RETURN INT
 
         elif field_type == 'positive_int':
-            if not str(value).isdigit(): # isdigit() rejects negative signs
+            if not s_value.isdigit():
                  raise ValueError
-            if int(value) < 0:
+            val = int(s_value)
+            if val < 0:
                 raise ValueError("The value must be a positive integer.")
+            return val # <--- RETURN INT
 
         # 2. Float Check
         elif field_type == 'float':
             try:
-                float(value)
+                val = float(s_value)
+                return val # <--- RETURN FLOAT
             except ValueError:
                 raise ValueError("The value must be a float.")
 
         # 3. Boolean Check
         elif field_type == 'boolean':
-            # normalize to verify it looks like a boolean
-            if str(value).lower() not in ['true', '1', 'yes', 'on', 'false', '0', 'no', 'off']:
+            lower_val = s_value.lower()
+            if lower_val in ['true', '1', 'yes', 'on']:
+                return True # <--- RETURN TRUE (bool)
+            elif lower_val in ['false', '0', 'no', 'off']:
+                return False # <--- RETURN FALSE (bool)
+            else:
                 raise ValueError("The value must be a boolean.")
 
-        # 4. Date Checks
+        # 4. Date Checks (Keep as string for JSON, but ensure format)
         elif field_type == 'date':
-            # Format: YYYY-MM-DD
             try:
-                datetime.datetime.strptime(str(value), '%Y-%m-%d')
+                datetime.datetime.strptime(s_value, '%Y-%m-%d')
+                return s_value # Return sanitized string
             except ValueError:
                 raise serializers.ValidationError("Date must be in YYYY-MM-DD format.")
 
         elif field_type == 'datetime':
-            # Format: YYYY-MM-DD HH:MM:SS
             try:
-                datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
+                datetime.datetime.strptime(s_value, '%Y-%m-%d %H:%M:%S')
+                return s_value
             except ValueError:
-                # Try ISO format just in case
                 try:
-                    datetime.datetime.strptime(str(value), '%Y-%m-%dT%H:%M:%S')
+                    # Allow T separator
+                    datetime.datetime.strptime(s_value, '%Y-%m-%dT%H:%M:%S')
+                    return s_value
                 except ValueError:
                     raise serializers.ValidationError("DateTime must be in YYYY-MM-DD HH:MM:SS format.")
 
         # 5. Char / Text Checks
         elif field_type == 'char':
-            if max_len and len(str(value)) > max_len:
+            if max_len and len(s_value) > max_len:
                 raise serializers.ValidationError(f"Default value cannot exceed {max_len} characters.")
+            return s_value
+        
+        elif field_type == 'text':
+            return s_value
+
+        return s_value
 
 
 # serializers.py
@@ -459,6 +482,14 @@ class CustomDefinationUpdateSerializer(serializers.Serializer):
         if value:
             return self.check_name_regex(value)
         return value
+    
+    # def validate_default_value(self, value):
+    #     instance = self.instance
+    #     field_type = instance.type
+    #     if field_type == "boolean" and (value == "" or value is None):
+    #         value = "false"
+
+    #     return value
 
 
 class NodeAliasSerializer(serializers.ModelSerializer):
@@ -561,34 +592,55 @@ class NodeSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         instance = getattr(self, 'instance', None)
         
-        dimension = attrs.get('dimension')
-        # Fallback to existing dimension for partial updates
-        if dimension is None and instance:
-            dimension = instance.dimension
-            
-        level = attrs.get('level')
-        parent = attrs.get('parent')
-        attributes = attrs.get('attributes', {})
+        # 1. Setup Variables (Get New Value or Fallback to Instance Value)
+        # We need these to be sure we are checking the right combination
+        dimension = attrs.get('dimension') if 'dimension' in attrs else (instance.dimension if instance else None)
+        level = attrs.get('level') if 'level' in attrs else (instance.level if instance else None)
+        parent = attrs.get('parent') if 'parent' in attrs else (instance.parent if instance else None)
+        code = attrs.get('code') if 'code' in attrs else (instance.code if instance else None)
         
+        attributes = attrs.get('attributes', {})
+        if instance and 'attributes' not in attrs:
+            attributes = instance.attributes or {}
+
+        # ---------------------------------------------------------
+        # 2. NEW LOGIC: Conditional Unique Code Check
+        # ---------------------------------------------------------
+        if code is not None:
+            # Start with all nodes
+            qs = Node.objects.all()
+            
+            # If updating, exclude ourselves
+            if instance:
+                qs = qs.exclude(pk=instance.pk)
+            
+            # CASE A: Child Node (Parent is NOT NULL)
+            if parent is not None:
+                if qs.filter(parent=parent, level=level, code=code).exists():
+                    raise serializers.ValidationError({
+                        "code": f"Code '{code}' is already used by another node under parent '{parent.name}'."
+                    })
+            
+            # CASE B: Top/Global Node (Parent IS NULL)
+            else:
+                if qs.filter(parent__isnull=True, dimension=dimension, level=level, code=code).exists():
+                    raise serializers.ValidationError({
+                        "code": f"Code '{code}' is already used at the Top Level for this Dimension/Level."
+                    })
+
+        # ---------------------------------------------------------
+        # 3. EXISTING LOGIC: Parent Consistency Checks
+        # ---------------------------------------------------------
         if parent:
+            # We use the resolved 'dimension' variable we created at step 1
             if parent.dimension != dimension:
                 raise serializers.ValidationError({"parent": "Parent must be in the same dimension."})
-            
-            # if parent.level != level:
-            #     raise serializers.ValidationError({"parent": "Parent must be in the same level."})
             
             if instance and parent.id == instance.id:
                 raise serializers.ValidationError({"parent": "Parent cannot be self."})
         
-        if instance:
-            if not level: 
-                level = instance.level
-                
-            # To this:
-            if 'attributes' not in attrs:
-                attributes = instance.attributes or {}
-        
-        # STRICT SCHEMA VALIDATION 
+        # ---------------------------------------------------------
+        # 4. EXISTING LOGIC: Schema Validation (Attributes)
         # ---------------------------------------------------------
         if level:
             # A. Get allowed keys from Level Schema
@@ -604,25 +656,22 @@ class NodeSerializer(serializers.ModelSerializer):
                 unknown_keys = incoming_keys - allowed_keys
                 
                 if unknown_keys:
-                    print("Unknown keys:", unknown_keys)
                     raise serializers.ValidationError({
                         "attributes": f"Invalid custom columns detected: {list(unknown_keys)}. Allowed columns: {list(allowed_keys)}"
                     })
-            # ---------------------------------------------------------
             
-            # 2. Create a temporary Node instance to run validation logic
-            # We don't save this, we just use it to run the .clean() logic
+            # D. Strict Type Validation via Model Method
+            # Create temp node to reuse the model's clean logic
             temp_node = Node(level=level, attributes=attributes)
-            
             try:
-                # This calls the validate_attributes() method we wrote in models.py
                 temp_node.validate_attributes()
-            except ValidationError as e:
+            except DjangoValidationError as e:
                 # Convert Django Error to DRF Error
                 if hasattr(e, 'messages'):
                      raise serializers.ValidationError({"attributes": e.messages})
-                raise serializers.ValidationError({"attributes": e.messages})
+                raise serializers.ValidationError({"attributes": str(e)})
         
+        # Pass the processed attributes back to attrs
         attrs['attributes'] = attributes
         return attrs
 
@@ -643,8 +692,12 @@ class NodeSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         alias_data = validated_data.pop('alias', [])
+        print('Alias data:', alias_data)
         instance = super().update(instance, validated_data)
         
+        if alias_data is None:
+            NodeAlias.objects.filter(node=instance).delete()
+
         if alias_data:
             incoming_name = [alias['name'] for alias in alias_data]
             # delete alias where name not in incoming
@@ -657,6 +710,7 @@ class NodeSerializer(serializers.ModelSerializer):
                         name=alias.get('name'),
                         defaults={}
                     )
+        
                 
         return instance
 
@@ -2799,22 +2853,45 @@ class NodeMergeCreateSerializer(serializers.Serializer):
         # Get the actual objects (DRF fetched them for us)
         target_dimension = attrs.get('dimension')
         target_level = attrs.get('level')
+        code = attrs.get('code')
         parent = attrs.get('parent')
         source_ids = attrs.get('source_node_ids')
         attributes = attrs.get('attributes')
+
+        if code is not None:
+            # Start with all nodes
+            qs = Node.objects.all()
+            
+            # CASE A: Child Node (Parent is NOT NULL)
+            if parent is not None:
+                if qs.filter(parent=parent, level=target_level, code=code).exists():
+                    raise serializers.ValidationError({
+                        "code": f"Code '{code}' is already used by another node under parent '{parent.name}'."
+                    })
+            
+            # CASE B: Top/Global Node (Parent IS NULL)
+            else:
+                if qs.filter(parent__isnull=True, dimension=target_dimension, level=target_level, code=code).exists():
+                    raise serializers.ValidationError({
+                        "code": f"Code '{code}' is already used at the Top Level for this Dimension/Level."
+                    })
         
+        if parent and parent.id in source_ids:
+            raise serializers.ValidationError({"parent": "The new parent cannot be one of the nodes being merged."})
+    
         # --- A. Validate Parent ---
         if parent:
             if parent.dimension != target_dimension:
                 raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
+            
 
         # --- B. Validate Source Nodes (The Logic You Requested) ---
         # Fetch all unique source nodes
         source_nodes = Node.objects.filter(id__in=source_ids)
         
         # 1. Check if all IDs exist
-        if len(source_nodes) != len(set(source_ids)):
-            raise serializers.ValidationError({"source_node_ids": "One or more source nodes do not exist."})
+        if source_nodes.count() != len(set(source_ids)):
+            raise serializers.ValidationError({"source_node_ids": "One or more source IDs are invalid or duplicates."})
 
         # 2. Check Consistency
         for source in source_nodes:
