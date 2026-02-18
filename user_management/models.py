@@ -104,8 +104,8 @@ class CustomUserManager(BaseUserManager):
 
         # ensure admin role exists
         role, _ = UserRole.objects.get_or_create(
-            name="super_admin",
-            display_name="Super Admin"
+            name="system_admin",
+            display_name="System Admin"
         )
 
         extra_fields.setdefault("is_staff", True)

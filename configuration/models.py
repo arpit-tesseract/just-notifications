@@ -204,6 +204,7 @@ class Dimension(models.Model):
 class Level(SoftDeleteMixin):
     dimension = models.ForeignKey(Dimension, on_delete=models.CASCADE, related_name="levels")
     name = models.CharField(max_length=100, validators=[tech_key_validator])
+    single_mode = models.BooleanField(default=False)
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     sort_order = models.PositiveIntegerField(default=1)
     code_digits = models.PositiveIntegerField(default=2)
@@ -216,8 +217,15 @@ class Level(SoftDeleteMixin):
     history = HistoricalRecords()
     
     class Meta:
-        unique_together = ('dimension', 'name')
         ordering = ['sort_order']
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['dimension', 'name'],
+                name='unique_active_level_name_per_dimension',
+                condition=Q(is_deleted=False)
+            )
+        ]
     
     # def save(self, *args, **kwargs):
     #     """
@@ -266,7 +274,7 @@ class Node(SoftDeleteMixin):
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     
     name = models.CharField(max_length=255, db_index=True)
-    code = models.PositiveIntegerField(null=True, blank=True)
+    code = models.PositiveIntegerField()
     
     note = models.TextField(null=True, blank=True)
     
@@ -293,14 +301,14 @@ class Node(SoftDeleteMixin):
             models.UniqueConstraint(
                 fields=['parent', 'level', 'code'], 
                 name='unique_code_per_parent_level',
-                condition=Q(parent__isnull=False)
+                condition=Q(parent__isnull=False) & Q(is_deleted=False)
             ),
             # 2. Constraint for Global/Top Nodes (parent IS NULL)
             # This ensures only one 'Code 1' exists at the top of a Level/Dimension
             models.UniqueConstraint(
                 fields=['dimension', 'level', 'code'], 
                 name='unique_code_at_top_level',
-                condition=Q(parent__isnull=True)
+                condition=Q(parent__isnull=True) & Q(is_deleted=False)
             )
         ]
     

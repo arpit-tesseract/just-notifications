@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
@@ -14,6 +14,7 @@ from django.db.models import Count, Window, F
 from .pagination import ConfigurationPagination
 from .utils import cast_value_by_type
 
+import json
 import logging
 level_logger = logging.getLogger("Levels")
 
@@ -147,7 +148,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                         # Use NodeClosure for efficient lookup
                         queryset = queryset.filter(
                             id__in=NodeClosure.objects.filter(
-                                ancestor_id=ancestor_id
+                                ancestor_id=ancestor_id,
                             ).values('descendant_id')
                         )
             except ValueError:
@@ -358,6 +359,7 @@ class NodeViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 for node in nodes:
                     node_data = payload.copy()
+                    node_data['is_deleted'] = node.is_deleted
                     
                     if payload_attributes:
                         current_attributes = node.attributes.copy() if node.attributes else {}
@@ -365,18 +367,20 @@ class NodeViewSet(viewsets.ModelViewSet):
                         node_data['attributes'] = current_attributes
                     
                     input_serializer = NodeSerializer(node, data=node_data, partial=True)
+                
                     if input_serializer.is_valid():
                         print(input_serializer.validated_data)
                         input_serializer.save()
                         results.append({"id": node.id, "node": input_serializer.data})
                     else:
+                        print(input_serializer.errors)
                         errors.append({"id": node.id, "errors": input_serializer.errors})
                         raise ValidationError(input_serializer.errors)
         except ValidationError as e:
             return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
         
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # except Exception as e:
+        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
         return Response(
             {
@@ -646,200 +650,205 @@ class NodeViewSet(viewsets.ModelViewSet):
         return response
                     
     
-    @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser])
+    @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser, FormParser])
     def upload_excel(self, request):
         """
-        Uploads an Excel file formatted exactly like the 'export-selected' output.
-        Required params: file, level_id
+        Uploads Excel with dynamic full-hierarchy mapping.
+        
+        Payload:
+        - file: (Binary Excel)
+        - level_id: (ID of the level we are importing items INTO, e.g., Country Level ID)
+        - mapping: JSON String. Example for Country Import:
+            {
+                "Glob": "Glob Column Name",       <-- Ancestor (Context)
+                "Continent": "Continent Column",  <-- Parent (Required for lookup)
+                "Country": "Country Name Column", <-- Target Item (Matches Target Level Name)
+                "code": "Code",
+                "is_hidden": "Hidden?",
+                "attributes": { "area": "Area Column" }
+            }
         """
         file_obj = request.FILES.get('file')
-        level_id = request.query_params.get('level_id')
+        level_id = request.data.get('level_id')
+        mapping_str = request.data.get('mapping')
 
-        if not file_obj:
-            return Response({"error": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not level_id:
-            return Response({"error": "level_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        print("File:", file_obj)
+        print("Level ID:", level_id)
+        print("Mapping:", mapping_str)
 
+        if not file_obj or not level_id or not mapping_str:
+            
+            print("Missing file, level_id, or mapping")
+            return Response({"error": "File, level_id, and mapping are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            mapping = json.loads(mapping_str)
+        except json.JSONDecodeError:
+            return Response({"error": "Invalid mapping JSON format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Fetch Target Level
         try:
             target_level = Level.objects.get(pk=level_id)
         except Level.DoesNotExist:
-            return Response({"error": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Target Level not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # 1. Read Excel
+        # 2. Read Excel
         try:
             df = pd.read_excel(file_obj)
-            # Clean up: Replace NaN with None, strip whitespace from headers
-            df = df.where(pd.notnull(df), None)
-            df.columns = df.columns.str.strip()
+            df = df.where(pd.notnull(df), None) # Clean NaNs
+            df.columns = df.columns.str.strip() # Strip whitespace from headers
         except Exception as e:
             return Response({"error": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Identify Critical Columns
-        # The main name column is the Level Name itself (e.g., "Country")
-        node_name_col = target_level.name 
+        # 3. Identify Key Columns from Mapping
+        # We assume the mapping keys match the Level Names (e.g., "Country")
         
-        if node_name_col not in df.columns:
-            return Response({
-                "error": f"Invalid format. Missing required column '{node_name_col}' (Level Name)."
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # A. Target Name Column
+        target_level_name_key = target_level.name # e.g., "Country"
+        
+        if target_level_name_key in mapping:
+            col_target_name = mapping[target_level_name_key]
+        else:
+             # If the mapping doesn't contain the Level Name, we can't find the new item's name
+             return Response({
+                 "error": f"Mapping missing key for target level '{target_level_name_key}'."
+             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Identify Parent Column (Immediate parent level name)
-        # We only need the immediate parent to link the hierarchy.
+        if col_target_name not in df.columns:
+            return Response({"error": f"Excel file missing column '{col_target_name}'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # B. Parent Resolution Columns
+        # We resolve the immediate parent to attach the new node correctly.
         parent_level = target_level.parent
-        parent_col_name = parent_level.name if parent_level else None
+        col_parent_name = None
         
-        # Identify Custom Attribute Columns
+        if parent_level:
+            parent_key = parent_level.name # e.g., "Continent"
+            if parent_key in mapping:
+                col_parent_name = mapping[parent_key]
+                if col_parent_name not in df.columns:
+                     return Response({"error": f"Excel file missing column '{col_parent_name}' (required for Parent {parent_key})"}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"error": f"Mapping missing key for parent level '{parent_key}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 4. Prepare Schema for Attributes (Validation Setup)
         schema = target_level.extra_fields_schema or []
-        custom_keys = [col['name'] for col in schema]
+        valid_attr_keys = {col['name']: col['type'] for col in schema} # dict for fast lookup
 
         summary = {"created": 0, "updated": 0, "errors": []}
 
-        # 3. Process Rows
+        # 5. Process Rows
         try:
             with transaction.atomic():
                 for index, row in df.iterrows():
-                    row_index = index + 2  # Excel row number (1-based + header)
+                    row_index = index + 2
                     row_data = row.to_dict()
-                    
-                    # A. Get Name
-                    name = row_data.get(node_name_col)
-                    if not name:
+
+                    # --- Step 1: Get Target Name ---
+                    name_val = row_data.get(col_target_name)
+                    if not name_val:
                         continue # Skip empty rows
 
-                    # B. Resolve Parent
+                    # --- Step 2: Resolve Parent Node ---
                     parent_node = None
-                    if parent_col_name:
-                        parent_name_val = row_data.get(parent_col_name)
-                        if parent_name_val:
-                            # Look up parent. 
-                            # Note: Strictly, we should filter by the grandparent to be safe, 
-                            # but usually Name+Level is unique enough in a context.
-                            parent_node = Node.objects.filter(
-                                name=parent_name_val,
-                                level=parent_level,
-                                dimension=target_level.dimension
-                            ).first()
-                            
-                            if not parent_node:
-                                summary["errors"].append(f"Row {row_index}: Parent '{parent_name_val}' ({parent_col_name}) not found.")
-                                continue
-                        else:
-                            # If parent is required by hierarchy but missing in file
-                            summary["errors"].append(f"Row {row_index}: Missing parent value for '{parent_col_name}'.")
+                    if parent_level:
+                        parent_name_val = row_data.get(col_parent_name)
+                        
+                        if not parent_name_val:
+                             summary["errors"].append(f"Row {row_index}: Missing parent '{parent_level.name}'.")
+                             continue
+                        
+                        # Find the parent node
+                        # We search for a Node with the Parent's Name + Parent's Level + Same Dimension
+                        parent_node = Node.objects.filter(
+                            name=parent_name_val,
+                            level=parent_level,
+                            dimension=target_level.dimension
+                        ).first()
+
+                        if not parent_node:
+                            summary["errors"].append(f"Row {row_index}: Parent '{parent_level.name}' named '{parent_name_val}' not found.")
                             continue
 
-                    # C. Extract Standard Fields
-                    # Maps Excel headers 'Code', 'Hidden', 'On Hold' to model fields
-                    code_val = row_data.get('Code')
-                    is_hidden_val = bool(row_data.get('Hidden', False))
-                    on_hold_val = bool(row_data.get('On Hold', False))
+                    # --- Step 3: Extract Standard Fields ---
+                    # Helper to safely get value based on mapping key
+                    def get_mapped_val(key, default=None):
+                        if key in mapping and mapping[key] in row_data:
+                            return row_data[mapping[key]]
+                        return default
 
-                    if code_val is not None:
-                        collision_qs = Node.objects.filter(
+                    code_val = get_mapped_val('code')
+                    is_hidden = bool(get_mapped_val('is_hidden', False))
+                    on_hold = bool(get_mapped_val('on_hold', False))
+                    
+                    # Date parsing
+                    hold_date_raw = get_mapped_val('hold_date')
+                    hold_date_val = None
+                    if hold_date_raw:
+                        try:
+                            dt = pd.to_datetime(hold_date_raw, dayfirst=True)
+                            hold_date_val = dt.date()
+                        except:
+                            summary["errors"].append(f"Row {row_index}: Invalid date format for Hold Date.")
+                            continue
+
+                    # --- Step 4: Extract Attributes ---
+                    node_attributes = {}
+                    if 'attributes' in mapping and isinstance(mapping['attributes'], dict):
+                        for sys_attr, excel_header in mapping['attributes'].items():
+                            # Only process if this attribute is defined in the Level Schema
+                            if sys_attr in valid_attr_keys:
+                                val = row_data.get(excel_header)
+                                if val is not None:
+                                    node_attributes[sys_attr] = val
+
+                    # --- Step 5: Check Code Uniqueness ---
+                    if code_val:
+                        # Find collisions: Same Level + Same Code + Same Parent
+                        collision = Node.objects.filter(
                             level=target_level,
                             code=code_val,
                             parent=parent_node
-                        )
+                        ).exclude(name=name_val) # Exclude self if this is an update to existing node
+                        
+                        if collision.exists():
+                             raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision.first().name}'.")
 
-                        existing_node_with_code = collision_qs.first()
-    
-                        if existing_node_with_code and existing_node_with_code.name != name:
-                            raise Exception(
-                                f"Row {row_index}: Code '{code_val}' is already used by {target_level.name} '{existing_node_with_code.name}'. "
-                                f"Codes must be unique within this level."
-                            )
-                    
-                    # Handle Date format for 'Hold Date'
-                    # hold_date_val = row_data.get('Hold Date')
-                    # if hold_date_val and pd.isna(hold_date_val):
-                    #     hold_date_val = None
-
-                    # 1. Get the raw value
-                    raw_hold_date = row_data.get('Hold Date')
-                    hold_date_val = None
-
-                    # 2. Check if it has a value (isn't None or NaN)
-                    if raw_hold_date and not pd.isna(raw_hold_date):
-                        try:
-                            # Force conversion to datetime. 
-                            # dayfirst=True ensures 19-02-2026 is read as Feb 19th, not invalid month 19.
-                            dt_obj = pd.to_datetime(raw_hold_date, dayfirst=True)
-                            
-                            # Convert to Python date object (YYYY-MM-DD) for Django
-                            hold_date_val = dt_obj.date()
-                            
-                        except (ValueError, TypeError):
-                            # Optional: Log a warning or error if the date format is totally wrong
-                            print(f"Warning: Row {row_index} has invalid date '{raw_hold_date}'")
-                            hold_date_val = None
-                    
-                    # D. Extract Custom Attributes
-                    attributes = {}
-                    for key in custom_keys:
-                        if key in row_data:
-                            val = row_data[key]
-                            attributes[key] = val
-
-                    # E. Update or Create
-                    # We identify the node by Name + Parent (or just Name if root)
-                    lookup_kwargs = {
-                        "name": name,
-                        "level": target_level,
-                        "parent": parent_node
-                    }
-
-                    print("Hold date:", hold_date_val)
-                    
-                    defaults = {
-                        "code": code_val,
-                        "is_hidden": is_hidden_val,
-                        "on_hold": on_hold_val,
-                        "hold_date": hold_date_val,
-                        "attributes": attributes,
-                        "dimension": target_level.dimension
-                    }
-
+                    # --- Step 6: Update or Create ---
                     node, created = Node.objects.update_or_create(
-                        **lookup_kwargs,
-                        defaults=defaults
+                        name=name_val,
+                        level=target_level,
+                        parent=parent_node,
+                        defaults={
+                            "code": code_val,
+                            "is_hidden": is_hidden,
+                            "on_hold": on_hold,
+                            "hold_date": hold_date_val,
+                            "attributes": node_attributes,
+                            "dimension": target_level.dimension
+                        }
                     )
 
-                    # F. Validate Custom Attributes (Model Logic)
+                    # --- Step 7: Validate (Model Logic) ---
                     try:
-                        node.validate_attributes()
+                        node.validate_attributes() 
                         node.save()
                     except ValidationError as e:
-                        # Re-raise to trigger atomic rollback or catch to log error
-                        # Here we catch to log, but since we are in atomic, 
-                        # you might want to raise Exception to rollback the whole batch.
-                        raise Exception(f"Row {row_index} Validation Error: {e.messages}")
+                        # Since we are in atomic transaction, this exception will rollback the batch
+                        # If you prefer to skip rows instead of rollback, change this to `continue` 
+                        # and append to summary["errors"]
+                        raise Exception(f"Row {row_index} Validation: {e.messages}")
 
-                    if created:
-                        summary["created"] += 1
-                    else:
-                        summary["updated"] += 1
+                    if created: summary["created"] += 1
+                    else: summary["updated"] += 1
 
         except Exception as e:
-            # If any strict error occurs (like Validation), the atomic block rolls back everything.
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # If we collected specific row errors (like missing parents) without raising Exception
         if summary["errors"]:
-            return Response({
-                "message": "Upload completed with errors.",
-                "summary": summary
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Completed with errors", "summary": summary}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({
-            "message": "Upload successful.",
-            "summary": {
-                "created": summary["created"],
-                "updated": summary["updated"]
-            }
-        }, status=status.HTTP_200_OK)
-        
-        
+        return Response({"message": "Success", "summary": summary}, status=status.HTTP_200_OK)
 
 
 from rest_framework.views import APIView
