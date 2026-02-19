@@ -12,7 +12,7 @@ from .serializers import *
 from rest_framework.decorators import action
 from django.db.models import Count, Window, F
 from .pagination import ConfigurationPagination
-from .utils import cast_value_by_type, check_bool_value
+from .utils import cast_value_by_type, check_bool_value, validate_value_type
 from django.core.exceptions import ValidationError
 
 import json
@@ -1242,7 +1242,8 @@ class CustomColumnView(APIView):
         
         # 5. Validate Consistency
         try:
-            new_default_value = self._validate_value_type(new_default_value, existing_type, new_max_length)
+            new_default_value = validate_value_type(new_default_value, existing_type, new_max_length)
+            print(f"New Default Value: {new_default_value}, Type: {type(new_default_value)}")
         except (ValidationError, ValueError) as e: # FIX: Catch both error types
             # Unwrap the error message safely
             msg = e.detail[0] if isinstance(e, ValidationError) and isinstance(e.detail, list) else str(e)
@@ -1292,75 +1293,5 @@ class CustomColumnView(APIView):
             return Response({"Error": "Error on deleting column"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-    def _validate_value_type(self, value, field_type, max_len=None):
-        """
-        Helper method to check if 'value' matches 'field_type'
-        """
-        s_value = str(value)
-
-        if s_value in ["", None]:
-            return None
-
-        # 1. Integer Checks
-        if field_type in ['int', 'bigint']:
-            if not s_value.lstrip('-').isdigit():
-                 raise ValueError("The value must be an numeric.")
-            return int(s_value) # <--- RETURN INT
-
-        elif field_type == 'positive_int':
-            if not s_value.isdigit():
-                 raise ValueError
-            val = int(s_value)
-            if val < 0:
-                raise ValueError("The value must be a positive integer.")
-            return val # <--- RETURN INT
-
-        # 2. Float Check
-        elif field_type == 'float':
-            try:
-                val = float(s_value)
-                return val # <--- RETURN FLOAT
-            except ValueError:
-                raise ValueError("The value must be a float.")
-
-        # 3. Boolean Check
-        elif field_type == 'boolean':
-            lower_val = s_value.lower()
-            if lower_val in ['true', '1', 'yes', 'on']:
-                return True # <--- RETURN TRUE (bool)
-            elif lower_val in ['false', '0', 'no', 'off']:
-                return False # <--- RETURN FALSE (bool)
-            else:
-                raise ValueError("The value must be a boolean.")
-
-        # 4. Date Checks (Keep as string for JSON, but ensure format)
-        elif field_type == 'date':
-            try:
-                datetime.datetime.strptime(s_value, '%Y-%m-%d')
-                return s_value # Return sanitized string
-            except ValueError:
-                raise serializers.ValidationError("Date must be in YYYY-MM-DD format.")
-
-        elif field_type == 'datetime':
-            try:
-                datetime.datetime.strptime(s_value, '%Y-%m-%d %H:%M:%S')
-                return s_value
-            except ValueError:
-                try:
-                    # Allow T separator
-                    datetime.datetime.strptime(s_value, '%Y-%m-%dT%H:%M:%S')
-                    return s_value
-                except ValueError:
-                    raise serializers.ValidationError("DateTime must be in YYYY-MM-DD HH:MM:SS format.")
-
-        # 5. Char / Text Checks
-        elif field_type == 'char':
-            if max_len and len(s_value) > max_len:
-                raise serializers.ValidationError(f"Default value cannot exceed {max_len} characters.")
-            return s_value
-        
-        elif field_type == 'text':
-            return s_value
-
-        return s_value
+    
+    

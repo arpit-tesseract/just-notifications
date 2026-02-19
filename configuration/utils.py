@@ -379,3 +379,76 @@ def get_type_label(type_val):
         return "Boolean"
     else:
         return "Text"
+    
+
+def validate_value_type(value, field_type, max_len=None):
+        """
+        Helper method to check if 'value' matches 'field_type'
+        """
+        s_value = str(value).strip()
+
+        if s_value in ["", None]:
+            return None
+
+        # 1. Integer Checks
+        if field_type in ['int', 'bigint']:
+            if not s_value.lstrip('-').isdigit():
+                 raise ValueError("The value must be an numeric.")
+            return int(s_value) # <--- RETURN INT
+
+        elif field_type == 'positive_int':
+            if not s_value.isdigit():
+                 raise ValueError
+            val = int(s_value)
+            if val < 0:
+                raise ValueError("The value must be a positive integer.")
+            return val # <--- RETURN INT
+
+        # 2. Float Check
+        elif field_type == 'float':
+            try:
+                val = float(s_value)
+                return val # <--- RETURN FLOAT
+            except ValueError:
+                raise ValueError("The value must be a float.")
+
+        # 3. Boolean Check
+        elif field_type == 'boolean':
+            lower_val = s_value.lower()
+            if lower_val in ['true', '1', 'yes', 'on']:
+                return True # <--- RETURN TRUE (bool)
+            elif lower_val in ['false', '0', 'no', 'off']:
+                return False # <--- RETURN FALSE (bool)
+            else:
+                raise ValueError("The value must be a boolean.")
+
+        # 4. Date Checks (Keep as string for JSON, but ensure format)
+        elif field_type == 'date':
+            try:
+                datetime.datetime.strptime(s_value, '%Y-%m-%d')
+                return s_value # Return sanitized string
+            except ValueError:
+                raise ValidationError("Date must be in YYYY-MM-DD format.")
+
+        elif field_type == 'datetime':
+            try:
+                datetime.datetime.strptime(s_value, '%Y-%m-%d %H:%M:%S')
+                return s_value
+            except ValueError:
+                try:
+                    # Allow T separator
+                    datetime.datetime.strptime(s_value, '%Y-%m-%dT%H:%M:%S')
+                    return s_value
+                except ValueError:
+                    raise ValidationError("DateTime must be in YYYY-MM-DD HH:MM:SS format.")
+
+        # 5. Char / Text Checks
+        elif field_type == 'char':
+            if max_len and len(s_value) > max_len:
+                raise ValidationError(f"Default value cannot exceed {max_len} characters.")
+            return s_value
+        
+        elif field_type == 'text':
+            return s_value
+
+        return s_value
