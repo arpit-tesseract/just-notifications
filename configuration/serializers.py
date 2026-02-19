@@ -51,6 +51,7 @@ class LevelSerializer(serializers.ModelSerializer):
         
     # v4
     def create(self, validated_data):
+        print("Payload:", validated_data)
         single_mode = validated_data.pop('single_mode', False)
         
         # We don't need 'child' input from user. We find it automatically.
@@ -60,7 +61,9 @@ class LevelSerializer(serializers.ModelSerializer):
         parent = validated_data.get('parent')
         requested_order = validated_data.get('sort_order')
 
+
         print("Given Parent From Frontend:", parent)
+
         
         try:
             with transaction.atomic():
@@ -97,20 +100,28 @@ class LevelSerializer(serializers.ModelSerializer):
                     first_parent = None
                     if parent:
                         print("Has parent:", parent.name if parent else None)
-                        final_order = parent.sort_order + 1
+                        # final_order = parent.sort_order + 1
+                        if requested_order is None:
+                            max_order = qs.aggregate(Max('sort_order'))['sort_order__max']
+                            final_order = (max_order or 0) + 1
+                        else:
+                            final_order = requested_order
 
                         child = qs.filter(parent=parent).first()
                         print("Child:", child.name if child else None)
                     else:
                         print("No parent.")
                         first_parent = qs.filter(single_mode=False).first()
-                
-                        if qs.exists() and not first_parent:
-                            max_order = qs.aggregate(Max('sort_order'))['sort_order__max']
-                            final_order = (max_order or 0) + 1
+
+                        if requested_order is None:
+                            if qs.exists() and not first_parent:
+                                max_order = qs.aggregate(Max('sort_order'))['sort_order__max']
+                                final_order = (max_order or 0) + 1
+                            else:
+                                final_order = 1
                         else:
-                            final_order = 1
-                    
+                            final_order = requested_order
+                        
                     # SHIFT EVERYONE DOWN
                     qs.filter(sort_order__gte=final_order).update(sort_order=F('sort_order') + 1)
                     
@@ -546,6 +557,7 @@ class NodeOutputSerializer(serializers.ModelSerializer):
             return None
         
         digits = obj.level.code_digits if obj.level else 2
+        parent_node = obj.parent
         
         try:
             current_code = str(obj.code).zfill(digits)
@@ -558,7 +570,7 @@ class NodeOutputSerializer(serializers.ModelSerializer):
             return current_code
         
         total_siblings = getattr(obj, 'parent_total_count', 0)
-        padded_total = str(total_siblings).zfill(digits)
+        padded_total = str(total_siblings).zfill(parent_node.level.code_digits)
 
         # 3. Format as (current/total)
         return f"{current_code}/{padded_total}" 

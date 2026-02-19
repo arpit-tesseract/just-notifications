@@ -339,3 +339,43 @@ def cast_value_by_type(value, field_type):
         
     
 #     return value, "exact"
+
+def parse_boolean_strict(val):
+    """Safely parses Excel strings, numbers, and bools into a strict Python boolean."""
+    if pd.isna(val) or val is None or str(val).strip() == "":
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        # Handle textual booleans from Excel
+        return val.strip().lower() in ['true', '1', 'yes', 'y', 'on']
+    return False
+
+def check_bool_value(val):
+    if isinstance(val, bool):
+        return val
+    
+    if isinstance(val, str):
+        if val.strip().lower() in ['true', '1', 'yes', 'y', 'on']:
+            return True
+        elif val.strip().lower() in ['false', '0', 'no', 'n', 'off']:
+            return False
+    
+    return None
+
+
+def get_type_label(type_val):
+    if type_val == "int":
+        return "Number"
+    elif type_val == "float":
+        return "Decimal"
+    elif type_val == "date":
+        return "Date"
+    elif type_val == "datetime":
+        return "Date Time"
+    elif type_val == "boolean":
+        return "Boolean"
+    else:
+        return "Text"

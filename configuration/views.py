@@ -12,7 +12,8 @@ from .serializers import *
 from rest_framework.decorators import action
 from django.db.models import Count, Window, F
 from .pagination import ConfigurationPagination
-from .utils import cast_value_by_type
+from .utils import cast_value_by_type, check_bool_value
+from django.core.exceptions import ValidationError
 
 import json
 import logging
@@ -104,11 +105,22 @@ class NodeViewSet(viewsets.ModelViewSet):
          
         if not level or not level.isdigit():
              return Response({"error": "Valid 'level' ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Step A: Get all explicitly deleted node IDs (bypassing the SoftDeleteManager)
+        deleted_node_ids = Node.all_objects.filter(is_deleted=True).values_list('id', flat=True)
+        
+        # Step B: Get ALL descendants of those deleted nodes using the Closure table
+        # This catches children, grandchildren (Countries), etc.
+        hidden_branch_ids = NodeClosure.objects.filter(
+            ancestor_id__in=deleted_node_ids
+        ).values('descendant_id')
 
         # 1. Filter Target Nodes (Base Queryset)
         queryset = Node.objects.filter(
             dimension_id=int(dimension),
             level_id=int(level),
+        ).exclude(
+            id__in=hidden_branch_ids
         ).annotate(
             # This calculates the count of nodes having the same parent_id 
             # and same level_id across the entire table
@@ -695,7 +707,11 @@ class NodeViewSet(viewsets.ModelViewSet):
         # 2. Read Excel
         try:
             df = pd.read_excel(file_obj)
-            df = df.where(pd.notnull(df), None) # Clean NaNs
+            
+            # FIX: Cast to 'object' dtype so Pandas actually allows 'None' 
+            # instead of reverting it back to 'NaN' for numeric columns.
+            df = df.astype(object).where(pd.notnull(df), None) 
+            
             df.columns = df.columns.str.strip() # Strip whitespace from headers
         except Exception as e:
             return Response({"error": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -736,6 +752,22 @@ class NodeViewSet(viewsets.ModelViewSet):
         valid_attr_keys = {col['name']: col['type'] for col in schema} # dict for fast lookup
 
         summary = {"created": 0, "updated": 0, "errors": []}
+
+        if mapping.get(target_level.name) in ["", None]:
+            return Response({"error": f"Missing '{target_level.name}' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if mapping.get("code") in ["", None]:
+            return Response({"error": "Missing 'code' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if mapping.get("is_hidden") in ["", None]:
+            return Response({"error": "Missing 'is_hidden' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if mapping.get("on_hold") not in ["", None]:
+        #     return Response({"error": "Missing 'on_hold' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        # else:
+            if mapping.get("hold_date") in ["", None]:
+                return Response({"error": "Missing 'hold_date' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
 
         # 5. Process Rows
         try:
@@ -778,8 +810,54 @@ class NodeViewSet(viewsets.ModelViewSet):
                         return default
 
                     code_val = get_mapped_val('code')
-                    is_hidden = bool(get_mapped_val('is_hidden', False))
-                    on_hold = bool(get_mapped_val('on_hold', False))
+                    print(f"Code: {code_val}, Type: {type(code_val)}")
+
+                    if code_val in ["", None]:
+                        raise Exception(f"Row {row_index}: Missing Code.")
+                    
+                    if type(code_val) not in [str, int]:
+                        raise Exception(f"Row {row_index}: Code '{code_val}' is not numeric.")
+
+                    try:
+                        if isinstance(code_val, str) and code_val.isdigit():
+                            code_val = int(code_val)
+    
+                        if len(str(code_val)) > target_level.code_digits:
+                            raise Exception(f"Row {row_index}: Code '{code_val}' too long for level '{target_level.name}'.")
+                        
+                        # Validate Code
+                        if code_val <= 0:
+                            raise Exception(f"Row {row_index}: Code '{code_val}' is not positive.")
+                        
+                        collision = Node.objects.filter(
+                            level=target_level,
+                            code=code_val,
+                            parent=parent_node
+                        ).exclude(name=name_val) # Exclude self if this is an update to existing node
+                        
+                        if collision.exists():
+                            raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision.first().name}'.")
+                        
+                    except ValueError:
+                        raise Exception(f"Row {row_index}: Code '{code_val}' is not an numeric.")
+
+                    is_hidden_raw = get_mapped_val('is_hidden', None)
+                    if is_hidden_raw is None:
+                        is_hidden = False
+                    else:
+                        is_hidden = check_bool_value(is_hidden_raw)
+                        if is_hidden is None:
+                            raise Exception(f"Row {row_index}: Invalid value for is_hidden: {is_hidden_raw}")
+                        
+                    on_hold_raw = get_mapped_val('on_hold', None)
+                    if on_hold_raw is None:
+                        on_hold = False
+                    else:
+                        on_hold = check_bool_value(on_hold_raw)
+                        if on_hold is None:
+                            raise Exception(f"Row {row_index}: Invalid value for on_hold: {on_hold_raw}")
+                        
+
                     
                     # Date parsing
                     hold_date_raw = get_mapped_val('hold_date')
@@ -802,32 +880,44 @@ class NodeViewSet(viewsets.ModelViewSet):
                                 if val is not None:
                                     node_attributes[sys_attr] = val
 
-                    # --- Step 5: Check Code Uniqueness ---
-                    if code_val:
-                        # Find collisions: Same Level + Same Code + Same Parent
-                        collision = Node.objects.filter(
-                            level=target_level,
-                            code=code_val,
-                            parent=parent_node
-                        ).exclude(name=name_val) # Exclude self if this is an update to existing node
-                        
-                        if collision.exists():
-                             raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision.first().name}'.")
 
                     # --- Step 6: Update or Create ---
-                    node, created = Node.objects.update_or_create(
+                    # node, created = Node.objects.update_or_create(
+                    #     name=name_val,
+                    #     level=target_level,
+                    #     parent=parent_node,
+                    #     defaults={
+                    #         "code": code_val,
+                    #         "is_hidden": is_hidden,
+                    #         "on_hold": on_hold,
+                    #         "hold_date": hold_date_val,
+                    #         "attributes": node_attributes,
+                    #         "dimension": target_level.dimension
+                    #     }
+                    # )
+
+                    # We avoid update_or_create so we can validate BEFORE hitting the DB
+                    node = Node.objects.filter(
                         name=name_val,
                         level=target_level,
                         parent=parent_node,
-                        defaults={
-                            "code": code_val,
-                            "is_hidden": is_hidden,
-                            "on_hold": on_hold,
-                            "hold_date": hold_date_val,
-                            "attributes": node_attributes,
-                            "dimension": target_level.dimension
-                        }
-                    )
+                        dimension=target_level.dimension
+                    ).first()
+
+                    created = False
+                    if not node:
+                        node = Node(
+                            name=name_val,
+                            code=code_val,
+                            is_hidden=is_hidden,
+                            on_hold=on_hold,
+                            hold_date=hold_date_val,
+                            level=target_level,
+                            parent=parent_node,
+                            dimension=target_level.dimension,
+                            attributes=node_attributes
+                        )
+                        created = True
 
                     # --- Step 7: Validate (Model Logic) ---
                     try:
@@ -837,8 +927,11 @@ class NodeViewSet(viewsets.ModelViewSet):
                         # Since we are in atomic transaction, this exception will rollback the batch
                         # If you prefer to skip rows instead of rollback, change this to `continue` 
                         # and append to summary["errors"]
-                        raise Exception(f"Row {row_index} Validation: {e.messages}")
-
+                        print("e.messages", e)
+                        clean_error_text = " ".join(e.messages)
+                        
+                        # Raise the exception with just the clean text
+                        raise Exception(f"Row {row_index}: {clean_error_text}")
                     if created: summary["created"] += 1
                     else: summary["updated"] += 1
 
@@ -886,6 +979,14 @@ class NodeSearchAPIView(APIView):
         raw_value = search_data.get(target_level_name)
         search_value = str(raw_value).strip() if raw_value else ""
 
+        # 1. Get raw IDs of explicitly deleted nodes
+        deleted_node_ids = Node.all_objects.filter(is_deleted=True).values_list('id', flat=True)
+        
+        # 2. Get all descendants (children, grandchildren, etc.) of those deleted nodes
+        hidden_branch_ids = NodeClosure.objects.filter(
+            ancestor_id__in=deleted_node_ids
+        ).values('descendant_id')
+
         # 3. Step A: Find CANDIDATE Nodes first
         # We search for ANY node at Level="Country" that contains "In"
         nodes = Node.objects.filter(
@@ -893,6 +994,8 @@ class NodeSearchAPIView(APIView):
             level__name__iexact=target_level_name,
             is_hidden=False,
             on_hold=False
+        ).exclude(
+            id__in=hidden_branch_ids
         ).distinct()
         
         # CONDITIONAL: Filter by Name OR Alias
@@ -1130,12 +1233,12 @@ class CustomColumnView(APIView):
             new_max_length = validated_data.get('max_length', existing_max)
             print("new_max_length", new_max_length)
             
-        if new_required and not existing_required:
-            if new_default_value in [None, ""]:
-                return Response(
-                    {"default_value": "Required columns must have a default value"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # if new_required and not existing_required:
+        #     if new_default_value in [None, ""]:
+        #         return Response(
+        #             {"default_value": "Required columns must have a default value"},
+        #             status=status.HTTP_400_BAD_REQUEST
+        #         )
         
         # 5. Validate Consistency
         try:
@@ -1196,10 +1299,13 @@ class CustomColumnView(APIView):
         """
         s_value = str(value)
 
+        if s_value in ["", None]:
+            return None
+
         # 1. Integer Checks
         if field_type in ['int', 'bigint']:
             if not s_value.lstrip('-').isdigit():
-                 raise ValueError("The value must be an integer.")
+                 raise ValueError("The value must be an numeric.")
             return int(s_value) # <--- RETURN INT
 
         elif field_type == 'positive_int':

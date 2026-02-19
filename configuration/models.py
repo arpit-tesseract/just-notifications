@@ -4,11 +4,26 @@ from django.db.models import F
 from simple_history.models import HistoricalRecords
 from django.db.models import Q
 
+
 def get_two_digit(num):
     return str(num).zfill(2)
 
 def get_three_digit(num):
     return str(num).zfill(3)
+
+def get_type_label(type_val):
+    if type_val == "int":
+        return "Number"
+    elif type_val == "float":
+        return "Decimal"
+    elif type_val == "date":
+        return "Date"
+    elif type_val == "datetime":
+        return "Date Time"
+    elif type_val == "boolean":
+        return "Boolean"
+    else:
+        return "Text"
 
 # 1. Custom Manager to hide deleted items by default
 class SoftDeleteManager(models.Manager):
@@ -350,10 +365,10 @@ class Node(SoftDeleteMixin):
         data = self.attributes or {}
 
         # --- DEBUG PRINT ---
-        print(f"DEBUG: Validating Node {self.name}")
-        print(f"DEBUG: Data: {data}")
-        for col in schema:
-            print(f"DEBUG: Column '{col['name']}' Required setting is: {col.get('required')} (Type: {type(col.get('required'))})")
+        # print(f"DEBUG: Validating Node {self.name}")
+        # print(f"DEBUG: Data: {data}")
+        # for col in schema:
+        #     print(f"DEBUG: Column '{col['name']}' Required setting is: {col.get('required')} (Type: {type(col.get('required'))})")
         
         for field_def in schema:
             
@@ -391,17 +406,26 @@ class Node(SoftDeleteMixin):
                     if not isinstance(value, str):
                         raise ValidationError(f"'{name}' must be a text string.")
 
-                # 3. Integers (int, bigint, positive_int)
+                # 3. Integers (int, bigint)
                 elif field_type in ['int', 'bigint']:
-                    # Allow string inputs like "123" but ensure they are numbers
-                    if not str(value).lstrip('-').isdigit():
-                         raise ValueError
-                    int(value) # Test conversion
+                    try:
+                        float_val = float(value)
+                        if not float_val.is_integer():
+                            raise ValueError
+                        # Normalize 50.0 to 50 in the JSON payload so it saves cleanly
+                        data[name] = int(float_val) 
+                    except (ValueError, TypeError):
+                        raise ValueError
 
+                # Positive Integers
                 elif field_type == 'positive_int':
-                    if not str(value).isdigit():
-                         raise ValueError
-                    if int(value) < 0:
+                    try:
+                        float_val = float(value)
+                        if not float_val.is_integer() or float_val < 0:
+                            raise ValueError
+                        # Normalize 50.0 to 50 in the JSON payload
+                        data[name] = int(float_val)
+                    except (ValueError, TypeError):
                         raise ValueError
 
                 # 4. Float
@@ -422,7 +446,8 @@ class Node(SoftDeleteMixin):
                     datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
 
             except (ValueError, TypeError):
-                raise ValidationError(f"The value '{value}' for '{name}' is invalid. Expected type: {field_type}.")
+                type_label = get_type_label(field_type)
+                raise ValidationError(f"The value '{value}' for '{name}' is invalid. Expected type: {type_label}.")
     
 
     def __str__(self):
