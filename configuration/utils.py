@@ -452,3 +452,15 @@ def validate_value_type(value, field_type, max_len=None):
             return s_value
 
         return s_value
+
+def get_level_ancestors(level):
+    """
+    Returns ancestors in order: Root -> ... -> Parent
+    Based on Level.parent chain (NOT sort_order).
+    """
+    ancestors = []
+    curr = level.parent
+    while curr:
+        ancestors.append(curr)
+        curr = curr.parent
+    return list(reversed(ancestors))

@@ -236,7 +236,8 @@ class NodeViewSet(viewsets.ModelViewSet):
             
             if target_ids:
                 closures = NodeClosure.objects.filter(
-                    descendant_id__in=target_ids
+                    descendant_id__in=target_ids,
+                    ancestor__level__is_deleted=False
                 ).select_related(
                     'ancestor', 
                     'ancestor__level'
@@ -251,7 +252,8 @@ class NodeViewSet(viewsets.ModelViewSet):
                         grouped_paths[c.descendant_id][level_name] = {
                             "id": c.ancestor.id,
                             "name": c.ancestor.name,
-                            "code": c.ancestor.code
+                            "code": c.ancestor.code,
+                            "sort_order": c.ancestor.level.sort_order
                         }
 
             # Combine & Return Paginated Response
@@ -389,10 +391,12 @@ class NodeViewSet(viewsets.ModelViewSet):
                         errors.append({"id": node.id, "errors": input_serializer.errors})
                         raise ValidationError(input_serializer.errors)
         except ValidationError as e:
-            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            print(e.messages)
+            # return Response({"error": str(e.messages[0] if e.messages and isinstance(e.messages, list) else e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
         
-        # except Exception as e:
-        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
         return Response(
             {
@@ -541,126 +545,261 @@ class NodeViewSet(viewsets.ModelViewSet):
                 },
                 "summary": summary
             }, status=status.HTTP_201_CREATED)
+        
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     
+    # @action(detail=False, methods=['get'], url_path='export-selected')
+    # def export_selected(self, request):
+    #     level_id = request.query_params.get('level_id')
+    #     all_ids = request.query_params.get('all_ids', False)
+    #     ids_param = request.query_params.get('ids')
+        
+    #     target_level = None
+    #     nodes = []
+
+    #     if all_ids and all_ids in ["true", "True", True]:
+    #         if not level_id:
+    #             return Response({"error": "level_id is required"}, status=400)
+            
+    #         try:
+    #             target_level = Level.objects.get(id=level_id)
+    #         except Level.DoesNotExist:
+    #             return Response({"error": "Level not found"}, status=404)
+
+    #         nodes = Node.objects.filter(level_id=level_id).select_related('parent', 'parent__parent', 'parent__parent__parent')
+
+    #     # Case A: Export Selected Nodes by ID
+    #     elif ids_param:
+    #         try:
+    #             ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+    #         except ValueError:
+    #             return Response({"error": "Invalid ids format"}, status=400)
+            
+    #         if not ids:
+    #             return Response({"error": "No ids provided"}, status=400)
+                
+    #         nodes = Node.objects.filter(id__in=ids).select_related('level', 'parent', 'parent__parent', 'parent__parent__parent')
+            
+    #         if not nodes.exists():
+    #             return Response({"error": "No nodes found for the provided IDs"}, status=404)
+            
+    #         # Validation: Ensure all nodes are from the SAME level
+    #         first_node = nodes.first()
+    #         target_level = first_node.level
+            
+    #         if nodes.exclude(level=target_level).exists():
+    #             return Response({
+    #                 "error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."
+    #             }, status=400)
+        
+    #     else:
+    #         return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
+
+    #     # ---------------------------------------------------------
+    #     # GENERATE EXCEL DATA (Same logic as before)
+    #     # ---------------------------------------------------------
+        
+    #     dimension = target_level.dimension
+        
+    #     # 1. Identify Ancestor Levels (for columns like Glob | Continent | ...)
+    #     ancestor_levels = Level.objects.filter(
+    #         dimension=dimension,
+    #         sort_order__lt=target_level.sort_order
+    #     ).order_by('sort_order')
+        
+    #     ancestor_col_names = [lvl.name for lvl in ancestor_levels]
+
+    #     data = []
+    #     for node in nodes:
+    #         row = {}
+            
+    #         # A. Fill Ancestor Columns (Walk up the parent chain)
+    #         curr = node
+    #         for ancestor_name in reversed(ancestor_col_names):
+    #             if curr.parent:
+    #                 row[ancestor_name] = curr.parent.name
+    #                 curr = curr.parent
+    #             else:
+    #                 row[ancestor_name] = "" 
+
+    #         # B. Fill Self Data
+    #         row[target_level.name] = node.name
+    #         row['Code'] = node.code
+    #         row['Hidden'] = node.is_hidden
+    #         row['On Hold'] = node.on_hold
+    #         row['Hold Date'] = node.hold_date
+
+    #         # C. Fill Custom Columns (Attributes)
+    #         attributes = node.attributes or {}
+    #         for key, value in attributes.items():
+    #             row[key] = value
+                
+    #         data.append(row)
+
+    #     if not data:
+    #         return Response({"message": "No data to export"}, status=200)
+
+    #     # 2. Build DataFrame
+    #     df = pd.DataFrame(data)
+        
+    #     # 3. Order Columns
+    #     custom_schema_keys = [col['name'] for col in (target_level.extra_fields_schema or [])]
+    #     final_columns = ancestor_col_names + [target_level.name, 'Code', 'Hidden', 'On Hold'] + custom_schema_keys
+        
+    #     # Ensure all columns exist (fill missing with None)
+    #     for col in final_columns:
+    #         if col not in df.columns:
+    #             df[col] = None
+
+    #     df = df[final_columns]
+
+    #     # 4. Return Response
+    #     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    #     filename = f"{target_level.name}_Export.xlsx"
+    #     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+    #     with pd.ExcelWriter(response, engine='openpyxl') as writer:
+    #         df.to_excel(writer, index=False, sheet_name=target_level.name)
+            
+    #     return response
+
     @action(detail=False, methods=['get'], url_path='export-selected')
     def export_selected(self, request):
         level_id = request.query_params.get('level_id')
         all_ids = request.query_params.get('all_ids', False)
         ids_param = request.query_params.get('ids')
-        
-        target_level = None
-        nodes = []
 
+        target_level = None
+        nodes_qs = None
+
+        # -----------------------------
+        # Pick nodes + target_level
+        # -----------------------------
         if all_ids and all_ids in ["true", "True", True]:
             if not level_id:
                 return Response({"error": "level_id is required"}, status=400)
-            
+
             try:
-                target_level = Level.objects.get(id=level_id)
+                target_level = Level.objects.select_related("dimension", "parent").get(id=level_id)
             except Level.DoesNotExist:
                 return Response({"error": "Level not found"}, status=404)
 
-            nodes = Node.objects.filter(level_id=level_id).select_related('parent', 'parent__parent', 'parent__parent__parent')
+            # no fixed-depth select_related anymore
+            nodes_qs = Node.objects.filter(level_id=level_id).select_related("level")
 
-        # Case A: Export Selected Nodes by ID
         elif ids_param:
-            try:
-                ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
-            except ValueError:
-                return Response({"error": "Invalid ids format"}, status=400)
-            
+            ids = [int(x) for x in ids_param.split(",") if x.strip().isdigit()]
             if not ids:
                 return Response({"error": "No ids provided"}, status=400)
-                
-            nodes = Node.objects.filter(id__in=ids).select_related('level', 'parent', 'parent__parent', 'parent__parent__parent')
-            
-            if not nodes.exists():
+
+            nodes_qs = Node.objects.filter(id__in=ids).select_related("level")
+
+            if not nodes_qs.exists():
                 return Response({"error": "No nodes found for the provided IDs"}, status=404)
-            
-            # Validation: Ensure all nodes are from the SAME level
-            first_node = nodes.first()
+
+            first_node = nodes_qs.first()
             target_level = first_node.level
-            
-            if nodes.exclude(level=target_level).exists():
-                return Response({
-                    "error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."
-                }, status=400)
-        
+
+            if nodes_qs.exclude(level=target_level).exists():
+                return Response(
+                    {"error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."},
+                    status=400
+                )
         else:
             return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
 
-        # ---------------------------------------------------------
-        # GENERATE EXCEL DATA (Same logic as before)
-        # ---------------------------------------------------------
-        
-        dimension = target_level.dimension
-        
-        # 1. Identify Ancestor Levels (for columns like Glob | Continent | ...)
-        ancestor_levels = Level.objects.filter(
-            dimension=dimension,
-            sort_order__lt=target_level.sort_order
-        ).order_by('sort_order')
-        
+        # evaluate once (we’ll need ids multiple times)
+        nodes = list(nodes_qs)
+        if not nodes:
+            return Response({"message": "No data to export"}, status=200)
+
+        # -----------------------------
+        # Build ancestor columns (dynamic)
+        # -----------------------------
+        ancestor_levels = get_level_ancestors(target_level)  # Root -> Parent
         ancestor_col_names = [lvl.name for lvl in ancestor_levels]
+
+        # -----------------------------
+        # Fetch ancestors for all nodes using NodeClosure (dynamic depth)
+        # We only need ancestors whose level is in ancestor_col_names
+        # -----------------------------
+        node_ids = [n.id for n in nodes]
+
+        closures = (
+            NodeClosure.objects
+            .filter(descendant_id__in=node_ids, ancestor__level__in=ancestor_levels)
+            .select_related("ancestor", "ancestor__level")
+        )
+
+        # node_ancestors[node_id][level_name] = ancestor_node
+        node_ancestors = defaultdict(dict)
+        for c in closures:
+            node_ancestors[c.descendant_id][c.ancestor.level.name] = c.ancestor
+
+        # -----------------------------
+        # Build rows
+        # -----------------------------
+        custom_schema_keys = [col.get("name") for col in (target_level.extra_fields_schema or []) if col.get("name")]
 
         data = []
         for node in nodes:
             row = {}
-            
-            # A. Fill Ancestor Columns (Walk up the parent chain)
-            curr = node
-            for ancestor_name in reversed(ancestor_col_names):
-                if curr.parent:
-                    row[ancestor_name] = curr.parent.name
-                    curr = curr.parent
-                else:
-                    row[ancestor_name] = "" 
 
-            # B. Fill Self Data
+            # A) ancestor columns in correct order
+            path = node_ancestors.get(node.id, {})
+            for col in ancestor_col_names:
+                row[col] = getattr(path.get(col), "name", "")  # empty if missing
+
+            # B) self columns
             row[target_level.name] = node.name
-            row['Code'] = node.code
-            row['Hidden'] = node.is_hidden
-            row['On Hold'] = node.on_hold
-            row['Hold Date'] = node.hold_date
+            row["Code"] = node.code
+            row["Hidden"] = node.is_hidden
+            row["On Hold"] = node.on_hold
+            row["Hold Date"] = node.hold_date  # keep it!
 
-            # C. Fill Custom Columns (Attributes)
-            attributes = node.attributes or {}
-            for key, value in attributes.items():
-                row[key] = value
-                
+            # C) attributes
+            attrs = node.attributes or {}
+            for k, v in attrs.items():
+                row[k] = v
+
             data.append(row)
 
         if not data:
             return Response({"message": "No data to export"}, status=200)
 
-        # 2. Build DataFrame
         df = pd.DataFrame(data)
-        
-        # 3. Order Columns
-        custom_schema_keys = [col['name'] for col in (target_level.extra_fields_schema or [])]
-        final_columns = ancestor_col_names + [target_level.name, 'Code', 'Hidden', 'On Hold'] + custom_schema_keys
-        
-        # Ensure all columns exist (fill missing with None)
+
+        # -----------------------------
+        # Column ordering (include Hold Date)
+        # -----------------------------
+        final_columns = ancestor_col_names + [
+            target_level.name, "Code", "Hidden", "On Hold", "Hold Date"
+        ] + custom_schema_keys
+
         for col in final_columns:
             if col not in df.columns:
                 df[col] = None
 
         df = df[final_columns]
 
-        # 4. Return Response
-        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # -----------------------------
+        # Export
+        # -----------------------------
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         filename = f"{target_level.name}_Export.xlsx"
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
-        with pd.ExcelWriter(response, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name=target_level.name)
-            
-        return response
-                    
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        with pd.ExcelWriter(response, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name=target_level.name[:31])  # Excel sheet name limit
+
+        return response                
     
     @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser, FormParser])
     def upload_excel(self, request):
@@ -1128,7 +1267,7 @@ class CustomColumnView(APIView):
             if extra_col['name'] == existing_col_name:
                 return Response(extra_col, status=status.HTTP_200_OK)
         
-        return Response({"detail": "Column not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Column not found"}, status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request, pk):
         level = get_object_or_404(Level, pk=pk)
@@ -1136,8 +1275,10 @@ class CustomColumnView(APIView):
         input_serializer.is_valid(raise_exception=True)
         
         new_col = input_serializer.validated_data
-        if new_col["name"] in ["name", "code", "is_hidden", "on_hold", "hold_date", "created_at", "updated_at", "id", "level", "parent"]:
-            return Response({"detail": f"Column name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        print("New col:", new_col['name'])
+        print("Level:", level.name)
+        if new_col["name"] in [level.name.lower(), "name", "code", "is_hidden", "on_hold", "hold_date", "created_at", "updated_at", "id", "level", "parent"]:
+            return Response({"error": f"Column name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
         
         current_schema = level.extra_fields_schema or []
         
@@ -1146,7 +1287,7 @@ class CustomColumnView(APIView):
             pass
         
         if any([col['name'] == new_col['name'] for col in current_schema]):
-            return Response({"detail": f"Column with name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Column with name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
         
         current_schema.append(new_col)
         level.extra_fields_schema = current_schema
@@ -1160,7 +1301,7 @@ class CustomColumnView(APIView):
         current_name = request.query_params.get('col_name', "").strip()
         if current_name == "":
             return Response(
-                {"detail": "Column name is required"},
+                {"error": "Column name is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
             
@@ -1171,8 +1312,8 @@ class CustomColumnView(APIView):
         validated_data = input_serializer.validated_data
         
         new_name = validated_data.get('new_name')
-        if new_name in ["name", "code", "is_hidden", "on_hold", "hold_date", "created_at", "updated_at", "id", "level", "parent"]:
-            return Response({"detail": f"Column name '{new_name}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        if new_name in [level.name.lower(), "name", "code", "is_hidden", "on_hold", "hold_date", "created_at", "updated_at", "id", "level", "parent"]:
+            return Response({"error": f"Column name '{new_name}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
         
         
         # 2. Find existing column
@@ -1188,7 +1329,7 @@ class CustomColumnView(APIView):
         
         if target_index == -1:
             return Response(
-                {"detail": f"Column '{current_name}' not found"}, 
+                {"error": f"Column '{current_name}' not found"}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         
@@ -1198,7 +1339,7 @@ class CustomColumnView(APIView):
             # Check for duplicates in OTHER columns
             if any(col['name'] == new_name for col in current_schema):
                 return Response(
-                    {"detail": f"Column with name '{new_name}' already exists"}, 
+                    {"error": f"Column with name '{new_name}' already exists"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
             final_name = new_name
@@ -1268,7 +1409,7 @@ class CustomColumnView(APIView):
             col_name = request.query_params.get('col_name', "").strip()
             if col_name == "":
                 return Response(
-                    {"detail": "Column name is required"},
+                    {"error": "Column name is required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -1282,7 +1423,7 @@ class CustomColumnView(APIView):
             
             if target_index == -1:
                 return Response(
-                    {"detail": f"Column '{col_name}' not found"}, 
+                    {"error": f"Column '{col_name}' not found"}, 
                     status=status.HTTP_404_NOT_FOUND
                 )
             

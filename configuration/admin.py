@@ -18,8 +18,8 @@ class LevelAdmin(SimpleHistoryAdmin):
     
 @admin.register(Node)
 class NodeAdmin(SimpleHistoryAdmin):
-    list_display = ['dimension', 'level', 'parent', 'name', 'code',  'created_at', 'updated_at']
-    list_filter = ['dimension', 'level', 'parent']
+    list_display = ['dimension', 'level', 'parent', 'name', 'code', 'is_deleted', 'created_at', 'updated_at']
+    list_filter = ['is_deleted', 'dimension', 'level']
     
     def get_queryset(self, request):
         return self.model.all_objects.all()

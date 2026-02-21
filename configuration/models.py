@@ -286,7 +286,7 @@ class Node(SoftDeleteMixin):
     dimension = models.ForeignKey(Dimension, on_delete=models.CASCADE, related_name="nodes")
     level = models.ForeignKey(Level, on_delete=models.CASCADE, related_name="nodes")
     
-    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE, related_name="children")
     
     name = models.CharField(max_length=255, db_index=True)
     code = models.PositiveIntegerField()
