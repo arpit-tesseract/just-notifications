@@ -128,7 +128,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                 expression=Count('id'),
                 partition_by=[F('parent_id'), F('level_id')]
             )
-        ).order_by('id') # Ordering is mandatory for pagination!
+        ) # Ordering is mandatory for pagination!
         
         # 2. Apply Name/Code Search
         if search_query:
@@ -136,6 +136,20 @@ class NodeViewSet(viewsets.ModelViewSet):
                 Q(name__icontains=search_query) |      # Match Name
                 Q(code__icontains=search_query)       # Match Code (Optional)
             )        
+        
+        code_start_param = request.query_params.get("code_start", "").strip()
+        code_end_param = request.query_params.get("code_end", "").strip()
+
+        if code_start_param != "" and code_start_param.isdigit():
+            if code_end_param == "":
+                return Response({"error": "Query paramter 'code_end' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if code_end_param.isdigit():
+                queryset = queryset.filter(code__range=[code_start_param, code_end_param])
+            else:
+                # queryset = queryset.filter(code__gte=code_start_param)
+                return Response({"error": "Query paramter 'code_end' must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
 
         # 3. Standard Filters (Hidden / On Hold)
         is_hidden_param = request.query_params.get("is_hidden", "").strip()
@@ -147,6 +161,14 @@ class NodeViewSet(viewsets.ModelViewSet):
         if on_hold_param != "":
             on_hold_bool = on_hold_param.lower() == "true"
             queryset = queryset.filter(on_hold=on_hold_bool)
+        
+        on_hold_start_param = request.query_params.get("on_hold_start", "").strip()
+        on_hold_end_param = request.query_params.get("on_hold_end", "").strip()
+
+        if on_hold_start_param != "":
+            if on_hold_end_param == "":
+                return Response({"error": "Query paramter 'on_hold_end' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(on_hold_date__range=[on_hold_start_param, on_hold_end_param])
             
         # 4. Ancestor Filtering
         ancestor_ids_param = request.query_params.get("ancestor_ids", "").strip()
@@ -182,10 +204,76 @@ class NodeViewSet(viewsets.ModelViewSet):
         standard_params = ['dimension', 'level', 'search', 'page', 'page_size', 'is_hidden', 'on_hold', 'ancestor_ids']
         
         for param, raw_value in request.query_params.items():
-            if param in standard_params:
+            if param in standard_params or param.endswith("_end"):
+                print("Skipping standard param:", param)
                 continue
 
-            # Check if this param is actually in your schema
+            # ==========================================
+            # 1. Handle Range Filters (_start)
+            # ==========================================
+            if param.endswith('_start'):
+                # Extract base param name (e.g., 'area_start' -> 'area')
+                base_param = param[:-6] 
+                print("Base Param:", base_param)
+                
+                if base_param in schema_map:
+                    column_def = schema_map[base_param]
+                    field_type = column_def.get('type', 'char')
+                    default_val_raw = column_def.get('default_value') # <-- Get default value
+                    
+                    # Ensure it's a numeric/date type
+                    if field_type in ['int', 'positive_int', 'float', 'date']:
+                        end_param = f"{base_param}_end"
+                        end_raw_value = request.query_params.get(end_param, "").strip()
+                        
+                        if not end_raw_value:
+                            return Response({"error": f"Query parameter '{end_param}' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                        try:
+                            start_val, _ = cast_value_by_type(raw_value, field_type)
+                            end_val, _ = cast_value_by_type(end_raw_value, field_type)
+
+                            print("Range Filter:", base_param, start_val, end_val)
+                            
+                            if start_val is not None and end_val is not None:
+                                
+                                # --- NEW: Default Value Logic for Ranges ---
+                                typed_default = None
+                                if default_val_raw is not None:
+                                    typed_default, _ = cast_value_by_type(default_val_raw, field_type)
+
+                                # Check if the default value sits inside the requested bounds
+                                default_in_range = False
+                                if typed_default is not None:
+                                    if start_val <= typed_default <= end_val:
+                                        default_in_range = True
+                                # -------------------------------------------
+
+                                if default_in_range:
+                                    # If the default is within the range, include nodes that are missing the key entirely
+                                    queryset = queryset.filter(
+                                        Q(**{
+                                            f"attributes__{base_param}__gte": start_val,
+                                            f"attributes__{base_param}__lte": end_val
+                                        }) | 
+                                        ~Q(attributes__has_key=base_param)
+                                    )
+                                else:
+                                    # Standard strict range search
+                                    queryset = queryset.filter(**{
+                                        f"attributes__{base_param}__gte": start_val,
+                                        f"attributes__{base_param}__lte": end_val
+                                    })
+                                    
+                        except ValueError as e:
+                            print(f"Skipping range filter for {base_param}: {e}")
+                
+                # Move to next parameter in the loop
+                continue
+                
+            # ==========================================
+            # 3. Handle Exact Match (Your Existing Logic)
+            # ==========================================
             if param in schema_map:
                 column_def = schema_map[param]
                 field_type = column_def.get('type', 'char')

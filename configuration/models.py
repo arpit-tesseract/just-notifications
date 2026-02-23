@@ -301,15 +301,20 @@ class Node(SoftDeleteMixin):
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # NEW: Materialized path for lightning-fast hierarchical ordering
+    hierarchy_path = models.CharField(max_length=500, db_index=True, blank=True, null=True)
     
     history = HistoricalRecords()
     
     class Meta:
         # unique_together = ('dimension', 'level', 'code')
+        ordering = ['dimension', 'hierarchy_path']
         indexes = [
             models.Index(fields=["dimension", "level"]),
             models.Index(fields=["dimension", "parent"]),
             models.Index(fields=["dimension", "name"]),
+            models.Index(fields=["dimension", "hierarchy_path"]),
         ]
         constraints = [
             # 1. Constraint for Child Nodes (parent is NOT NULL)
@@ -327,6 +332,16 @@ class Node(SoftDeleteMixin):
             )
         ]
     
+    def _segment(self) -> str:
+        digits = getattr(self.level, "code_digits", 2) or 2
+        return str(self.code).zfill(digits)
+
+    def rebuild_path_key(self) -> str:
+        seg = self._segment()
+        if self.parent_id:
+            return f"{self.parent.path_key}.{seg}"
+        return seg
+    
     def save(self, *args, **kwargs):
         if self.on_hold == False:
             self.hold_date = None
@@ -339,8 +354,41 @@ class Node(SoftDeleteMixin):
                 self.hold_date = None
         else:
             self.on_hold = False
-            
+
+        # --- NEW: HIERARCHY PATH LOGIC ---
+        # 1. Pad the code using the level's configured digits
+        pad_length = self.level.code_digits if self.level_id else 2
+        padded_code = str(self.code).zfill(pad_length)
+
+        # 2. Build the new path
+        if self.parent:
+            new_path = f"{self.parent.hierarchy_path}/{padded_code}"
+        else:
+            new_path = padded_code
+
+        # 3. Detect if the path is changing (meaning the node was moved or its code changed)
+        path_changed = False
+        if self.pk:
+            old_path = Node.objects.filter(pk=self.pk).values_list('hierarchy_path', flat=True).first()
+            if old_path != new_path:
+                path_changed = True
+
+        self.hierarchy_path = new_path
+        
+        # Save the instance
         super().save(*args, **kwargs)
+
+        # 4. If the path changed, we MUST update all descendants so their paths stay accurate
+        if path_changed:
+            self.update_descendants_paths()
+
+    def update_descendants_paths(self):
+        """
+        Recursively triggers a save on all immediate children so they 
+        recalculate their hierarchy_path based on this node's new path.
+        """
+        for child in self.children.all():
+            child.save()
 
     
     def clean(self):
