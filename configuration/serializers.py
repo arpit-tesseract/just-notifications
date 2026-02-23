@@ -2809,7 +2809,7 @@ class NodeMergeCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     code = serializers.IntegerField()
     
-    parent = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all())
+    parent = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all(), required=False, allow_null=True)
     
     # 1. Add Attributes Field
     attributes = serializers.JSONField(
@@ -2852,6 +2852,9 @@ class NodeMergeCreateSerializer(serializers.Serializer):
         if parent:
             if parent.dimension != target_dimension:
                 raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
+        
+        if target_level.parent is not None and parent is None:
+            raise serializers.ValidationError({"parent": "Parent is required."})
             
 
         # --- B. Validate Source Nodes (The Logic You Requested) ---
