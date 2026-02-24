@@ -683,6 +683,48 @@ class NodeSerializer(serializers.ModelSerializer):
                 
         return instance
 
+
+class SplitNodeSerializer(serializers.Serializer):
+    node = NodeSerializer()
+    children_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        default=[],
+    )
+
+
+class SplitNodeInputSerializer(serializers.Serializer):
+    number_of_splits = serializers.IntegerField()
+    splits = SplitNodeSerializer(many=True)
+
+    def validate(self, attrs):
+        splits = attrs.get('splits')
+        number_of_splits = attrs.get('number_of_splits')
+
+        if len(splits) < 2 or number_of_splits < 2:
+        # if number_of_splits < 2:
+            raise serializers.ValidationError({'number_of_splits': "Minimum number of splits must be at least 2"})
+        
+        if number_of_splits != len(splits):
+            raise serializers.ValidationError({'error': 'Failed to split node.'})
+        
+        # Validate children_ids overlap between parts
+        seen = set()
+        overlap = set()
+        for idx, p in enumerate(splits):
+            ids = p.get("children_ids", [])
+            for cid in ids:
+                if cid in seen:
+                    overlap.add(cid)
+                seen.add(cid)
+
+        if overlap:
+            raise serializers.ValidationError({
+                "children_ids": f"Same child ids appear in multiple parts: {sorted(list(overlap))}"
+            })
+
+        return attrs
+
 class RemoveTimestampMixin:
     """
     Mixin to automatically exclude 'time_stamp' from the serializer fields.

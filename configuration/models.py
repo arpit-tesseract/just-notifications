@@ -4,12 +4,9 @@ from django.db.models import F
 from simple_history.models import HistoricalRecords
 from django.db.models import Q
 
-
-def get_two_digit(num):
-    return str(num).zfill(2)
-
-def get_three_digit(num):
-    return str(num).zfill(3)
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
+import datetime
 
 def get_type_label(type_val):
     if type_val == "int":
@@ -66,137 +63,6 @@ class SoftDeleteMixin(models.Model):
         self.deleted_by = None
         self.save()
 
-# An abstract model mixin that provides is_hidden, on_hold,
-# and hold_date fields, along with the automated save logic.
-class CommonFieldMixin(models.Model):
-    # --- Fields to be reused ---
-    code = models.PositiveIntegerField(null=True, blank=True)
-    is_hidden = models.BooleanField("hidden", default=False)
-    on_hold = models.BooleanField("on hold", default=False)
-    hold_date = models.DateField("hold upto", null=True, blank=True)
-    time_stamp = models.DateTimeField(auto_now_add=True)
-
-    # --- Reusable logic ---
-    def save(self, *args, **kwargs):
-        if self.on_hold == False:
-            self.hold_date = None
-        
-        if self.hold_date:
-            if self.hold_date >= timezone.now().date():
-                self.on_hold = True
-            else:
-                self.on_hold = False
-                self.hold_date = None
-        else:
-            self.on_hold = False
-            
-        super().save(*args, **kwargs)
-    
-    parent_field_name = None
-    
-    def _get_code(self):
-        return get_two_digit(self.code) if self.code else 00 
-    
-    # def _get_code_chain(self):
-    #     current_code = get_two_digit(self.code)
-        
-    #     if not self.parent_field_name:
-    #         return current_code
-        
-    #     parent = getattr(self, self.parent_field_name)
-    #     # Check if parent exists
-    #     if parent:
-    #         return f"{parent._get_code_chain()}{current_code}"
-        
-    #     # Fallback if parent is a plain model
-    #     return current_code
-    
-    def get_formatted_code(self):
-        current_code = self._get_code()
-        
-        # Check if parent field name exists
-        if not self.parent_field_name:
-            return current_code
-        
-        parent = getattr(self, self.parent_field_name)  
-        field = self._meta.get_field(self.parent_field_name)
-        related_name = field.remote_field.get_accessor_name()
-        
-        # Count siblings
-        sibling_count = getattr(parent, related_name).count()
-        
-        return f"{current_code}/{get_two_digit(sibling_count)}"
-    
-    
-    # def get_formatted_code(self):
-    #     # 1. Build the full hierarchy code (e.g., 010205...)
-    #     code_chain = self._get_code_chain()
-        
-    #     # 2. If root, return just the code
-    #     if not self.parent_field_name:
-    #         return code_chain
-        
-    #     # 3. Calculate sibling count dynamically
-    #     parent = getattr(self, self.parent_field_name)
-        
-    #     # Introspect the model to find the 'related_name' used by the parent
-    #     # This automatically finds 'continents', 'countries', 'states', etc.
-    #     field = self._meta.get_field(self.parent_field_name)
-    #     related_name = field.remote_field.get_accessor_name()
-        
-    #     # Count siblings
-    #     sibling_count = getattr(parent, related_name).count()
-        
-    #     return f"{code_chain}/{get_two_digit(sibling_count)}"
-    
-    # @staticmethod
-    # def get_two_digit(num):
-    #     return str(num).zfill(2)
-
-    class Meta:
-        abstract = True
-        
-class HoldableMixin(models.Model):
-    # --- Fields to be reused ---
-    is_hidden = models.BooleanField("hidden", default=False)
-    on_hold = models.BooleanField("on hold", default=False)
-    hold_date = models.DateField("hold upto", null=True, blank=True)
-
-    # --- Reusable logic ---
-    def save(self, *args, **kwargs):
-        if self.on_hold == False:
-            self.hold_date = None
-        
-        if self.hold_date:
-            if self.hold_date >= timezone.now().date():
-                self.on_hold = True
-            else:
-                self.on_hold = False
-                self.hold_date = None
-        else:
-            self.on_hold = False
-            
-        super().save(*args, **kwargs)
-
-    class Meta:
-        abstract = True
-
-class OrderByMixin(models.Model):
-    class Meta:
-        abstract = True
-        ordering = ["name"]      
-
-
-
-
-from django.db import models
-from django.utils import timezone
-from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from django.db import transaction
-import datetime
 
 # Regex: Starts with Uppercase, allows letters, numbers, and spaces.
 TECH_KEY_REGEX = r"^[A-Z][a-zA-Z0-9 ]*$"
@@ -241,43 +107,6 @@ class Level(SoftDeleteMixin):
                 condition=Q(is_deleted=False)
             )
         ]
-    
-    # def save(self, *args, **kwargs):
-    #     """
-    #     Auto-manage Sort Order:
-    #     1. CREATE: If adding at #2, shift all existing #2, #3, #4... -> #3, #4, #5...
-    #     2. UPDATE: If moving #5 -> #2, shift intermediate items appropriately.
-    #     """
-    #     with transaction.atomic():
-    #         # 1. Handle New Record Creation (Insert Logic)
-    #         if self._state.adding:  # Checks if this is a new record
-    #             pass
-    #         # 2. Handle Update (Reordering Logic)
-    #         else:
-    #             old_instance = Level.objects.get(pk=self.pk)
-    #             old_order = old_instance.sort_order
-    #             new_order = self.sort_order
-
-    #             if old_order != new_order:
-    #                 # Case A: Moving UP (e.g., 5 -> 2)
-    #                 # Shift items between 2 and 4 DOWN (+1)
-    #                 if new_order < old_order:
-    #                     Level.objects.filter(
-    #                         dimension=self.dimension,
-    #                         sort_order__gte=new_order,
-    #                         sort_order__lt=old_order
-    #                     ).update(sort_order=F('sort_order') + 1)
-
-    #                 # Case B: Moving DOWN (e.g., 2 -> 5)
-    #                 # Shift items between 3 and 5 UP (-1)
-    #                 elif new_order > old_order:
-    #                     Level.objects.filter(
-    #                         dimension=self.dimension,
-    #                         sort_order__gt=old_order,
-    #                         sort_order__lte=new_order
-    #                     ).update(sort_order=F('sort_order') - 1)
-
-    #         super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -534,6 +363,134 @@ class NodeClosure(models.Model):
 
 
 
+# ====================================================================
+# OLD MODELS
+# ====================================================================
+def get_two_digit(num):
+    return str(num).zfill(2)
+
+def get_three_digit(num):
+    return str(num).zfill(3)
+
+# An abstract model mixin that provides is_hidden, on_hold,
+# and hold_date fields, along with the automated save logic.
+class CommonFieldMixin(models.Model):
+    # --- Fields to be reused ---
+    code = models.PositiveIntegerField(null=True, blank=True)
+    is_hidden = models.BooleanField("hidden", default=False)
+    on_hold = models.BooleanField("on hold", default=False)
+    hold_date = models.DateField("hold upto", null=True, blank=True)
+    time_stamp = models.DateTimeField(auto_now_add=True)
+
+    # --- Reusable logic ---
+    def save(self, *args, **kwargs):
+        if self.on_hold == False:
+            self.hold_date = None
+        
+        if self.hold_date:
+            if self.hold_date >= timezone.now().date():
+                self.on_hold = True
+            else:
+                self.on_hold = False
+                self.hold_date = None
+        else:
+            self.on_hold = False
+            
+        super().save(*args, **kwargs)
+    
+    parent_field_name = None
+    
+    def _get_code(self):
+        return get_two_digit(self.code) if self.code else 00 
+    
+    # def _get_code_chain(self):
+    #     current_code = get_two_digit(self.code)
+        
+    #     if not self.parent_field_name:
+    #         return current_code
+        
+    #     parent = getattr(self, self.parent_field_name)
+    #     # Check if parent exists
+    #     if parent:
+    #         return f"{parent._get_code_chain()}{current_code}"
+        
+    #     # Fallback if parent is a plain model
+    #     return current_code
+    
+    def get_formatted_code(self):
+        current_code = self._get_code()
+        
+        # Check if parent field name exists
+        if not self.parent_field_name:
+            return current_code
+        
+        parent = getattr(self, self.parent_field_name)  
+        field = self._meta.get_field(self.parent_field_name)
+        related_name = field.remote_field.get_accessor_name()
+        
+        # Count siblings
+        sibling_count = getattr(parent, related_name).count()
+        
+        return f"{current_code}/{get_two_digit(sibling_count)}"
+    
+    
+    # def get_formatted_code(self):
+    #     # 1. Build the full hierarchy code (e.g., 010205...)
+    #     code_chain = self._get_code_chain()
+        
+    #     # 2. If root, return just the code
+    #     if not self.parent_field_name:
+    #         return code_chain
+        
+    #     # 3. Calculate sibling count dynamically
+    #     parent = getattr(self, self.parent_field_name)
+        
+    #     # Introspect the model to find the 'related_name' used by the parent
+    #     # This automatically finds 'continents', 'countries', 'states', etc.
+    #     field = self._meta.get_field(self.parent_field_name)
+    #     related_name = field.remote_field.get_accessor_name()
+        
+    #     # Count siblings
+    #     sibling_count = getattr(parent, related_name).count()
+        
+    #     return f"{code_chain}/{get_two_digit(sibling_count)}"
+    
+    # @staticmethod
+    # def get_two_digit(num):
+    #     return str(num).zfill(2)
+
+    class Meta:
+        abstract = True
+        
+class HoldableMixin(models.Model):
+    # --- Fields to be reused ---
+    is_hidden = models.BooleanField("hidden", default=False)
+    on_hold = models.BooleanField("on hold", default=False)
+    hold_date = models.DateField("hold upto", null=True, blank=True)
+
+    # --- Reusable logic ---
+    def save(self, *args, **kwargs):
+        if self.on_hold == False:
+            self.hold_date = None
+        
+        if self.hold_date:
+            if self.hold_date >= timezone.now().date():
+                self.on_hold = True
+            else:
+                self.on_hold = False
+                self.hold_date = None
+        else:
+            self.on_hold = False
+            
+        super().save(*args, **kwargs)
+
+    class Meta:
+        abstract = True
+
+class OrderByMixin(models.Model):
+    class Meta:
+        abstract = True
+        ordering = ["name"]      
           
           
 

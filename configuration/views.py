@@ -1171,6 +1171,106 @@ class NodeViewSet(viewsets.ModelViewSet):
         return Response({"message": "Success", "summary": summary}, status=status.HTTP_200_OK)
 
 
+    @action(detail=True, methods=["POST"], url_path="split")
+    def split_node(self, request, pk):
+        # Lock the source node
+        source_node = Node.all_objects.select_for_update().filter(id=pk).first()
+        if not source_node:
+            return Response({"error": "Node not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if source_node.is_deleted:
+            return Response({"error": "Cannot split a deleted node."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = SplitNodeInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        splits = serializer.validated_data.get('splits')
+
+        source_node_childrens = list(Node.objects.filter(parent=source_node).values_list('id', flat=True))
+        source_children_set = set(source_node_childrens)
+
+        requested_children_set = set()
+        for node in splits:
+            requested_children_set |= set(node.get("children_ids", []))
+
+        invalid = sorted(list(requested_children_set - source_children_set))
+        if invalid:
+            return Response(
+                {"error": "Some children_ids are not children of the source node.", "invalid_child_ids": invalid},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Anything not mentioned
+        unassigned_childrens = sorted(list(source_children_set - requested_children_set))
+        if unassigned_childrens:
+            return Response(
+                {"error": "Some children_ids are not mentioned in the splits.", "unassigned_child_ids": unassigned_childrens},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            created_nodes = []
+
+            # 1. Create New Nodes
+            for split in splits:
+                
+                # Use .copy() to avoid mutating the original validated data
+                node_data = split.get('node', {}).copy()
+
+                # Safely convert ANY loaded Django model back to its raw primary key
+                for key, value in node_data.items():
+                    if isinstance(value, models.Model):
+                        node_data[key] = value.pk
+
+                # node_data = split.get('node', {})
+                # parent_id = node_data.get('parent_id')
+
+                # Ensure the new node inherits the exact parent/level/dimension of the source
+                # node_data['parent'] = source_node.parent_id
+                # node_data['level'] = parent_id if parent_id else source_node.level_id
+                # node_data['dimension'] = source_node.dimension_id
+
+                node_serializer = NodeSerializer(data=node_data)
+                node_serializer.is_valid(raise_exception=True)
+                new_node = node_serializer.save()
+                created_nodes.append(new_node)
+
+            # 2. Assign Aliases
+            source_node_alias_lst = list(NodeAlias.objects.filter(node=source_node).values_list('name', flat=True))
+            source_node_alias_lst.append(source_node.name)
+
+            for new_node in created_nodes:
+                for alias_name in set(source_node_alias_lst):
+                    NodeAlias.objects.create(
+                        node=new_node, 
+                        name=alias_name
+                    )
+            
+            # 3. Assign Children & Trigger NodeClosure Logic
+            for index, split in enumerate(splits):
+                new_parent_node = created_nodes[index]
+                child_ids = split.get("children_ids", [])
+                
+                if child_ids:
+                    # Fetch the children that belong to this specific split
+                    children_to_move = Node.objects.filter(id__in=child_ids, parent=source_node)
+                    
+                    for child in children_to_move:
+                        child.parent = new_parent_node
+                        # CRITICAL: Calling .save() triggers `manage_node_closure` in signals.py
+                        # This automatically deletes old paths and creates the new hierarchy paths!
+                        child.save() 
+
+            # 4. Soft delete the original source node
+            source_node.soft_delete(user=request.user)
+
+        return Response({
+            "message": f"Successfully split {source_node.name}",
+            "new_nodes": [{"id": n.id, "name": n.name} for n in created_nodes]
+        }, status=status.HTTP_201_CREATED)
+
+
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -1198,9 +1298,15 @@ class NodeSearchAPIView(APIView):
         
         search_data = request.data.copy()
         target_level_name = search_data.pop('search_key', "").strip() # e.g., "Country"
-        
+
         if not target_level_name:
             return Response({"error": "search_key is required in body"}, status=400)
+        
+        target_level_obj = Level.objects.filter(name__iexact=target_level_name).first()
+        print("Target Level:", target_level_obj)
+        if not target_level_obj:
+            return Response({"error": f"Level '{target_level_name}' does not exist"}, status=400)
+        
 
         # 2. Get the Search Value (e.g., "In" for Country)
         raw_value = search_data.get(target_level_name)
@@ -1218,7 +1324,9 @@ class NodeSearchAPIView(APIView):
         # We search for ANY node at Level="Country" that contains "In"
         nodes = Node.objects.filter(
             dimension_id=dimension_id,
-            level__name__iexact=target_level_name,
+            # level__name__iexact=target_level_name,
+            # level__name__iexact=target_level_obj.name,
+            level=target_level_obj,
             is_hidden=False,
             on_hold=False
         ).exclude(
@@ -1522,5 +1630,4 @@ class CustomColumnView(APIView):
             return Response({"Error": "Error on deleting column"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
     
