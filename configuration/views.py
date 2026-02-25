@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from django.utils.dateparse import parse_date
 from .models import *
 from .serializers import *
 from rest_framework.decorators import action
@@ -140,15 +141,24 @@ class NodeViewSet(viewsets.ModelViewSet):
         code_start_param = request.query_params.get("code_start", "").strip()
         code_end_param = request.query_params.get("code_end", "").strip()
 
-        if code_start_param != "" and code_start_param.isdigit():
-            if code_end_param == "":
-                return Response({"error": "Query paramter 'code_end' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if code_end_param.isdigit():
-                queryset = queryset.filter(code__range=[code_start_param, code_end_param])
-            else:
-                # queryset = queryset.filter(code__gte=code_start_param)
-                return Response({"error": "Query paramter 'code_end' must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            code_start = parse_positive_int(code_start_param)
+        except ValueError:
+            return Response({"code_start": "Code start must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            code_end = parse_positive_int(code_end_param)
+        except ValueError:
+            return Response({"code_end": "Code end must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if code_start is not None and code_end is not None and code_end < code_start:
+            return Response({"code_end": "Code end must be greater than code start."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # apply filters
+        if code_start is not None:
+            queryset = queryset.filter(code__gte=code_start)
+        if code_end is not None:
+            queryset = queryset.filter(code__lte=code_end)
 
 
         # 3. Standard Filters (Hidden / On Hold)
@@ -162,13 +172,24 @@ class NodeViewSet(viewsets.ModelViewSet):
             on_hold_bool = on_hold_param.lower() == "true"
             queryset = queryset.filter(on_hold=on_hold_bool)
         
-        on_hold_start_param = request.query_params.get("on_hold_start", "").strip()
-        on_hold_end_param = request.query_params.get("on_hold_end", "").strip()
+        hold_date_start_param = request.query_params.get("hold_date_start", "").strip()
+        hold_date_end_param = request.query_params.get("hold_date_end", "").strip()
 
-        if on_hold_start_param != "":
-            if on_hold_end_param == "":
-                return Response({"error": "Query paramter 'on_hold_end' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-            queryset = queryset.filter(on_hold_date__range=[on_hold_start_param, on_hold_end_param])
+        if hold_date_start_param != "":
+            hold_date_start = parse_date(hold_date_start_param)
+            if hold_date_start is None:
+                return Response({"hold_date_start": "On hold start date must be a valid date."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(hold_date__gte=hold_date_start)
+
+        if hold_date_end_param != "":
+            hold_date_end = parse_date(hold_date_end_param)
+            if hold_date_end is None:
+                return Response({"hold_date_end": "On hold end date must be a valid date."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if hold_date_end > hold_date_start:
+                return Response({"hold_date_end": "On hold end date must be greater than on hold start date."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(hold_date__lte=hold_date_end)
+
             
         # 4. Ancestor Filtering
         ancestor_ids_param = request.query_params.get("ancestor_ids", "").strip()
@@ -204,72 +225,141 @@ class NodeViewSet(viewsets.ModelViewSet):
         standard_params = ['dimension', 'level', 'search', 'page', 'page_size', 'is_hidden', 'on_hold', 'ancestor_ids']
         
         for param, raw_value in request.query_params.items():
-            if param in standard_params or param.endswith("_end"):
-                print("Skipping standard param:", param)
+            if param in standard_params:
+                # print("Skipping standard param:", param)
                 continue
 
             # ==========================================
-            # 1. Handle Range Filters (_start)
+            # 1. Handle Range Filters
             # ==========================================
-            if param.endswith('_start'):
-                # Extract base param name (e.g., 'area_start' -> 'area')
-                base_param = param[:-6] 
-                print("Base Param:", base_param)
-                
+            processed_ranges = set()
+
+            if param.endswith('_start') or param.endswith('_end'):
+                base_param = param[:-6] if param.endswith('_start') else param[:-4]
+
+                # prevent double-processing when both start & end are present
+                if base_param in processed_ranges:
+                    continue
+                processed_ranges.add(base_param)
+
                 if base_param in schema_map:
                     column_def = schema_map[base_param]
                     field_type = column_def.get('type', 'char')
-                    default_val_raw = column_def.get('default_value') # <-- Get default value
-                    
-                    # Ensure it's a numeric/date type
+                    default_val_raw = column_def.get('default_value')
+
                     if field_type in ['int', 'positive_int', 'float', 'date']:
+                        start_param = f"{base_param}_start"
                         end_param = f"{base_param}_end"
-                        end_raw_value = request.query_params.get(end_param, "").strip()
-                        
-                        if not end_raw_value:
-                            return Response({"error": f"Query parameter '{end_param}' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-                        
+
+                        start_raw = request.query_params.get(start_param, "").strip()
+                        end_raw = request.query_params.get(end_param, "").strip()
+
                         try:
-                            start_val, _ = cast_value_by_type(raw_value, field_type)
-                            end_val, _ = cast_value_by_type(end_raw_value, field_type)
+                            start_val, _ = cast_value_by_type(start_raw, field_type)  # ✅ from start_raw
+                            end_val, _ = cast_value_by_type(end_raw, field_type)      # ✅ from end_raw
 
-                            print("Range Filter:", base_param, start_val, end_val)
-                            
-                            if start_val is not None and end_val is not None:
-                                
-                                # --- NEW: Default Value Logic for Ranges ---
-                                typed_default = None
-                                if default_val_raw is not None:
-                                    typed_default, _ = cast_value_by_type(default_val_raw, field_type)
+                            if start_val is None and end_val is None:
+                                continue
 
-                                # Check if the default value sits inside the requested bounds
-                                default_in_range = False
-                                if typed_default is not None:
-                                    if start_val <= typed_default <= end_val:
-                                        default_in_range = True
-                                # -------------------------------------------
+                            if start_val is not None and end_val is not None and end_val < start_val:
+                                return Response(
+                                    {end_param: f"Value for '{end_param}' must be >= '{start_param}'."},
+                                    status=status.HTTP_400_BAD_REQUEST
+                                )
 
-                                if default_in_range:
-                                    # If the default is within the range, include nodes that are missing the key entirely
-                                    queryset = queryset.filter(
-                                        Q(**{
-                                            f"attributes__{base_param}__gte": start_val,
-                                            f"attributes__{base_param}__lte": end_val
-                                        }) | 
-                                        ~Q(attributes__has_key=base_param)
-                                    )
-                                else:
-                                    # Standard strict range search
-                                    queryset = queryset.filter(**{
-                                        f"attributes__{base_param}__gte": start_val,
-                                        f"attributes__{base_param}__lte": end_val
-                                    })
-                                    
+                            typed_default = None
+                            print("Default Value:", default_val_raw)
+                            if default_val_raw is not None:
+                                typed_default, _ = cast_value_by_type(default_val_raw, field_type)
+
+                            default_in_range = default_in_bounds(typed_default, start_val, end_val)
+
+                            print("Default in range:", default_in_range)
+
+                            range_kwargs = {}
+                            if start_val is not None:
+                                range_kwargs[f"attributes__{base_param}__gte"] = start_val
+                            if end_val is not None:
+                                range_kwargs[f"attributes__{base_param}__lte"] = end_val
+
+                            range_q = Q(**range_kwargs)
+
+                            # Updated Query logic to handle missing keys OR explicitly null values
+                            if default_in_range:
+                                queryset = queryset.filter(
+                                    range_q | 
+                                    ~Q(attributes__has_key=base_param) | 
+                                    Q(**{f"attributes__{base_param}__isnull": True})
+                                )
+                            else:
+                                queryset = queryset.filter(range_q)
+
                         except ValueError as e:
                             print(f"Skipping range filter for {base_param}: {e}")
-                
-                # Move to next parameter in the loop
+
                 continue
+            # # ==========================================
+            # # 1. Handle Range Filters (_start)
+            # # ==========================================
+            # if param.endswith('_start'):
+            #     # Extract base param name (e.g., 'area_start' -> 'area')
+            #     base_param = param[:-6] 
+            #     print("Base Param:", base_param)
+                
+            #     if base_param in schema_map:
+            #         column_def = schema_map[base_param]
+            #         field_type = column_def.get('type', 'char')
+            #         default_val_raw = column_def.get('default_value') # <-- Get default value
+                    
+            #         # Ensure it's a numeric/date type
+            #         if field_type in ['int', 'positive_int', 'float', 'date']:
+            #             end_param = f"{base_param}_end"
+            #             end_raw_value = request.query_params.get(end_param, "").strip()
+                        
+            #             # if not end_raw_value:
+            #             #     return Response({"error": f"Query parameter '{end_param}' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+                        
+            #             try:
+            #                 start_val, _ = cast_value_by_type(raw_value, field_type)
+            #                 end_val, _ = cast_value_by_type(end_raw_value, field_type)
+
+            #                 print("Range Filter:", base_param, start_val, end_val)
+                            
+            #                 if start_val is not None and end_val is not None:
+                                
+            #                     # --- NEW: Default Value Logic for Ranges ---
+            #                     typed_default = None
+            #                     if default_val_raw is not None:
+            #                         typed_default, _ = cast_value_by_type(default_val_raw, field_type)
+
+            #                     # Check if the default value sits inside the requested bounds
+            #                     default_in_range = False
+            #                     if typed_default is not None:
+            #                         if start_val <= typed_default <= end_val:
+            #                             default_in_range = True
+            #                     # -------------------------------------------
+
+            #                     if default_in_range:
+            #                         # If the default is within the range, include nodes that are missing the key entirely
+            #                         queryset = queryset.filter(
+            #                             Q(**{
+            #                                 f"attributes__{base_param}__gte": start_val,
+            #                                 f"attributes__{base_param}__lte": end_val
+            #                             }) | 
+            #                             ~Q(attributes__has_key=base_param)
+            #                         )
+            #                     else:
+            #                         # Standard strict range search
+            #                         queryset = queryset.filter(**{
+            #                             f"attributes__{base_param}__gte": start_val,
+            #                             f"attributes__{base_param}__lte": end_val
+            #                         })
+                                    
+            #             except ValueError as e:
+            #                 print(f"Skipping range filter for {base_param}: {e}")
+                
+            #     # Move to next parameter in the loop
+            #     continue
                 
             # ==========================================
             # 3. Handle Exact Match (Your Existing Logic)

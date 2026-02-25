@@ -464,3 +464,30 @@ def get_level_ancestors(level):
         ancestors.append(curr)
         curr = curr.parent
     return list(reversed(ancestors))
+
+def parse_positive_int(value):
+    if value in ["", None]:
+        return None
+    
+    if isinstance(value, str):
+        if value.isdigit():
+            value = int(value)
+        else:
+            raise ValueError("The value must be a positive integer.")
+    elif not isinstance(value, int):
+        raise ValueError("The value must be a positive integer.")
+
+    if value < 0:
+        raise ValueError("The value must be a positive integer.")
+
+    return value
+
+
+def default_in_bounds(default_val, start_val, end_val):
+    if default_val is None:
+        return False
+    if start_val is not None and default_val < start_val:
+        return False
+    if end_val is not None and default_val > end_val:
+        return False
+    return True
