@@ -607,6 +607,10 @@ class NodeSerializer(serializers.ModelSerializer):
             
             if instance and parent.id == instance.id:
                 raise serializers.ValidationError({"parent": "Parent cannot be self."})
+        else:
+            if level.parent:
+                raise serializers.ValidationError({"parent": "Parent is required."})
+
         
         # ---------------------------------------------------------
         # 4. EXISTING LOGIC: Schema Validation (Attributes)
@@ -655,7 +659,7 @@ class NodeSerializer(serializers.ModelSerializer):
                     for alias in alias_data:
                         NodeAlias.objects.create(node=node, **alias)
         except Exception as e:
-            raise ValidationError({"error": "Error creating node: "})
+            raise ValidationError({"error": "Error creating node."})
                 
         return node
 
@@ -674,7 +678,8 @@ class NodeSerializer(serializers.ModelSerializer):
             
             # update or create alias
             for alias in alias_data:
-                NodeAlias.objects.update_or_create(
+                if not NodeAlias.objects.filter(node=instance, name__iexact=alias.get('name')).exists():
+                    NodeAlias.objects.update_or_create(
                         node=instance,
                         name=alias.get('name'),
                         defaults={}

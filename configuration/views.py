@@ -609,7 +609,8 @@ class NodeViewSet(viewsets.ModelViewSet):
                 for source in sources:
                     # A. Create Alias
                     # We save the old name so users searching for "Old Country" find "New Country"
-                    if not NodeAlias.objects.filter(node=target, name=source.name).exists():
+                    # ensure we don't create duplicate aliases
+                    if not NodeAlias.objects.filter(node=target, name__iexact=source.name).exists():
                         NodeAlias.objects.create(
                             node=target, 
                             name=source.name, 
@@ -620,8 +621,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                     # Also move existing aliases from Source to Target
                     existing_aliases = NodeAlias.objects.filter(node=source)
                     for alias in existing_aliases:
-                        alias.node = target
-                        alias.save()
+                        if not NodeAlias.objects.filter(node=target, name__iexact=alias.name).exists():
+                            alias.node = target
+                            alias.save()
 
                     # B. Reparent Children (CRITICAL STEP)
                     # We must iterate and .save() to trigger the 'manage_node_closure' signal
@@ -653,7 +655,7 @@ class NodeViewSet(viewsets.ModelViewSet):
             level_logger.exception("Merge failed:", str(e))
             return Response(
                 {
-                    "error": "Failed to merge nodes",
+                    "error": "Failed to merge nodes (existing)",
                     "details": str(e)
                 }, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -692,8 +694,8 @@ class NodeViewSet(viewsets.ModelViewSet):
                 summary = {"children_moved": 0, "aliases_created": 0}
 
                 for source in sources:
-                    # Create Alias (History)
-                    if not NodeAlias.objects.filter(node=new_node, name=source.name).exists():
+                    # A. Create Alias (History)
+                    if not NodeAlias.objects.filter(node=new_node, name__iexact=source.name).exists():
                         NodeAlias.objects.create(
                             node=new_node, 
                             name=source.name, 
@@ -701,8 +703,13 @@ class NodeViewSet(viewsets.ModelViewSet):
                         )
                         summary['aliases_created'] += 1
                     
-                    # Move existing aliases
-                    NodeAlias.objects.filter(node=source).update(node=new_node)
+                    # B. Move existing aliases SAFELY (Replaced the .update() line)
+                    existing_aliases = NodeAlias.objects.filter(node=source)
+                    for alias in existing_aliases:
+                        if not NodeAlias.objects.filter(node=new_node, name__iexact=alias.name).exists():
+                            alias.node = new_node
+                            alias.save()
+                       
 
                     # Move Children
                     children = Node.objects.filter(parent=source)
@@ -1331,10 +1338,12 @@ class NodeViewSet(viewsets.ModelViewSet):
 
             for new_node in created_nodes:
                 for alias_name in set(source_node_alias_lst):
-                    NodeAlias.objects.create(
-                        node=new_node, 
-                        name=alias_name
-                    )
+                    if alias_name.lower() == new_node.name.lower(): continue
+                    if not NodeAlias.objects.filter(node=new_node, name__iexact=alias_name).exists():
+                        NodeAlias.objects.create(
+                            node=new_node, 
+                            name=alias_name
+                        )
             
             # 3. Assign Children & Trigger NodeClosure Logic
             for index, split in enumerate(splits):
