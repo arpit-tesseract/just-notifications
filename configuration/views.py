@@ -24,12 +24,14 @@ import logging
 level_logger = logging.getLogger("Levels")
 
 class DimensionListView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         dimensions = Dimension.objects.filter(is_active=True)
         serializer = DimensionIdNameSerializer(dimensions, many=True)
         return Response(serializer.data)
 
 class LevelViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = Level.objects.all()
     serializer_class = LevelSerializer
     
@@ -65,12 +67,14 @@ class LevelViewSet(viewsets.ModelViewSet):
         # return super().perform_destroy(instance)
 
 class LevelListView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         dimension_id = request.query_params.get('dimension_id', "").strip()
         if not dimension_id:
-            return Response({"error": "Query paramter 'dimension_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"dimension_id": "Dimension cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
         if not dimension_id.isdigit():
-            return Response({"error": "Query paramter 'dimension_id' must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"dimension_id": "Dimension must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
         
         levels = Level.objects.filter(
             dimension_id=dimension_id,
@@ -82,6 +86,8 @@ from collections import defaultdict
 from django.db.models import F
 
 class NodeViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+
     queryset = Node.objects.select_related("dimension", "level", "parent")
     serializer_class = NodeSerializer
     pagination_class = ConfigurationPagination
@@ -105,10 +111,10 @@ class NodeViewSet(viewsets.ModelViewSet):
         search_query = request.query_params.get("search", "").strip()
 
         if not dimension or not dimension.isdigit():
-             return Response({"error": "Valid 'dimension' ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+             return Response({"dimension": "Valid dimension is required."}, status=status.HTTP_400_BAD_REQUEST)
          
         if not level or not level.isdigit():
-             return Response({"error": "Valid 'level' ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+             return Response({"level": "Valid level is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         # Step A: Get all explicitly deleted node IDs (bypassing the SoftDeleteManager)
         deleted_node_ids = Node.all_objects.filter(is_deleted=True).values_list('id', flat=True)
@@ -462,7 +468,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         
         if all_ids and all_ids in ["true", "True", True]:
             if not level_id:
-                return Response({"error": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"level_id": "Level is required"}, status=status.HTTP_400_BAD_REQUEST)
             
             nodes = Node.objects.filter(level_id=level_id)
         
@@ -470,10 +476,10 @@ class NodeViewSet(viewsets.ModelViewSet):
             try:
                 ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
             except ValueError:
-                return Response({"error": "Invalid ids format"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"ids": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
 
             if not ids:
-                return Response({"error": "No valid numeric ids provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"ids": "No valid numeric ids provided"}, status=status.HTTP_400_BAD_REQUEST)
 
             nodes = Node.objects.filter(id__in=ids)
 
@@ -526,17 +532,17 @@ class NodeViewSet(viewsets.ModelViewSet):
         payload = request.data.get('payload', {})
         
         if not payload:
-            return Response({"error": "Payload is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"payload": "Payload is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         if all_ids and all_ids in ["true", "True", True]:
             if not level_id:
-                return Response({"error": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"level_id": "Level is required"}, status=status.HTTP_400_BAD_REQUEST)
             
             nodes = Node.objects.filter(level_id=level_id)
         
         elif ids:
             if not isinstance(ids, list):
-                return Response({"error": "Invalid 'ids' format"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"ids": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
             
             nodes = Node.objects.filter(id__in=ids)
         else:
@@ -955,6 +961,9 @@ class NodeViewSet(viewsets.ModelViewSet):
         for node in nodes:
             row = {}
 
+            # --- NEW: Inject ID here ---
+            row["ID"] = node.id
+
             # A) ancestor columns in correct order
             path = node_ancestors.get(node.id, {})
             for col in ancestor_col_names:
@@ -982,7 +991,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         # -----------------------------
         # Column ordering (include Hold Date)
         # -----------------------------
-        final_columns = ancestor_col_names + [
+        final_columns = ["ID"] + ancestor_col_names + [
             target_level.name, "Code", "Hidden", "On Hold", "Hold Date"
         ] + custom_schema_keys
 
@@ -1032,21 +1041,28 @@ class NodeViewSet(viewsets.ModelViewSet):
         print("Level ID:", level_id)
         print("Mapping:", mapping_str)
 
-        if not file_obj or not level_id or not mapping_str:
-            
-            print("Missing file, level_id, or mapping")
-            return Response({"error": "File, level_id, and mapping are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not file_obj:
+            print("Missing file")
+            return Response({"file": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not level_id:
+            print("Missing level_id")
+            return Response({"level_id": "Level is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not mapping_str:
+            print("Missing mapping")
+            return Response({"mapping": "Mapping is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             mapping = json.loads(mapping_str)
         except json.JSONDecodeError:
-            return Response({"error": "Invalid mapping JSON format."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"mapping": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 1. Fetch Target Level
         try:
             target_level = Level.objects.get(pk=level_id)
         except Level.DoesNotExist:
-            return Response({"error": "Target Level not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"level_id": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # 2. Read Excel
         try:
@@ -1057,8 +1073,9 @@ class NodeViewSet(viewsets.ModelViewSet):
             df = df.astype(object).where(pd.notnull(df), None) 
             
             df.columns = df.columns.str.strip() # Strip whitespace from headers
+            print("Excel headers:", list(df.columns))
         except Exception as e:
-            return Response({"error": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"file": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
         # 3. Identify Key Columns from Mapping
         # We assume the mapping keys match the Level Names (e.g., "Country")
@@ -1071,11 +1088,11 @@ class NodeViewSet(viewsets.ModelViewSet):
         else:
              # If the mapping doesn't contain the Level Name, we can't find the new item's name
              return Response({
-                 "error": f"Mapping missing key for target level '{target_level_name_key}'."
+                 "mapping": f"Mapping missing key for '{target_level_name_key}'."
              }, status=status.HTTP_400_BAD_REQUEST)
 
         if col_target_name not in df.columns:
-            return Response({"error": f"Excel file missing column '{col_target_name}'"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"file": f"Excel file missing column '{col_target_name}'"}, status=status.HTTP_400_BAD_REQUEST)
 
         # B. Parent Resolution Columns
         # We resolve the immediate parent to attach the new node correctly.
@@ -1087,9 +1104,9 @@ class NodeViewSet(viewsets.ModelViewSet):
             if parent_key in mapping:
                 col_parent_name = mapping[parent_key]
                 if col_parent_name not in df.columns:
-                     return Response({"error": f"Excel file missing column '{col_parent_name}' (required for Parent {parent_key})"}, status=status.HTTP_400_BAD_REQUEST)
+                     return Response({"file": f"Excel file missing column '{col_parent_name}' (required for Parent {parent_key})"}, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return Response({"error": f"Mapping missing key for parent level '{parent_key}'."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"file": f"Mapping missing key for '{parent_key}'."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 4. Prepare Schema for Attributes (Validation Setup)
         schema = target_level.extra_fields_schema or []
@@ -1097,20 +1114,24 @@ class NodeViewSet(viewsets.ModelViewSet):
 
         summary = {"created": 0, "updated": 0, "errors": []}
 
+        if mapping.get("id") in ["", None]:
+            return Response({"mapping": "Missing 'ID' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
         if mapping.get(target_level.name) in ["", None]:
-            return Response({"error": f"Missing '{target_level.name}' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"mapping": f"Missing '{target_level.name}' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
 
         if mapping.get("code") in ["", None]:
-            return Response({"error": "Missing 'code' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"mapping": "Missing 'code' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
         
         if mapping.get("is_hidden") in ["", None]:
-            return Response({"error": "Missing 'is_hidden' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"mapping": "Missing 'is_hidden' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
         
         if mapping.get("on_hold") not in ["", None]:
         #     return Response({"error": "Missing 'on_hold' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
         # else:
             if mapping.get("hold_date") in ["", None]:
-                return Response({"error": "Missing 'hold_date' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"mapping": "Missing 'hold_date' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
         
 
         # 5. Process Rows
@@ -1119,6 +1140,20 @@ class NodeViewSet(viewsets.ModelViewSet):
                 for index, row in df.iterrows():
                     row_index = index + 2
                     row_data = row.to_dict()
+
+                    # Get Node ID
+                    print("Row Data:", row_data)
+                    id_val = row_data.get("ID")
+
+                    if id_val in ["", None]:
+                        id_val = None
+                    else:    
+                        if isinstance(id_val, str) and id_val.isdigit():
+                            id_val = int(id_val)
+                        elif isinstance(id_val, float):
+                            id_val = int(id_val)
+                        elif not isinstance(id_val, int):
+                            id_val = None
 
                     # --- Step 1: Get Target Name ---
                     name_val = row_data.get(col_target_name)
@@ -1144,7 +1179,21 @@ class NodeViewSet(viewsets.ModelViewSet):
 
                         if not parent_node:
                             summary["errors"].append(f"Row {row_index}: Parent '{parent_level.name}' named '{parent_name_val}' not found.")
-                            continue
+                            
+                    # --- NEW Step 3: Find Existing Node (Determine Create vs Update) ---
+                    node = None
+                    print("Id:", id_val)
+                    if id_val is not None:
+                        node = Node.objects.filter(id=id_val, dimension=target_level.dimension).first()
+                        if not node:
+                            raise Exception(f"Row {row_index}: Provided ID '{id_val}' does not exist.")
+                    else:
+                        node = None
+
+                    if node:
+                        summary["updated"] += 1
+                        
+                    print("Node: ", node)
 
                     # --- Step 3: Extract Standard Fields ---
                     # Helper to safely get value based on mapping key
@@ -1173,14 +1222,18 @@ class NodeViewSet(viewsets.ModelViewSet):
                         if code_val <= 0:
                             raise Exception(f"Row {row_index}: Code '{code_val}' is not positive.")
                         
-                        collision = Node.objects.filter(
+                        collision_qs = Node.objects.filter(
                             level=target_level,
                             code=code_val,
                             parent=parent_node
                         ).exclude(name=name_val) # Exclude self if this is an update to existing node
+
+                        # Exclude self based on ID if updating, otherwise exclude by name
+                        if node:
+                            collision_qs = collision_qs.exclude(id=node.id)
                         
-                        if collision.exists():
-                            raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision.first().name}'.")
+                        if collision_qs.exists():
+                            raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision_qs.first().name}'.")
                         
                     except ValueError:
                         raise Exception(f"Row {row_index}: Code '{code_val}' is not an numeric.")
@@ -1241,12 +1294,17 @@ class NodeViewSet(viewsets.ModelViewSet):
                     # )
 
                     # We avoid update_or_create so we can validate BEFORE hitting the DB
-                    node = Node.objects.filter(
-                        name=name_val,
-                        level=target_level,
-                        parent=parent_node,
-                        dimension=target_level.dimension
-                    ).first()
+                    # node = Node.objects.filter(
+                    #     name=name_val,
+                    #     level=target_level,
+                    #     parent=parent_node,
+                    #     dimension=target_level.dimension
+                    # ).first()
+
+                    # if id_val is not None:
+                    #     node = Node.objects.filter(id=id_val).first()
+                    # else:
+                    #     node = None
 
                     created = False
                     if not node:
@@ -1262,11 +1320,32 @@ class NodeViewSet(viewsets.ModelViewSet):
                             attributes=node_attributes
                         )
                         created = True
+                    else:
+                        # FIX 2: Apply the updates to the existing node!
+                        node.name = name_val
+                        node.code = code_val
+                        node.is_hidden = is_hidden
+                        node.on_hold = on_hold
+                        node.hold_date = hold_date_val
+                        node.parent = parent_node
+                        node.attributes = node_attributes
 
                     # --- Step 7: Validate (Model Logic) ---
                     try:
                         node.validate_attributes() 
                         node.save()
+
+                        # Track this in your history API!
+                        reason = "Created via Excel Import" if created else "Updated via Excel Import"
+                        update_change_reason(node, reason)
+                    except IntegrityError as e:
+                        # Since we are in atomic transaction, this exception will rollback the batch
+                        # If you prefer to skip rows instead of rollback, change this to `continue` 
+                        # and append to summary["errors"]
+                        print("e.messages", e)                        
+                        # Raise the exception with just the clean text
+                        raise Exception(f"Row {row_index}: This data already exists.")
+
                     except ValidationError as e:
                         # Since we are in atomic transaction, this exception will rollback the batch
                         # If you prefer to skip rows instead of rollback, change this to `continue` 
@@ -1406,6 +1485,7 @@ from django.db.models import Q
 from collections import defaultdict
 
 class NodeSearchAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     """
     POST /api/search/nodes/?dimension=1
     Body:
@@ -1420,7 +1500,7 @@ class NodeSearchAPIView(APIView):
         # 1. Get Params
         dimension_id = request.query_params.get('dimension')
         if not dimension_id:
-            return Response({"error": "Dimension ID is required"}, status=400)
+            return Response({"dimension": "Dimension is required"}, status=400)
         
         print(request.data)
         
@@ -1428,12 +1508,12 @@ class NodeSearchAPIView(APIView):
         target_level_name = search_data.pop('search_key', "").strip() # e.g., "Country"
 
         if not target_level_name:
-            return Response({"error": "search_key is required in body"}, status=400)
+            return Response({"search_key": "search_key is required."}, status=400)
         
         target_level_obj = Level.objects.filter(name__iexact=target_level_name).first()
         print("Target Level:", target_level_obj)
         if not target_level_obj:
-            return Response({"error": f"Level '{target_level_name}' does not exist"}, status=400)
+            return Response({"error": f"'{target_level_name}' does not exist"}, status=400)
         
 
         # 2. Get the Search Value (e.g., "In" for Country)
@@ -1580,6 +1660,7 @@ class NodeSearchAPIView(APIView):
         return Response(final_results)
 
 class CustomColumnView(APIView):
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, pk):
         existing_col_name = request.query_params.get('col_name', "").strip()
@@ -1591,7 +1672,7 @@ class CustomColumnView(APIView):
             if extra_col['name'] == existing_col_name:
                 return Response(extra_col, status=status.HTTP_200_OK)
         
-        return Response({"error": "Column not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"col_name": "Column not found"}, status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request, pk):
         level = get_object_or_404(Level, pk=pk)
@@ -1625,7 +1706,7 @@ class CustomColumnView(APIView):
         current_name = request.query_params.get('col_name', "").strip()
         if current_name == "":
             return Response(
-                {"error": "Column name is required"},
+                {"col_name": "Column name is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
             
@@ -1733,7 +1814,7 @@ class CustomColumnView(APIView):
             col_name = request.query_params.get('col_name', "").strip()
             if col_name == "":
                 return Response(
-                    {"error": "Column name is required"},
+                    {"col_name": "Column name is required"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             

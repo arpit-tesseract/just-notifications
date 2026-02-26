@@ -256,6 +256,7 @@ class Node(SoftDeleteMixin):
             field_type = field_def.get('type')
             is_required = field_def.get('required', False)
             max_len = field_def.get('max_length') # Custom constraint for char
+            default_value = field_def.get('default_value')
 
             # Fetch value from JSON
             value = data.get(name)
@@ -263,7 +264,9 @@ class Node(SoftDeleteMixin):
             # --- A. Check Required ---
             # If value is missing/empty and field is required -> Error
             if value in [None, ""] and is_required:
-                raise ValidationError({'attributes': f"The field '{name}' is required."})
+                print("Default Value:", default_value)
+                if default_value in [None, ""]:
+                    raise ValidationError({'attributes': f"The field '{name}' is required."})
             
             # If value is missing and NOT required -> Allow it (it stays Null/None)
             if value in [None, ""]:
