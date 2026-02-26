@@ -16,6 +16,8 @@ from .pagination import ConfigurationPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
 from django.core.exceptions import ValidationError
 
+from .mixins import BaseHistoryDiffAPIViewMixin
+
 import json
 import logging
 level_logger = logging.getLogger("Levels")
@@ -1730,3 +1732,11 @@ class CustomColumnView(APIView):
         
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+
+
+class NodeHistoryDiffView(BaseHistoryDiffAPIViewMixin):
+    model_class = Node
+
+
+class LevelHistoryDiffView(BaseHistoryDiffAPIViewMixin):
+    model_class = Level

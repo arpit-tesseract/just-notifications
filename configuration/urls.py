@@ -13,6 +13,9 @@ urlpatterns = [
     
     path('levels/<int:pk>/custom-columns/', CustomColumnView.as_view()),
     path("search-nodes/", NodeSearchAPIView.as_view(), name="search_nodes"),  
+
+    path('nodes/<int:id>/history/', NodeHistoryDiffView.as_view()),
+    path('levels/<int:id>/history/', LevelHistoryDiffView.as_view()),
 ]
 
 

@@ -2961,3 +2961,15 @@ class NodeMergeCreateSerializer(serializers.Serializer):
         # Update attrs with the safe dictionary in case it was None
         attrs['attributes'] = attributes
         return attrs
+
+
+class HistoricalLevelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Level.history.model
+        fields = '__all__'
+
+
+class HistoricalNodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Node.history.model
+        fields = '__all__'

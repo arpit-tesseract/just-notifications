@@ -5,6 +5,68 @@ from rest_framework.exceptions import ValidationError
 from django.db.models.fields.related import ForeignObjectRel
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from django.core.exceptions import ImproperlyConfigured
+
+class BaseHistoryDiffAPIViewMixin(APIView):
+    """
+    Universal Base View to get before/after history diffs for ANY model 
+    using django-simple-history.
+    """
+    permission_classes = [IsAuthenticated]
+    model_class = None
+    lookup_url_kwarg = 'id'  # Default URL kwarg to look for
+
+    def get(self, request, *args, **kwargs):
+        if self.model_class is None:
+            raise ImproperlyConfigured("You must define 'model_class' on the child view.")
+
+        object_id = self.kwargs.get(self.lookup_url_kwarg)
+        
+        # Dynamically use the history of whichever model is provided
+        history_records = list(
+            self.model_class.history.filter(id=object_id)
+            .select_related('history_user')
+            .order_by('-history_date')
+        )
+        
+        result_data = []
+        ignored_fields = ['updated_at', 'history_id', 'history_date', 'history_type', 'history_user', 'history_change_reason']
+
+        for index, record in enumerate(history_records):
+            if record.history_type == '+':
+                action = 'Created'
+            elif record.history_type == '~':
+                action = 'Changed'
+            else:
+                action = 'Deleted'
+                
+            changed_by = record.history_user.email if record.history_user else 'System'
+            changes = []
+            
+            # Compare current record with the previous one chronologically
+            if action == 'Changed' and index + 1 < len(history_records):
+                prev_record = history_records[index + 1]
+                delta = record.diff_against(prev_record)
+                
+                for change in delta.changes:
+                    if change.field not in ignored_fields:
+                        field_display_name = change.field.replace('_', ' ').capitalize()
+                        changes.append({
+                            "field": field_display_name,
+                            "before": change.old,
+                            "after": change.new
+                        })
+
+            result_data.append({
+                "date_time": record.history_date,
+                "action": action,
+                "changed_by": changed_by,
+                "changes": changes if action == 'Changed' else "None"
+            })
+            
+        return Response(result_data)
 
 class BaseQueryMixin:
     """
