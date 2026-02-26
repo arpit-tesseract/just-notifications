@@ -32,7 +32,7 @@ class BaseHistoryDiffAPIViewMixin(APIView):
         )
         
         result_data = []
-        ignored_fields = ['updated_at', 'history_id', 'history_date', 'history_type', 'history_user', 'history_change_reason']
+        ignored_fields = ['hierarchy_path', 'updated_at', 'history_id', 'history_date', 'history_type', 'history_user', 'history_change_reason']
 
         for index, record in enumerate(history_records):
             if record.history_type == '+':
@@ -52,9 +52,9 @@ class BaseHistoryDiffAPIViewMixin(APIView):
                 
                 for change in delta.changes:
                     if change.field not in ignored_fields:
-                        field_display_name = change.field.replace('_', ' ').capitalize()
+                        # field_display_name = change.field.replace('_', ' ').capitalize()
                         changes.append({
-                            "field": field_display_name,
+                            "field": change.field,
                             "before": change.old,
                             "after": change.new
                         })
@@ -63,6 +63,7 @@ class BaseHistoryDiffAPIViewMixin(APIView):
                 "date_time": record.history_date,
                 "action": action,
                 "changed_by": changed_by,
+                "change_reason": record.history_change_reason or "None",
                 "changes": changes if action == 'Changed' else "None"
             })
             

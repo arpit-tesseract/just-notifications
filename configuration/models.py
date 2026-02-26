@@ -125,6 +125,9 @@ class Node(SoftDeleteMixin):
     is_hidden = models.BooleanField(default=False)
     on_hold = models.BooleanField(default=False)
     hold_date = models.DateField(null=True, blank=True)
+
+    merge_date = models.DateField(null=True, blank=True)
+    split_date = models.DateField(null=True, blank=True)
     
     attributes = models.JSONField(default=dict, null=True, blank=True)
     

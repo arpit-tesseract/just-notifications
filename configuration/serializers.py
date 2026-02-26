@@ -8,6 +8,7 @@ from django.db import transaction, IntegrityError
 from rest_framework.validators import UniqueTogetherValidator
 from django.db.models import F, Max
 from django.core.exceptions import ValidationError as DjangoValidationError
+from simple_history.utils import update_change_reason
 
 import logging
 
@@ -656,36 +657,62 @@ class NodeSerializer(serializers.ModelSerializer):
                 
                 # create alias
                 if alias_data:
+                    alias_names = []
                     for alias in alias_data:
                         NodeAlias.objects.create(node=node, **alias)
+                        alias_names.append(alias.get('name'))
+                    
+                    # 3. Update the reason on that exact history record
+                    update_change_reason(node, f"Created with aliases: {', '.join(alias_names)}")
+                    
         except Exception as e:
             raise ValidationError({"error": "Error creating node."})
                 
         return node
 
     def update(self, instance, validated_data):
-        alias_data = validated_data.pop('alias', [])
-        print('Alias data:', alias_data)
-        instance = super().update(instance, validated_data)
-        
+        has_alias_field = 'alias' in validated_data
+        alias_data = validated_data.pop('alias')
         if alias_data is None:
-            NodeAlias.objects.filter(node=instance).delete()
-
-        if alias_data:
-            incoming_name = [alias['name'] for alias in alias_data]
-            # delete alias where name not in incoming
-            NodeAlias.objects.filter(node=instance).exclude(name__in=incoming_name).delete()
+            alias_data = []
             
-            # update or create alias
-            for alias in alias_data:
-                if not NodeAlias.objects.filter(node=instance, name__iexact=alias.get('name')).exists():
-                    NodeAlias.objects.update_or_create(
-                        node=instance,
-                        name=alias.get('name'),
-                        defaults={}
-                    )
+        # instance = super().update(instance, validated_data)
+        print('Alias data:', alias_data)
+
+        reason_parts = []
+
+        if has_alias_field:
+            old_aliases = set(NodeAlias.objects.filter(node=instance).values_list('name', flat=True))
+            incoming_names = set(alias.get('name') for alias in alias_data if alias.get('name'))
+
+            added_aliases = incoming_names - old_aliases
+            removed_aliases = old_aliases - incoming_names
+
+            if added_aliases or removed_aliases:
+                if added_aliases:
+                    reason_parts.append(f"Added aliases: {', '.join(added_aliases)}")
+                    for name in added_aliases:
+                        NodeAlias.objects.create(node=instance, name=name)
+
+                if removed_aliases:
+                    reason_parts.append(f"Removed aliases: {', '.join(removed_aliases)}")
+                    NodeAlias.objects.filter(node=instance, name__in=removed_aliases).delete()
         
-                
+        # 2. Inject the change reason into the instance 
+        if reason_parts:
+            instance._change_reason = " | ".join(reason_parts)
+            
+            # CRITICAL: If ONLY aliases changed (and no other fields like 'name' or 'code'), 
+            # super().update() will NOT trigger a save. We must force a save to generate history!
+            if not validated_data: 
+                instance.updated_at = timezone.now()
+                instance.save(update_fields=['updated_at'])
+                return instance
+
+        # 3. Update standard fields 
+        # (If standard fields changed, simple-history will automatically grab the _change_reason we set above)
+        instance = super().update(instance, validated_data)
+            
         return instance
 
 
@@ -699,6 +726,7 @@ class SplitNodeSerializer(serializers.Serializer):
 
 
 class SplitNodeInputSerializer(serializers.Serializer):
+    split_date = serializers.DateField()
     number_of_splits = serializers.IntegerField()
     splits = SplitNodeSerializer(many=True)
 
@@ -2805,6 +2833,7 @@ class NodeMergeSerializer(serializers.Serializer):
         child=serializers.IntegerField(),
         help_text="List of IDs to merge INTO the target (these will be deleted)."
     )
+    merge_date = serializers.DateField()
 
     def validate(self, data):
         target_id = data['target_node_id']
@@ -2855,6 +2884,8 @@ class NodeMergeCreateSerializer(serializers.Serializer):
     
     name = serializers.CharField(max_length=255)
     code = serializers.IntegerField()
+
+    merge_date = serializers.DateField()
     
     parent = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all(), required=False, allow_null=True)
     

@@ -17,6 +17,7 @@ from .utils import cast_value_by_type, check_bool_value, validate_value_type
 from django.core.exceptions import ValidationError
 
 from .mixins import BaseHistoryDiffAPIViewMixin
+from simple_history.utils import update_change_reason
 
 import json
 import logging
@@ -599,8 +600,9 @@ class NodeViewSet(viewsets.ModelViewSet):
         serializer = NodeMergeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        target = serializer.validated_data['target_node']
-        sources = serializer.validated_data['source_nodes']
+        target = serializer.validated_data.get('target_node')
+        sources = serializer.validated_data.get('source_nodes')
+        merge_date = serializer.validated_data.get('merge_date')
 
         # Counters for response
         moved_children_count = 0
@@ -608,6 +610,13 @@ class NodeViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
+                
+                # NEW: Log the merge on the TARGET node
+                source_names = ", ".join([s.name for s in sources])
+                target._change_reason = f"Merged with: {source_names}"
+                target.merge_date = merge_date
+                target.save(update_fields=['updated_at', 'merge_date']) # Touch the node to create a history record
+
                 for source in sources:
                     # A. Create Alias
                     # We save the old name so users searching for "Old Country" find "New Country"
@@ -638,6 +647,7 @@ class NodeViewSet(viewsets.ModelViewSet):
 
                     # C. Delete Source
                     # (Optional: You could set is_archived=True instead of deleting)
+                    source._change_reason = f"Merged into Node '{target.name}' (ID: {target.id})"
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -672,13 +682,14 @@ class NodeViewSet(viewsets.ModelViewSet):
         # Everything is already validated and fetched!
         data = serializer.validated_data
         
-        new_name = data['name']
+        new_name = data.get('name')
         new_code = data.get('code')
-        dimension = data['dimension'] # Actual Dimension Object
-        level = data['level']         # Actual Level Object
+        dimension = data.get('dimension') # Actual Dimension Object
+        level = data.get('level')         # Actual Level Object
         parent = data.get('parent')   # Actual Node Object (or None)
         attributes = data.get('attributes', {})
-        sources = data['source_nodes_objects'] # The list of Node objects we stored in validate()
+        sources = data.get('source_nodes_objects') # The list of Node objects we stored in validate()
+        merge_date = data.get('merge_date')
 
         try:
             with transaction.atomic():
@@ -689,8 +700,13 @@ class NodeViewSet(viewsets.ModelViewSet):
                     dimension=dimension,
                     level=level,
                     parent=parent,
-                    attributes=attributes
+                    attributes=attributes,
+                    merge_date=merge_date
                 )
+
+                # NEW: Document the creation reason
+                source_names = ", ".join([s.name for s in sources])
+                update_change_reason(new_node, f"Created by merging: {source_names}")
 
                 # 2. Merge Logic (Aliases & Children)
                 summary = {"children_moved": 0, "aliases_created": 0}
@@ -701,7 +717,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                         NodeAlias.objects.create(
                             node=new_node, 
                             name=source.name, 
-                            note=f"Merged from deleted Node ID {source.id}"
+                            note=f"Merged from deleted ID {source.id}"
                         )
                         summary['aliases_created'] += 1
                     
@@ -721,6 +737,8 @@ class NodeViewSet(viewsets.ModelViewSet):
                         summary['children_moved'] += 1
 
                     # Delete Source
+                    # NEW: Document the deletion reason
+                    source._change_reason = f"Merged into new '{new_node.name}' (ID: {new_node.id})"
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -1284,6 +1302,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         splits = serializer.validated_data.get('splits')
+        split_date = serializer.validated_data.get('split_date')
 
         source_node_childrens = list(Node.objects.filter(parent=source_node).values_list('id', flat=True))
         source_children_set = set(source_node_childrens)
@@ -1331,7 +1350,12 @@ class NodeViewSet(viewsets.ModelViewSet):
 
                 node_serializer = NodeSerializer(data=node_data)
                 node_serializer.is_valid(raise_exception=True)
+                node_serializer.validated_data['split_date'] = split_date
                 new_node = node_serializer.save()
+
+                # NEW: Log why this node was created
+                update_change_reason(new_node, f"Created by splitting '{source_node.name}' (ID: {source_node.id})")
+
                 created_nodes.append(new_node)
 
             # 2. Assign Aliases
@@ -1363,6 +1387,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                         child.save() 
 
             # 4. Soft delete the original source node
+            # NEW: Log why this node is being deleted
+            new_node_names = ", ".join([n.name for n in created_nodes])
+            source_node._change_reason = f"Split into {len(created_nodes)} nodes: {new_node_names}"
             source_node.soft_delete(user=request.user)
 
         return Response({
