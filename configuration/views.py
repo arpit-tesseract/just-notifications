@@ -1136,85 +1136,84 @@ class NodeViewSet(viewsets.ModelViewSet):
 
         # 5. Process Rows
         try:
-            with transaction.atomic():
-                for index, row in df.iterrows():
-                    row_index = index + 2
-                    row_data = row.to_dict()
+            for index, row in df.iterrows():
+                row_index = index + 2
+                row_data = row.to_dict()
 
-                    # Get Node ID
-                    print("Row Data:", row_data)
-                    id_val = row_data.get("ID")
-
-                    if id_val in ["", None]:
+                # Get Node ID
+                print("Row Data:", row_data)
+                id_val = row_data.get("ID")
+                if id_val in ["", None]:
+                    id_val = None
+                else:    
+                    if isinstance(id_val, str) and id_val.isdigit():
+                        id_val = int(id_val)
+                    elif isinstance(id_val, float):
+                        id_val = int(id_val)
+                    elif not isinstance(id_val, int):
                         id_val = None
-                    else:    
-                        if isinstance(id_val, str) and id_val.isdigit():
-                            id_val = int(id_val)
-                        elif isinstance(id_val, float):
-                            id_val = int(id_val)
-                        elif not isinstance(id_val, int):
-                            id_val = None
 
-                    # --- Step 1: Get Target Name ---
-                    name_val = row_data.get(col_target_name)
-                    if not name_val:
-                        continue # Skip empty rows
-
-                    # --- Step 2: Resolve Parent Node ---
-                    parent_node = None
-                    if parent_level:
-                        parent_name_val = row_data.get(col_parent_name)
-                        
-                        if not parent_name_val:
-                             summary["errors"].append(f"Row {row_index}: Missing parent '{parent_level.name}'.")
-                             continue
-                        
-                        # Find the parent node
-                        # We search for a Node with the Parent's Name + Parent's Level + Same Dimension
-                        parent_node = Node.objects.filter(
-                            name=parent_name_val,
-                            level=parent_level,
-                            dimension=target_level.dimension
-                        ).first()
-
-                        if not parent_node:
-                            summary["errors"].append(f"Row {row_index}: Parent '{parent_level.name}' named '{parent_name_val}' not found.")
+                # --- Step 1: Get Target Name ---
+                name_val = row_data.get(col_target_name)
+                if not name_val:
+                    continue # Skip empty rows
+                
+                try:
+                    with transaction.atomic():
+                        # --- Step 2: Resolve Parent Node ---
+                        parent_node = None
+                        if parent_level:
+                            parent_name_val = row_data.get(col_parent_name)
                             
-                    # --- NEW Step 3: Find Existing Node (Determine Create vs Update) ---
-                    node = None
-                    print("Id:", id_val)
-                    if id_val is not None:
-                        node = Node.objects.filter(id=id_val, dimension=target_level.dimension).first()
-                        if not node:
-                            raise Exception(f"Row {row_index}: Provided ID '{id_val}' does not exist.")
-                    else:
+                            if not parent_name_val:
+                                summary["errors"].append(f"Row {row_index}: Missing parent '{parent_level.name}'.")
+                                continue
+                            
+                            # Find the parent node
+                            # We search for a Node with the Parent's Name + Parent's Level + Same Dimension
+                            parent_node = Node.objects.filter(
+                                name=parent_name_val,
+                                level=parent_level,
+                                dimension=target_level.dimension
+                            ).first()
+
+                            if not parent_node:
+                                summary["errors"].append(f"Row {row_index}: Parent '{parent_level.name}' named '{parent_name_val}' not found.")
+
+                                
+                        # --- NEW Step 3: Find Existing Node (Determine Create vs Update) ---
                         node = None
+                        print("Id:", id_val)
+                        if id_val is not None:
+                            node = Node.objects.filter(id=id_val, level=target_level).first()
+                            print("Node in condition: ", node)
+                            if not node:
+                                # raise Exception(f"Row {row_index}: Provided ID '{id_val}' does not exist.")
+                                print(f"Row {row_index}: Provided ID '{id_val}' does not exist, so a new node will be created.")
+                                summary["errors"].append(f"Row {row_index}: Provided ID '{id_val}' does not exist so a new node will be created.")
+                            
+                        print("Node: ", node)
 
-                    if node:
-                        summary["updated"] += 1
+                        # --- Step 3: Extract Standard Fields ---
+                        # Helper to safely get value based on mapping key
+                        def get_mapped_val(key, default=None):
+                            if key in mapping and mapping[key] in row_data:
+                                return row_data[mapping[key]]
+                            return default
+
+                        code_val = get_mapped_val('code')
+                        print(f"Code: {code_val}, Type: {type(code_val)}")
+
+                        if code_val in ["", None]:
+                            raise Exception(f"Row {row_index}: Missing Code.")
                         
-                    print("Node: ", node)
+                        if type(code_val) not in [str, int]:
+                            raise Exception(f"Row {row_index}: Code '{code_val}' is not numeric.")
 
-                    # --- Step 3: Extract Standard Fields ---
-                    # Helper to safely get value based on mapping key
-                    def get_mapped_val(key, default=None):
-                        if key in mapping and mapping[key] in row_data:
-                            return row_data[mapping[key]]
-                        return default
-
-                    code_val = get_mapped_val('code')
-                    print(f"Code: {code_val}, Type: {type(code_val)}")
-
-                    if code_val in ["", None]:
-                        raise Exception(f"Row {row_index}: Missing Code.")
-                    
-                    if type(code_val) not in [str, int]:
-                        raise Exception(f"Row {row_index}: Code '{code_val}' is not numeric.")
-
-                    try:
+                        
                         if isinstance(code_val, str) and code_val.isdigit():
                             code_val = int(code_val)
-    
+
                         if len(str(code_val)) > target_level.code_digits:
                             raise Exception(f"Row {row_index}: Code '{code_val}' too long for level '{target_level.name}'.")
                         
@@ -1235,134 +1234,138 @@ class NodeViewSet(viewsets.ModelViewSet):
                         if collision_qs.exists():
                             raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision_qs.first().name}'.")
                         
-                    except ValueError:
-                        raise Exception(f"Row {row_index}: Code '{code_val}' is not an numeric.")
 
-                    is_hidden_raw = get_mapped_val('is_hidden', None)
-                    if is_hidden_raw is None:
-                        is_hidden = False
-                    else:
-                        is_hidden = check_bool_value(is_hidden_raw)
-                        if is_hidden is None:
-                            raise Exception(f"Row {row_index}: Invalid value for is_hidden: {is_hidden_raw}")
-                        
-                    on_hold_raw = get_mapped_val('on_hold', None)
-                    if on_hold_raw is None:
-                        on_hold = False
-                    else:
-                        on_hold = check_bool_value(on_hold_raw)
-                        if on_hold is None:
-                            raise Exception(f"Row {row_index}: Invalid value for on_hold: {on_hold_raw}")
-                        
+                        is_hidden_raw = get_mapped_val('is_hidden', None)
+                        if is_hidden_raw is None:
+                            is_hidden = False
+                        else:
+                            is_hidden = check_bool_value(is_hidden_raw)
+                            if is_hidden is None:
+                                raise Exception(f"Row {row_index}: Invalid value for is_hidden: {is_hidden_raw}")
+                            
+                        on_hold_raw = get_mapped_val('on_hold', None)
+                        if on_hold_raw is None:
+                            on_hold = False
+                        else:
+                            on_hold = check_bool_value(on_hold_raw)
+                            if on_hold is None:
+                                raise Exception(f"Row {row_index}: Invalid value for on_hold: {on_hold_raw}")
+                            
 
                     
-                    # Date parsing
-                    hold_date_raw = get_mapped_val('hold_date')
-                    hold_date_val = None
-                    if hold_date_raw:
+                        # Date parsing
+                        hold_date_raw = get_mapped_val('hold_date')
+                        hold_date_val = None
+                        if hold_date_raw:
+                            try:
+                                dt = pd.to_datetime(hold_date_raw, dayfirst=True)
+                                hold_date_val = dt.date()
+                            except:
+                                summary["errors"].append(f"Row {row_index}: Invalid date format for Hold Date.")
+                                continue
+
+                        # --- Step 4: Extract Attributes ---
+                        node_attributes = {}
+                        if 'attributes' in mapping and isinstance(mapping['attributes'], dict):
+                            for sys_attr, excel_header in mapping['attributes'].items():
+                                # Only process if this attribute is defined in the Level Schema
+                                if sys_attr in valid_attr_keys:
+                                    val = row_data.get(excel_header)
+                                    if val is not None:
+                                        node_attributes[sys_attr] = val
+
+
+                        # --- Step 6: Update or Create ---
+                        # node, created = Node.objects.update_or_create(
+                        #     name=name_val,
+                        #     level=target_level,
+                        #     parent=parent_node,
+                        #     defaults={
+                        #         "code": code_val,
+                        #         "is_hidden": is_hidden,
+                        #         "on_hold": on_hold,
+                        #         "hold_date": hold_date_val,
+                        #         "attributes": node_attributes,
+                        #         "dimension": target_level.dimension
+                        #     }
+                        # )
+
+                        # We avoid update_or_create so we can validate BEFORE hitting the DB
+                        # node = Node.objects.filter(
+                        #     name=name_val,
+                        #     level=target_level,
+                        #     parent=parent_node,
+                        #     dimension=target_level.dimension
+                        # ).first()
+
+                        # if id_val is not None:
+                        #     node = Node.objects.filter(id=id_val).first()
+                        # else:
+                        #     node = None
+
+                        created = False
+                        if not node:
+                            node = Node(
+                                name=name_val,
+                                code=code_val,
+                                is_hidden=is_hidden,
+                                on_hold=on_hold,
+                                hold_date=hold_date_val,
+                                level=target_level,
+                                parent=parent_node,
+                                dimension=target_level.dimension,
+                                attributes=node_attributes
+                            )
+                            created = True
+                        else:
+                            # FIX 2: Apply the updates to the existing node!
+                            node.name = name_val
+                            node.code = code_val
+                            node.is_hidden = is_hidden
+                            node.on_hold = on_hold
+                            node.hold_date = hold_date_val
+                            node.parent = parent_node
+                            node.attributes = node_attributes
+
+                        # --- Step 7: Validate (Model Logic) ---
                         try:
-                            dt = pd.to_datetime(hold_date_raw, dayfirst=True)
-                            hold_date_val = dt.date()
-                        except:
-                            summary["errors"].append(f"Row {row_index}: Invalid date format for Hold Date.")
-                            continue
+                            node.validate_attributes() 
+                            node.save()
 
-                    # --- Step 4: Extract Attributes ---
-                    node_attributes = {}
-                    if 'attributes' in mapping and isinstance(mapping['attributes'], dict):
-                        for sys_attr, excel_header in mapping['attributes'].items():
-                            # Only process if this attribute is defined in the Level Schema
-                            if sys_attr in valid_attr_keys:
-                                val = row_data.get(excel_header)
-                                if val is not None:
-                                    node_attributes[sys_attr] = val
-
-
-                    # --- Step 6: Update or Create ---
-                    # node, created = Node.objects.update_or_create(
-                    #     name=name_val,
-                    #     level=target_level,
-                    #     parent=parent_node,
-                    #     defaults={
-                    #         "code": code_val,
-                    #         "is_hidden": is_hidden,
-                    #         "on_hold": on_hold,
-                    #         "hold_date": hold_date_val,
-                    #         "attributes": node_attributes,
-                    #         "dimension": target_level.dimension
-                    #     }
-                    # )
-
-                    # We avoid update_or_create so we can validate BEFORE hitting the DB
-                    # node = Node.objects.filter(
-                    #     name=name_val,
-                    #     level=target_level,
-                    #     parent=parent_node,
-                    #     dimension=target_level.dimension
-                    # ).first()
-
-                    # if id_val is not None:
-                    #     node = Node.objects.filter(id=id_val).first()
-                    # else:
-                    #     node = None
-
-                    created = False
-                    if not node:
-                        node = Node(
-                            name=name_val,
-                            code=code_val,
-                            is_hidden=is_hidden,
-                            on_hold=on_hold,
-                            hold_date=hold_date_val,
-                            level=target_level,
-                            parent=parent_node,
-                            dimension=target_level.dimension,
-                            attributes=node_attributes
-                        )
-                        created = True
-                    else:
-                        # FIX 2: Apply the updates to the existing node!
-                        node.name = name_val
-                        node.code = code_val
-                        node.is_hidden = is_hidden
-                        node.on_hold = on_hold
-                        node.hold_date = hold_date_val
-                        node.parent = parent_node
-                        node.attributes = node_attributes
-
-                    # --- Step 7: Validate (Model Logic) ---
-                    try:
-                        node.validate_attributes() 
-                        node.save()
+                        except ValidationError as e:
+                            # Since we are in atomic transaction, this exception will rollback the batch
+                            # If you prefer to skip rows instead of rollback, change this to `continue` 
+                            # and append to summary["errors"]
+                            print("e.messages", e)
+                            clean_error_text = " ".join(e.messages)
+                            
+                            # Raise the exception with just the clean text
+                            # raise Exception(f"Row {row_index}: {clean_error_text}")
+                            return Response(f"Row {row_index}: {clean_error_text}", status=status.HTTP_400_BAD_REQUEST)
 
                         # Track this in your history API!
                         reason = "Created via Excel Import" if created else "Updated via Excel Import"
                         update_change_reason(node, reason)
-                    except IntegrityError as e:
-                        # Since we are in atomic transaction, this exception will rollback the batch
-                        # If you prefer to skip rows instead of rollback, change this to `continue` 
-                        # and append to summary["errors"]
-                        print("e.messages", e)                        
-                        # Raise the exception with just the clean text
-                        raise Exception(f"Row {row_index}: This data already exists.")
 
-                    except ValidationError as e:
-                        # Since we are in atomic transaction, this exception will rollback the batch
-                        # If you prefer to skip rows instead of rollback, change this to `continue` 
-                        # and append to summary["errors"]
-                        print("e.messages", e)
-                        clean_error_text = " ".join(e.messages)
-                        
-                        # Raise the exception with just the clean text
-                        raise Exception(f"Row {row_index}: {clean_error_text}")
-                    if created: summary["created"] += 1
-                    else: summary["updated"] += 1
+                
+                        if created: 
+                            summary["created"] += 1
+                        else: 
+                            summary["updated"] += 1
+
+                except IntegrityError as e:
+                    summary["errors"].append(f"Row {row_index}: This data already exists.")
+                except ValidationError as e:
+                    clean_error_text = " ".join(e.messages)
+                    summary["errors"].append(f"Row {row_index}: {clean_error_text}")
+                except Exception as e:
+                    summary["errors"].append(f"Row {row_index}: {str(e)}")
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         if summary["errors"]:
-            return Response({"message": "Completed with errors", "summary": summary}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Completed with errors", "summary": summary}, status=status.HTTP_200_OK)
 
         return Response({"message": "Success", "summary": summary}, status=status.HTTP_200_OK)
 
