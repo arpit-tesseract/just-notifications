@@ -930,6 +930,26 @@ class NodeViewSet(viewsets.ModelViewSet):
             return Response({"message": "No data to export"}, status=200)
 
         # -----------------------------
+        # FIX: Exclude Hidden Branches (Descendants of Deleted Ancestors)
+        # -----------------------------
+        deleted_node_ids = Node.all_objects.filter(
+            is_deleted=True, 
+            dimension=target_level.dimension
+        ).values_list('id', flat=True)
+        
+        hidden_branch_ids = NodeClosure.objects.filter(
+            ancestor_id__in=deleted_node_ids
+        ).values('descendant_id')
+
+        nodes_qs = nodes_qs.exclude(id__in=hidden_branch_ids)
+        # -----------------------------
+
+        # evaluate once (we’ll need ids multiple times)
+        nodes = list(nodes_qs)
+        if not nodes:
+            return Response({"message": "No data to export"}, status=200)
+
+        # -----------------------------
         # Build ancestor columns (dynamic)
         # -----------------------------
         ancestor_levels = get_level_ancestors(target_level)  # Root -> Parent
