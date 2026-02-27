@@ -1433,7 +1433,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                 existing_node_qs = Node.objects.filter(
                     dimension=node_data.get('dimension'),
                     level=node_data.get('level'),
-                    name=node_data.get('name'),
+                    name__iexact=node_data.get('name'),
                     code=node_data.get('code'),
                 )
                 
@@ -1444,6 +1444,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                     existing_node_obj = existing_node_qs.first()
                 
                 print("existing_node_obj", existing_node_obj)
+                print("source_node:", source_node)
 
                 if existing_node_obj:
                     node_serializer = NodeSerializer(existing_node_obj, data=node_data)
@@ -1489,14 +1490,21 @@ class NodeViewSet(viewsets.ModelViewSet):
                         child.save() 
 
             # 4. Soft delete the original source node
+
+            # Check if the source_node was updated/reused in any of the splits
+            source_node_reused = any(n.id == source_node.id for n in created_nodes)
+
             # NEW: Log why this node is being deleted
             new_node_names = ", ".join([n.name for n in created_nodes])
             source_node._change_reason = f"Split into {len(created_nodes)} nodes: {new_node_names}"
-            if existing_node_obj:
-                if source_node.id != existing_node_obj.id:
-                    source_node.soft_delete(user=request.user)
-            else:
+
+            if not source_node_reused:
+                # It was not reused, so we safely delete it
                 source_node.soft_delete(user=request.user)
+            else:
+                # It WAS reused! We don't delete it, but we force a save 
+                # to ensure the `_change_reason` we just set gets logged in history.
+                source_node.save(update_fields=['updated_at'])
 
         return Response({
             "message": f"Successfully split {source_node.name}",
@@ -1592,7 +1600,7 @@ class NodeSearchAPIView(APIView):
         if not target_level_name:
             return Response({"search_key": "search_key is required."}, status=400)
         
-        target_level_obj = Level.objects.filter(name__iexact=target_level_name, dimension=dimension_obj).first()
+        target_level_obj = Level.objects.filter(name=target_level_name, dimension=dimension_obj).first()
         print("Target Level:", target_level_obj)
         if not target_level_obj:
             return Response({"error": f"'{target_level_name}' does not exist"}, status=400)
@@ -1603,7 +1611,7 @@ class NodeSearchAPIView(APIView):
         search_value = str(raw_value).strip() if raw_value else ""
 
         # 1. Get raw IDs of explicitly deleted nodes
-        deleted_node_ids = Node.all_objects.filter(is_deleted=True, level=target_level_obj).values_list('id', flat=True)
+        deleted_node_ids = Node.all_objects.filter(is_deleted=True, dimension=dimension_obj).values_list('id', flat=True)
         
         # 2. Get all descendants (children, grandchildren, etc.) of those deleted nodes
         hidden_branch_ids = NodeClosure.objects.filter(
