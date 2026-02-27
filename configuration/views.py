@@ -619,7 +619,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                 
                 # NEW: Log the merge on the TARGET node
                 source_names = ", ".join([s.name for s in sources])
-                target._change_reason = f"Merged with: {source_names}"
+                target._change_reason = f"Merged with: {source_names}, Merge Date: {merge_date}"
                 target.merge_date = merge_date
                 target.save(update_fields=['updated_at', 'merge_date']) # Touch the node to create a history record
 
@@ -653,7 +653,7 @@ class NodeViewSet(viewsets.ModelViewSet):
 
                     # C. Delete Source
                     # (Optional: You could set is_archived=True instead of deleting)
-                    source._change_reason = f"Merged into Node '{target.name}' (ID: {target.id})"
+                    source._change_reason = f"Merged into '{target.name}' (ID: {target.id})"
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -712,7 +712,7 @@ class NodeViewSet(viewsets.ModelViewSet):
 
                 # NEW: Document the creation reason
                 source_names = ", ".join([s.name for s in sources])
-                update_change_reason(new_node, f"Created by merging: {source_names}")
+                update_change_reason(new_node, f"Created by merging: {source_names}, Merge Date: {merge_date}")
 
                 # 2. Merge Logic (Aliases & Children)
                 summary = {"children_moved": 0, "aliases_created": 0}
@@ -1341,7 +1341,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                             
                             # Raise the exception with just the clean text
                             # raise Exception(f"Row {row_index}: {clean_error_text}")
-                            return Response(f"Row {row_index}: {clean_error_text}", status=status.HTTP_400_BAD_REQUEST)
+                            return Response({"error": f"Row {row_index}: {clean_error_text}"}, status=status.HTTP_400_BAD_REQUEST)
 
                         # Track this in your history API!
                         reason = "Created via Excel Import" if created else "Updated via Excel Import"
@@ -1430,13 +1430,33 @@ class NodeViewSet(viewsets.ModelViewSet):
                 # node_data['level'] = parent_id if parent_id else source_node.level_id
                 # node_data['dimension'] = source_node.dimension_id
 
-                node_serializer = NodeSerializer(data=node_data)
+                existing_node_qs = Node.objects.filter(
+                    dimension=node_data.get('dimension'),
+                    level=node_data.get('level'),
+                    name=node_data.get('name'),
+                    code=node_data.get('code'),
+                )
+                
+                source_node_level_parent = source_node.level.parent
+                if source_node_level_parent is not None:
+                    existing_node_obj = existing_node_qs.filter(level__parent=source_node_level_parent).first()
+                else:
+                    existing_node_obj = existing_node_qs.first()
+                
+                print("existing_node_obj", existing_node_obj)
+
+                if existing_node_obj:
+                    node_serializer = NodeSerializer(existing_node_obj, data=node_data)
+                else:
+                    node_serializer = NodeSerializer(data=node_data)
+
                 node_serializer.is_valid(raise_exception=True)
                 node_serializer.validated_data['split_date'] = split_date
                 new_node = node_serializer.save()
 
                 # NEW: Log why this node was created
-                update_change_reason(new_node, f"Created by splitting '{source_node.name}' (ID: {source_node.id})")
+                if not existing_node_obj:
+                    update_change_reason(new_node, f"Created by splitting '{source_node.name}', Split Date: {split_date}")
 
                 created_nodes.append(new_node)
 
@@ -1472,12 +1492,66 @@ class NodeViewSet(viewsets.ModelViewSet):
             # NEW: Log why this node is being deleted
             new_node_names = ", ".join([n.name for n in created_nodes])
             source_node._change_reason = f"Split into {len(created_nodes)} nodes: {new_node_names}"
-            source_node.soft_delete(user=request.user)
+            if existing_node_obj:
+                if source_node.id != existing_node_obj.id:
+                    source_node.soft_delete(user=request.user)
+            else:
+                source_node.soft_delete(user=request.user)
 
         return Response({
             "message": f"Successfully split {source_node.name}",
             "new_nodes": [{"id": n.id, "name": n.name} for n in created_nodes]
         }, status=status.HTTP_201_CREATED)
+
+
+    @action(detail=False, methods=['POST'], url_path='multiple-delete')
+    def multiple_delete(self, request):
+        print("request.data", request.data)
+        level_id = request.data.get('level_id')
+        all_ids = request.data.get('all_ids', False)
+        ids = request.data.get('ids')
+
+        # -----------------------------
+        # Pick nodes + target_level
+        # -----------------------------
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"level_id": "level_id is required"}, status=400)
+
+            try:
+                target_level = Level.objects.select_related("dimension", "parent").get(id=level_id)
+            except Level.DoesNotExist:
+                return Response({"level_id": "Level not found"}, status=404)
+
+            # no fixed-depth select_related anymore
+            node_qs = Node.objects.filter(level=target_level)
+
+            if not node_qs.exists():
+                return Response({"level_id": "No nodes found."}, status=404)
+            # node_qs.update(is_deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
+
+        elif ids:
+            if not ids:
+                return Response({"ids": "No ids provided"}, status=400)
+            
+            if not isinstance(ids, list):
+                return Response({"ids": "ids must be a list"}, status=400)
+
+            node_qs = Node.objects.filter(id__in=ids)
+
+            if not node_qs.exists():
+                return Response({"ids": "No nodes found."}, status=404)
+
+            # nodes_qs.update(is_deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
+
+        # Soft delete all provided nodes
+        if node_qs:
+            for node in node_qs:
+                node.soft_delete(user=request.user)
+
+        return Response({"message": "Nodes deleted successfully"}, status=200)
+
+    
 
 
 
@@ -1505,6 +1579,11 @@ class NodeSearchAPIView(APIView):
         if not dimension_id:
             return Response({"dimension": "Dimension is required"}, status=400)
         
+        try:
+            dimension_obj = Dimension.objects.get(id=dimension_id)
+        except Dimension.DoesNotExist:
+            return Response({"dimension": "Dimension does not exist"}, status=400)
+        
         print(request.data)
         
         search_data = request.data.copy()
@@ -1513,7 +1592,7 @@ class NodeSearchAPIView(APIView):
         if not target_level_name:
             return Response({"search_key": "search_key is required."}, status=400)
         
-        target_level_obj = Level.objects.filter(name__iexact=target_level_name).first()
+        target_level_obj = Level.objects.filter(name__iexact=target_level_name, dimension=dimension_obj).first()
         print("Target Level:", target_level_obj)
         if not target_level_obj:
             return Response({"error": f"'{target_level_name}' does not exist"}, status=400)
@@ -1524,7 +1603,7 @@ class NodeSearchAPIView(APIView):
         search_value = str(raw_value).strip() if raw_value else ""
 
         # 1. Get raw IDs of explicitly deleted nodes
-        deleted_node_ids = Node.all_objects.filter(is_deleted=True).values_list('id', flat=True)
+        deleted_node_ids = Node.all_objects.filter(is_deleted=True, level=target_level_obj).values_list('id', flat=True)
         
         # 2. Get all descendants (children, grandchildren, etc.) of those deleted nodes
         hidden_branch_ids = NodeClosure.objects.filter(
@@ -1534,7 +1613,7 @@ class NodeSearchAPIView(APIView):
         # 3. Step A: Find CANDIDATE Nodes first
         # We search for ANY node at Level="Country" that contains "In"
         nodes = Node.objects.filter(
-            dimension_id=dimension_id,
+            dimension_id=dimension_obj,
             # level__name__iexact=target_level_name,
             # level__name__iexact=target_level_obj.name,
             level=target_level_obj,

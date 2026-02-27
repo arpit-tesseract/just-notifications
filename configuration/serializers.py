@@ -10,6 +10,7 @@ from django.db.models import F, Max
 from django.core.exceptions import ValidationError as DjangoValidationError
 from simple_history.utils import update_change_reason
 
+import json
 import logging
 
 level_logger = logging.getLogger("Levels")
@@ -662,8 +663,11 @@ class NodeSerializer(serializers.ModelSerializer):
                         NodeAlias.objects.create(node=node, **alias)
                         alias_names.append(alias.get('name'))
                     
-                    # 3. Update the reason on that exact history record
-                    update_change_reason(node, f"Created with aliases: {', '.join(alias_names)}")
+                    # # 3. Update the reason on that exact history record
+                    # update_change_reason(node, f"Created with aliases: {', '.join(alias_names)}")
+                    # Store creation aliases as a hidden JSON string
+                    alias_diff = {"before": [], "after": alias_names}
+                    update_change_reason(node, f"aliases:{json.dumps(alias_diff)}")
                     
         except Exception as e:
             raise ValidationError({"error": "Error creating node."})
@@ -682,21 +686,25 @@ class NodeSerializer(serializers.ModelSerializer):
         reason_parts = []
 
         if has_alias_field:
-            old_aliases = set(NodeAlias.objects.filter(node=instance).values_list('name', flat=True))
-            incoming_names = set(alias.get('name') for alias in alias_data if alias.get('name'))
+            old_aliases_set = set(NodeAlias.objects.filter(node=instance).values_list('name', flat=True))
+            incoming_names_set = set(alias.get('name') for alias in alias_data if alias.get('name'))
 
-            added_aliases = incoming_names - old_aliases
-            removed_aliases = old_aliases - incoming_names
+            added_aliases = incoming_names_set - old_aliases_set
+            removed_aliases = old_aliases_set - incoming_names_set
 
             if added_aliases or removed_aliases:
-                if added_aliases:
-                    reason_parts.append(f"Added aliases: {', '.join(added_aliases)}")
-                    for name in added_aliases:
-                        NodeAlias.objects.create(node=instance, name=name)
-
                 if removed_aliases:
-                    reason_parts.append(f"Removed aliases: {', '.join(removed_aliases)}")
                     NodeAlias.objects.filter(node=instance, name__in=removed_aliases).delete()
+                for name in added_aliases:
+                    NodeAlias.objects.create(node=instance, name=name)
+                
+                # 2. Inject the Universal JSON string
+                # We simply convert the sets back to lists for JSON serialization
+                alias_diff = {
+                    "before": list(old_aliases_set),
+                    "after": list(incoming_names_set)
+                }
+                reason_parts.append(f"aliases:{json.dumps(alias_diff)}")
         
         # 2. Inject the change reason into the instance 
         if reason_parts:
@@ -717,7 +725,7 @@ class NodeSerializer(serializers.ModelSerializer):
 
 
 class SplitNodeSerializer(serializers.Serializer):
-    node = NodeSerializer()
+    node = serializers.DictField()
     children_ids = serializers.ListField(
         child=serializers.IntegerField(),
         required=False,

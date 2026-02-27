@@ -9,6 +9,9 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ImproperlyConfigured
 
+import json
+import re
+
 class BaseHistoryDiffAPIViewMixin(APIView):
     """
     Universal Base View to get before/after history diffs for ANY model 
@@ -58,14 +61,58 @@ class BaseHistoryDiffAPIViewMixin(APIView):
                             "before": change.old,
                             "after": change.new
                         })
+            
+            # --- NEW: Intercept and Extract Aliases ---
+            raw_reason = record.history_change_reason or ""
+            clean_reason_parts = []
+            
+            # Split by " | " in case there are multiple changes or text reasons
+            for part in raw_reason.split(" | "):
+                part = part.strip()
+                
+                # Regex looks for: Any text (except colon), followed by a colon, followed by {JSON}
+                # Example match: "aliases:{"before": [], "after": ["New"]}"
+                match = re.match(r'^([^:]+):(\{.*\})$', part)
+                
+                if match:
+                    raw_field_name = match.group(1).strip() # e.g., "aliases" or "tags"
+                    json_str = match.group(2).strip()       # e.g., '{"before": [], "after": ["New"]}'
+                    
+                    try:
+                        parsed_data = json.loads(json_str)
+                        
+                        # Verify it has our expected diff structure
+                        if isinstance(parsed_data, dict) and ("before" in parsed_data or "after" in parsed_data):
+                            # Format field name nicely (e.g., "node_aliases" -> "Node Aliases")
+                            display_name = raw_field_name.replace('_', ' ').title()
+                            
+                            changes.append({
+                                "field": display_name,
+                                "before": parsed_data.get("before", []),
+                                "after": parsed_data.get("after", [])
+                            })
+                        else:
+                            # Valid JSON, but not a diff format -> keep as normal text
+                            clean_reason_parts.append(part)
+                            
+                    except json.JSONDecodeError:
+                        # Parsing failed -> keep as normal text
+                        clean_reason_parts.append(part)
+                elif part:
+                    # Normal text reason (e.g., "Created via Excel Import")
+                    clean_reason_parts.append(part)
+            
+            final_change_reason = " | ".join(clean_reason_parts) if clean_reason_parts else "None"
 
-            result_data.append({
-                "date_time": record.history_date,
-                "action": action,
-                "changed_by": changed_by,
-                "change_reason": record.history_change_reason or "None",
-                "changes": changes if action == 'Changed' else "None"
-            })
+            # 3. Append to Results
+            if final_change_reason is not None  or len(changes) > 0 :
+                result_data.append({
+                    "date_time": record.history_date,
+                    "action": action,
+                    "changed_by": changed_by,
+                    "change_reason": final_change_reason,
+                    "changes": changes if len(changes) > 0 else "None" 
+                })
             
         return Response(result_data)
 
