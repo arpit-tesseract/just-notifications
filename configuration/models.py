@@ -64,15 +64,14 @@ class SoftDeleteMixin(models.Model):
         self.save()
 
 
-# Regex: Starts with Uppercase, allows letters, numbers, and spaces.
-TECH_KEY_REGEX = r"^[A-Z][a-zA-Z0-9 ]*$"
-tech_key_validator = RegexValidator(
-    TECH_KEY_REGEX,
+DIMENSION_NAME_REGEX = r"^[A-Z][a-zA-Z0-9 ]*$"
+dimension_name_validator = RegexValidator(
+    DIMENSION_NAME_REGEX,
     message="Name must start with an uppercase letter and can not contain letters, numbers, and spaces.",
 )
 
 class Dimension(models.Model):
-    name = models.CharField(max_length=100, unique=True, validators=[tech_key_validator])
+    name = models.CharField(max_length=100, unique=True, validators=[dimension_name_validator])
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -82,9 +81,18 @@ class Dimension(models.Model):
     def __str__(self):
         return self.name
 
+
+# Regex: only allow lowercase letters and underscores
+LEVEL_NAME_REGEX = r"^[a-z_]*$"
+level_name_validator = RegexValidator(
+    LEVEL_NAME_REGEX,
+    message="Name must be lowercase and contain only letters and underscores.",
+)
+
 class Level(SoftDeleteMixin):
     dimension = models.ForeignKey(Dimension, on_delete=models.CASCADE, related_name="levels")
-    name = models.CharField(max_length=100, validators=[tech_key_validator])
+    display_name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, validators=[level_name_validator])
     single_mode = models.BooleanField(default=False)
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     sort_order = models.PositiveIntegerField(default=1)
@@ -343,7 +351,6 @@ class NodeAlias(models.Model):
     note = models.TextField(null=True, blank=True)
     
     history = HistoricalRecords()
-    
     class Meta:
         unique_together = (("node", "name"),)
         ordering = ["node", "name"]
@@ -366,8 +373,64 @@ class NodeClosure(models.Model):
 
     def __str__(self):
         return f"{self.ancestor} -> {self.descendant} ({self.depth})"
+    
 
 
+class NodeRelationship(SoftDeleteMixin):
+    # The territory (e.g., Hong Kong, Kashmir)
+    territory = models.ForeignKey(
+        Node, 
+        on_delete=models.CASCADE, 
+        related_name="controlling_states"
+    )
+    
+    # The country claiming or controlling it (e.g., UK, India, Pakistan)
+    controller = models.ForeignKey(
+        Node, 
+        on_delete=models.CASCADE, 
+        related_name="controlled_territories"
+    )
+    
+    # What kind of relationship is this?
+    RELATIONSHIP_CHOICES = [
+        ('administered_by', 'Administered By (De Facto)'),
+        ('leased_to', 'Leased To'),
+        ('claimed_by', 'Claimed By (Disputed)'),
+        ('historical', 'Historical / Former Controller')
+    ]
+    relationship_type = models.CharField(
+        max_length=50, 
+        choices=RELATIONSHIP_CHOICES, 
+    )
+
+    # 1. LEASE TIMING & HISTORY
+    start_date = models.DateField(null=True, blank=True, help_text="When did this control/lease begin?")
+    end_date = models.DateField(null=True, blank=True, help_text="When does the lease expire, or when was it handed back?")
+    
+    # 2. CONTEXT
+    notes = models.TextField(null=True, blank=True, help_text="E.g., 'Treaty of Nanking 1898' or 'UN Resolution 47'")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        # We remove unique_together because a country might have leased it, 
+        # given it back, and leased it again later!
+        ordering = ['-start_date']
+        constraints = [
+            models.UniqueConstraint(
+                fields=["territory", "controller", "relationship_type"], 
+                name="unique_active_relationship",
+                condition=models.Q(is_deleted=False) # Only enforce uniqueness on active records!
+            )
+        ]
+
+    def __str__(self):
+        return f"[{self.get_relationship_type_display()}] {self.territory.name} -> {self.controller.name}"
+
+    def get_relationship_type_display(self):
+        return dict(self.RELATIONSHIP_CHOICES)[self.relationship_type]
 
 # ====================================================================
 # OLD MODELS
