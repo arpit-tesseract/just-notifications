@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'user',
     'user_management',
     'configuration',
     'common',
@@ -83,7 +84,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'shashan.urls'
 CORS_ALLOW_ALL_ORIGINS = True
-AUTH_USER_MODEL = 'user_management.CustomUser'
+AUTH_USER_MODEL = 'user.User'
 
 TEMPLATES = [
     {
