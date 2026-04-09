@@ -5,6 +5,116 @@ from rest_framework.exceptions import ValidationError
 from django.db.models.fields.related import ForeignObjectRel
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from django.core.exceptions import ImproperlyConfigured
+
+import json
+import re
+
+class BaseHistoryDiffAPIViewMixin(APIView):
+    """
+    Universal Base View to get before/after history diffs for ANY model 
+    using django-simple-history.
+    """
+    permission_classes = [IsAuthenticated]
+    model_class = None
+    lookup_url_kwarg = 'id'  # Default URL kwarg to look for
+
+    def get(self, request, *args, **kwargs):
+        if self.model_class is None:
+            raise ImproperlyConfigured("You must define 'model_class' on the child view.")
+
+        object_id = self.kwargs.get(self.lookup_url_kwarg)
+        
+        # Dynamically use the history of whichever model is provided
+        history_records = list(
+            self.model_class.history.filter(id=object_id)
+            .select_related('history_user')
+            .order_by('-history_date')
+        )
+        
+        result_data = []
+        ignored_fields = ['hierarchy_path', 'updated_at', 'history_id', 'history_date', 'history_type', 'history_user', 'history_change_reason']
+
+        for index, record in enumerate(history_records):
+            if record.history_type == '+':
+                action = 'Created'
+            elif record.history_type == '~':
+                action = 'Changed'
+            else:
+                action = 'Deleted'
+                
+            changed_by = record.history_user.email if record.history_user else 'System'
+            changes = []
+            
+            # Compare current record with the previous one chronologically
+            if action == 'Changed' and index + 1 < len(history_records):
+                prev_record = history_records[index + 1]
+                delta = record.diff_against(prev_record)
+                
+                for change in delta.changes:
+                    if change.field not in ignored_fields:
+                        # field_display_name = change.field.replace('_', ' ').capitalize()
+                        changes.append({
+                            "field": change.field,
+                            "before": change.old,
+                            "after": change.new
+                        })
+            
+            # --- NEW: Intercept and Extract Aliases ---
+            raw_reason = record.history_change_reason or ""
+            clean_reason_parts = []
+            
+            # Split by " | " in case there are multiple changes or text reasons
+            for part in raw_reason.split(" | "):
+                part = part.strip()
+                
+                # Regex looks for: Any text (except colon), followed by a colon, followed by {JSON}
+                # Example match: "aliases:{"before": [], "after": ["New"]}"
+                match = re.match(r'^([^:]+):(\{.*\})$', part)
+                
+                if match:
+                    raw_field_name = match.group(1).strip() # e.g., "aliases" or "tags"
+                    json_str = match.group(2).strip()       # e.g., '{"before": [], "after": ["New"]}'
+                    
+                    try:
+                        parsed_data = json.loads(json_str)
+                        
+                        # Verify it has our expected diff structure
+                        if isinstance(parsed_data, dict) and ("before" in parsed_data or "after" in parsed_data):
+                            # Format field name nicely (e.g., "node_aliases" -> "Node Aliases")
+                            display_name = raw_field_name.replace('_', ' ').title()
+                            
+                            changes.append({
+                                "field": display_name,
+                                "before": parsed_data.get("before", []),
+                                "after": parsed_data.get("after", [])
+                            })
+                        else:
+                            # Valid JSON, but not a diff format -> keep as normal text
+                            clean_reason_parts.append(part)
+                            
+                    except json.JSONDecodeError:
+                        # Parsing failed -> keep as normal text
+                        clean_reason_parts.append(part)
+                elif part:
+                    # Normal text reason (e.g., "Created via Excel Import")
+                    clean_reason_parts.append(part)
+            
+            final_change_reason = " | ".join(clean_reason_parts) if clean_reason_parts else "None"
+
+            # 3. Append to Results
+            if final_change_reason is not None  or len(changes) > 0 :
+                result_data.append({
+                    "date_time": record.history_date,
+                    "action": action,
+                    "changed_by": changed_by,
+                    "change_reason": final_change_reason,
+                    "changes": changes if len(changes) > 0 else "None" 
+                })
+            
+        return Response(result_data)
 
 class BaseQueryMixin:
     """

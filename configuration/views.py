@@ -1,7486 +1,1960 @@
 from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .permissions import HasModelAccessPermission
-from .utils import read_file, normalize_bool, get_regular_query, calculate_hidden_hold
-from .mixins import FilteredQuerysetMixin, RecordRuleMixin
-from .pagination import ConfigurationPagination
-from configuration.serializers import *
+from django.utils.dateparse import parse_date
 from .models import *
-import pandas as pd
+from .serializers import *
+from rest_framework.decorators import action
+from django.db.models import Count, Window, F
+from .pagination import ConfigurationPagination
+from .utils import cast_value_by_type, check_bool_value, validate_value_type
+from django.core.exceptions import ValidationError
 
-# CRUD Views
-# ========================================
-# Residential 
-# ========================================
-class GlobViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    queryset = Glob.objects.none() # First time load data when server starts
-    model = Glob 
-    serializer_class = GlobSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return GlobSerializer   # For POST, PUT, PATCH
-        return GlobDetailSerializer
+from .mixins import BaseHistoryDiffAPIViewMixin
+from simple_history.utils import update_change_reason
 
-# class GlobListView(SearchMixin, RecordRuleMixin, APIView): # MRO goes: SearchMixin → RecordRuleMixin → SafeQueryMixin.
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-#     def get_base_queryset(self):
-#         return get_regular_query(Glob)
-    
-#     def get(self, request):
-#         queryset = self.get_result_queryset()   # search applied automatically
-#         serializer = GlobIdNameSerializer(queryset, many=True)
-#         return Response(serializer.data)
-# GlobListView
-#  ├── SearchMixin
-#  │    └── super().get_queryset()
-#  │         ↳ RecordRuleMixin
-#  │              └── super().get_queryset()
-#  │                   ↳ BaseQueryMixin
-#  │                        ↳ get_base_queryset()   (from GlobListView) 
+import json
+import logging
+level_logger = logging.getLogger("Levels")
 
-# Ordered resolution:
-# GlobListView.get_base_queryset() →
-# RecordRuleMixin.get_queryset() (applies rules) →
-# SearchMixin.get_result_queryset() (applies search).   
-
-class ContinentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Continent
-    queryset = Continent.objects.none()
-    serializer_class = ContinentSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'glob': 'glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Continent.objects.select_related('glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return ContinentSerializer   # For POST, PUT, PATCH
-        return ContinentDetailSerializer
-    
-
-class CountryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Country
-    queryset = Country.objects.none()
-    serializer_class = CountrySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'continent': 'continent__id',
-        'glob': 'continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Country.objects.select_related('continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return CountrySerializer   # For POST, PUT, PATCH
-        return CountryDetailSerializer
-    
-
-class StateViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = State
-    queryset = State.objects.none()
-    serializer_class = StateSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'country': 'country__id',
-        'continent': 'country__continent__id',
-        'glob': 'country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = State.objects.select_related('country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return StateSerializer   # For POST, PUT, PATCH
-        return StateDetailSerializer
-   
-   
-class DistrictViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = District
-    queryset = District.objects.none()
-    serializer_class = DistrictSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'state': 'state__id',
-        'country': 'state__country__id',
-        'continent': 'state__country__continent__id',
-        'glob': 'state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = District.objects.select_related('state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return DistrictSerializer   # For POST, PUT, PATCH
-        return DistrictDetailSerializer
-
-
-class TalukaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Taluka
-    queryset = Taluka.objects.none()
-    serializer_class = TalukaSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'district': 'district__id',
-        'state': 'district__state__id',
-        'country': 'district__state__country__id',
-        'continent': 'district__state__country__continent__id',
-        'glob': 'district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Taluka.objects.select_related('district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return TalukaSerializer   # For POST, PUT, PATCH
-        return TalukaDetailSerializer
-    
-
-class CityVillageViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = CityVillage
-    queryset = CityVillage.objects.none()
-    serializer_class = CityVillageSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'taluka': 'taluka__id',
-        'district': 'taluka__district__id',
-        'state': 'taluka__district__state__id',
-        'country': 'taluka__district__state__country__id',
-        'continent': 'taluka__district__state__country__continent__id',
-        'glob': 'taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = CityVillage.objects.select_related('taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return CityVillageSerializer   # For POST, PUT, PATCH
-        return CityVillageDetailSerializer
-    
-
-class WardViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Ward
-    queryset = Ward.objects.none()
-    serializer_class = WardSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'city_village': 'city_village__id',
-        'taluka': 'city_village__taluka__id',
-        'district': 'city_village__taluka__district__id',
-        'state': 'city_village__taluka__district__state__id',
-        'country': 'city_village__taluka__district__state__country__id',
-        'continent': 'city_village__taluka__district__state__country__continent__id',
-        'glob': 'city_village__taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Ward.objects.select_related('city_village__taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return WardSerializer   # For POST, PUT, PATCH
-        return WardDetailSerializer
-    
-
-
-class SocietyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Society
-    queryset = Society.objects.none()
-    serializer_class = SocietySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'ward': 'ward__id',
-        'city_village': 'ward__city_village__id',
-        'taluka': 'ward__city_village__taluka__id',
-        'district': 'ward__city_village__taluka__district__id',
-        'state': 'ward__city_village__taluka__district__state__id',
-        'country': 'ward__city_village__taluka__district__state__country__id',
-        'continent': 'ward__city_village__taluka__district__state__country__continent__id',
-        'glob': 'ward__city_village__taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    
-    def get_base_queryset(self):
-        qs = Society.objects.select_related('ward__city_village__taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SocietySerializer   # For POST, PUT, PATCH
-        return SocietyDetailSerializer
-
-
-class BlockViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Block
-    queryset = Block.objects.none()
-    serializer_class = BlockSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'society': 'society__id',
-        'ward': 'society__ward__id',
-        'city_village': 'society__ward__city_village__id',
-        'taluka': 'society__ward__city_village__taluka__id',
-        'district': 'society__ward__city_village__taluka__district__id',
-        'state': 'society__ward__city_village__taluka__district__state__id',
-        'country': 'society__ward__city_village__taluka__district__state__country__id',
-        'continent': 'society__ward__city_village__taluka__district__state__country__continent__id',
-        'glob': 'society__ward__city_village__taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    
-    def get_base_queryset(self):
-        qs = Block.objects.select_related('society__ward__city_village__taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return BlockSerializer   # For POST, PUT, PATCH
-        return BlockDetailSerializer
-
-
-class FloorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Floor
-    queryset = Floor.objects.none()
-    serializer_class = FloorSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'block': 'block__id',
-        'society': 'block__society__id',
-        'ward': 'block__society__ward__id',
-        'city_village': 'block__society__ward__city_village__id',
-        'taluka': 'block__society__ward__city_village__taluka__id',
-        'district': 'block__society__ward__city_village__taluka__district__id',
-        'state': 'block__society__ward__city_village__taluka__district__state__id',
-        'country': 'block__society__ward__city_village__taluka__district__state__country__id',
-        'continent': 'block__society__ward__city_village__taluka__district__state__country__continent__id',
-        'glob': 'block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'no'
-    }
-    
-    def get_base_queryset(self):
-        qs = Floor.objects.select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return FloorSerializer   # For POST, PUT, PATCH
-        return FloorDetailSerializer
-    
-class HouseViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = House
-    queryset = House.objects.none()
-    serializer_class = HouseSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'floor': 'floor__id',
-        'block': 'floor__block__id',
-        'society': 'floor__block__society__id',
-        'ward': 'floor__block__society__ward__id',
-        'city_village': 'floor__block__society__ward__city_village__id',
-        'taluka': 'floor__block__society__ward__city_village__taluka__id',
-        'district': 'floor__block__society__ward__city_village__taluka__district__id',
-        'state': 'floor__block__society__ward__city_village__taluka__district__state__id',
-        'country': 'floor__block__society__ward__city_village__taluka__district__state__country__id',
-        'continent': 'floor__block__society__ward__city_village__taluka__district__state__country__continent__id',
-        'glob': 'floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'no'
-    }
-    
-    def get_base_queryset(self):
-        qs = House.objects.select_related('floor__block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return HouseSerializer   # For POST, PUT, PATCH
-        return HouseDetailSerializer
-
-
-class RoomViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Room
-    queryset = Room.objects.none()
-    serializer_class = RoomSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'house': 'house__id',
-        'floor': 'house__floor__id',
-        'block': 'house__floor__block__id',
-        'society': 'house__floor__block__society__id',
-        'ward': 'house__floor__block__society__ward__id',
-        'city_village': 'house__floor__block__society__ward__city_village__id',
-        'taluka': 'house__floor__block__society__ward__city_village__taluka__id',
-        'district': 'house__floor__block__society__ward__city_village__taluka__district__id',
-        'state': 'house__floor__block__society__ward__city_village__taluka__district__state__id',
-        'country': 'house__floor__block__society__ward__city_village__taluka__district__state__country__id',
-        'continent': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__id',
-        'glob': 'house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'room_type__name'
-    }
-    
-    def get_base_queryset(self):
-        qs = Room.objects.select_related('house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return RoomSerializer   # For POST, PUT, PATCH
-        return RoomDetailSerializer
-    
-# ========================================
-# Personal 
-# ========================================
-class ReligionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Religion
-    queryset = Religion.objects.all()
-    serializer_class = ReligionSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return ReligionSerializer   # For POST, PUT, PATCH
-        return ReligionDetailSerializer 
-        
-    
-class SampradayViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Sampraday
-    queryset = Sampraday.objects.none()
-    serializer_class = SampradaySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission] 
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'religion': 'religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Sampraday.objects.select_related('religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SampradaySerializer   # For POST, PUT, PATCH
-        return SampradayDetailSerializer 
-
-
-class PanthViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Panth
-    queryset = Panth.objects.none()
-    serializer_class = PanthSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'sampraday': 'sampraday__id',
-        'religion': 'sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Panth.objects.select_related('sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return PanthSerializer   # For POST, PUT, PATCH
-        return PanthDetailSerializer
-
-
-class AwasthaViewSet(FilteredQuerysetMixin, viewsets.ModelViewSet):
-    model = Awastha
-    queryset = Awastha.objects.none()
-    serializer_class = AwasthaSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)
-
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return AwasthaSerializer   # For POST, PUT, PATCH
-        return AwasthaDetailSerializer
-
-class VarnaViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Varna
-    queryset = Varna.objects.none()
-    serializer_class = VarnaSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'panth': 'panth__id',
-        'sampraday': 'panth__sampraday__id',
-        'religion': 'panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Varna.objects.select_related('panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return VarnaSerializer   # For POST, PUT, PATCH
-        return VarnaDetailSerializer
-    
-
-class CasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Caste
-    queryset = Caste.objects.none()
-    serializer_class = CasteSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'varna': 'varna__id',
-        'panth': 'varna__panth__id',
-        'sampraday': 'varna__panth__sampraday__id',
-        'religion': 'varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Caste.objects.select_related('varna__panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return CasteSerializer   # For POST, PUT, PATCH
-        return CasteDetailSerializer
-    
-    
-class SubCasteViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = SubCaste
-    queryset = SubCaste.objects.none()
-    serializer_class = SubCasteSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission] 
-    pagination_class = ConfigurationPagination   
-    FILTER_FIELDS = {
-        'caste': 'caste__id',
-        'varna': 'caste__varna__id',
-        'panth': 'caste__varna__panth__id',
-        'sampraday': 'caste__varna__panth__sampraday__id',
-        'religion': 'caste__varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = SubCaste.objects.select_related('caste__varna__panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SubCasteSerializer   # For POST, PUT, PATCH
-        return SubCasteDetailSerializer
-
-
-class GotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Gotra
-    queryset = Gotra.objects.none()
-    serializer_class = GotraSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'subcaste': 'subcaste__id',
-        'caste': 'subcaste__caste__id',
-        'varna': 'subcaste__caste__varna__id',
-        'panth': 'subcaste__caste__varna__panth__id',
-        'sampraday': 'subcaste__caste__varna__panth__sampraday__id',
-        'religion': 'subcaste__caste__varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Gotra.objects.select_related('subcaste__caste__varna__panth__sampraday__religion').all()
-        return qs 
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return GotraSerializer   # For POST, PUT, PATCH
-        return GotraDetailSerializer
-    
-
-class SubGotraViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = SubGotra
-    queryset = SubGotra.objects.none()
-    serializer_class = SubGotraSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission] 
-    pagination_class = ConfigurationPagination 
-    FILTER_FIELDS = {
-        'gotra': 'gotra__id',
-        'subcaste': 'gotra__subcaste__id',
-        'caste': 'gotra__subcaste__caste__id',
-        'varna': 'gotra__subcaste__caste__varna__id',
-        'panth': 'gotra__subcaste__caste__varna__panth__id',
-        'sampraday': 'gotra__subcaste__caste__varna__panth__sampraday__id',
-        'religion': 'gotra__subcaste__caste__varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    } 
-    def get_base_queryset(self):
-        qs = SubGotra.objects.select_related('gotra__subcaste__caste__varna__panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SubGotraSerializer   # For POST, PUT, PATCH
-        return SubGotraDetailSerializer 
-
-
-class KulViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Kul
-    queryset = Kul.objects.none()
-    serializer_class = KulSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'subgotra': 'subgotra__id',
-        'gotra': 'subgotra__gotra__id',
-        'subcaste': 'subgotra__gotra__subcaste__id',
-        'caste': 'subgotra__gotra__subcaste__caste__id',
-        'varna': 'subgotra__gotra__subcaste__caste__varna__id',
-        'panth': 'subgotra__gotra__subcaste__caste__varna__panth__id',
-        'sampraday': 'subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-        'religion': 'subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Kul.objects.select_related('subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return KulSerializer   # For POST, PUT, PATCH
-        return KulDetailSerializer
-
-
-class VanshViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Vansh
-    queryset = Vansh.objects.none()
-    serializer_class = VanshSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'kul': 'kul__id',
-        'subgotra': 'kul__subgotra__id',
-        'gotra': 'kul__subgotra__gotra__id',
-        'subcaste': 'kul__subgotra__gotra__subcaste__id',
-        'caste': 'kul__subgotra__gotra__subcaste__caste__id',
-        'varna': 'kul__subgotra__gotra__subcaste__caste__varna__id',
-        'panth': 'kul__subgotra__gotra__subcaste__caste__varna__panth__id',
-        'sampraday': 'kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-        'religion': 'kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Vansh.objects.select_related('kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return VanshSerializer   # For POST, PUT, PATCH
-        return VanshDetailSerializer
-
-
-class FamilyViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Family
-    queryset = Family.objects.none()
-    serializer_class = FamilySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'vansh': 'vansh__id',
-        'kul': 'vansh__kul__id',
-        'subgotra': 'vansh__kul__subgotra__id',
-        'gotra': 'vansh__kul__subgotra__gotra__id',
-        'subcaste': 'vansh__kul__subgotra__gotra__subcaste__id',
-        'caste': 'vansh__kul__subgotra__gotra__subcaste__caste__id',
-        'varna': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
-        'panth': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
-        'sampraday': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-        'religion': 'vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Family.objects.select_related('vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return FamilySerializer   # For POST, PUT, PATCH
-        return FamilyDetailSerializer
-
-
-class PidhiViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Pidhi
-    queryset = Pidhi.objects.all()
-    serializer_class = PidhiSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    # FILTER_FIELDS = {
-    #     'family': 'family__id',
-    #     'vansh': 'family__vansh__id',
-    #     'kul': 'family__vansh__kul__id',
-    #     'subgotra': 'family__vansh__kul__subgotra__id',
-    #     'gotra': 'family__vansh__kul__subgotra__gotra__id',
-    #     'subcaste': 'family__vansh__kul__subgotra__gotra__subcaste__id',
-    #     'caste': 'family__vansh__kul__subgotra__gotra__subcaste__caste__id',
-    #     'varna': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__id',
-    #     'panth': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__id',
-    #     'sampraday': 'family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__id',
-    #     'is_hidden': 'is_hidden',
-    #     'on_hold': 'on_hold',
-    #     'search': 'name'
-    # }
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model) 
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return PidhiSerializer   # For POST, PUT, PATCH
-        return PidhiDetailSerializer
-    
-class CalibrationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Calibration
-    queryset = Calibration.objects.all()
-    serializer_class = CalibrationSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    
-class CalibrationListView(APIView):
-    def get(self, request):
-        calibration_objs = get_regular_query(Calibration)
-        serializer = CalibrationSerializer(calibration_objs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-# ========================================
-# Professional 
-# ========================================
-class SectionViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Section
-    queryset = Section.objects.all()
-    serializer_class = SectionSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    } 
-    # def get_base_queryset(self):
-    #     return get_regular_query(self.model)   
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SectionSerializer   # For POST, PUT, PATCH
-        return SectionDetailSerializer
-
-
-class ClassViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Class
-    queryset = Class.objects.none()
-    serializer_class = ClassSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'section': 'section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Class.objects.select_related('section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return ClassSerializer   # For POST, PUT, PATCH
-        return ClassDetailSerializer
-
-
-class ProfCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = ProfCategory
-    queryset = ProfCategory.objects.none()
-    serializer_class = ProfCategorySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'profclass': 'profclass__id',
-        'section': 'profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = ProfCategory.objects.select_related('profclass__section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return ProfCategorySerializer   # For POST, PUT, PATCH
-        return ProfCategoryDetailSerializer
-    
-
-class ProfSubCategoryViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = ProfSubCategory
-    queryset = ProfSubCategory.objects.none()
-    serializer_class = ProfSubCategorySerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'category': 'category__id',
-        'profclass': 'category__profclass__id',
-        'section': 'category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name' 
-    }
-    def get_base_queryset(self):
-        qs = ProfSubCategory.objects.select_related('category__profclass__section').all()
-        return qs 
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return ProfSubCategorySerializer   # For POST, PUT, PATCH
-        return ProfSubCategoryDetailSerializer
-
-
-class SectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Sector
-    queryset = Sector.objects.none()
-    serializer_class = SectorSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'subcategory': 'subcategory__id',
-        'category': 'subcategory__category__id',
-        'profclass': 'subcategory__category__profclass__id',
-        'section': 'subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Sector.objects.select_related('subcategory__category__profclass__section').all()
-        return qs 
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SectorSerializer   # For POST, PUT, PATCH
-        return SectorDetailSerializer
-    
-
-class SubSectorViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = SubSector
-    queryset = SubSector.objects.none()
-    serializer_class = SubSectorSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'sector': 'sector__id',
-        'subcategory': 'sector__subcategory__id',
-        'category': 'sector__subcategory__category__id',
-        'profclass': 'sector__subcategory__category__profclass__id',
-        'section': 'sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = SubSector.objects.select_related('sector__subcategory__category__profclass__section').all()
-        return qs 
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SubSectorSerializer   # For POST, PUT, PATCH
-        return SubSectorDetailSerializer
-
-
-class DepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Department
-    queryset = Department.objects.none()
-    serializer_class = DepartmentSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'subsector': 'subsector__id',
-        'sector': 'subsector__sector__id',
-        'subcategory': 'subsector__sector__subcategory__id',
-        'category': 'subsector__sector__subcategory__category__id',
-        'profclass': 'subsector__sector__subcategory__category__profclass__id',
-        'section': 'subsector__sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Department.objects.select_related('subsector__sector__subcategory__category__profclass__section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return DepartmentSerializer   # For POST, PUT, PATCH
-        return DepartmentDetailSerializer
-    
-
-class SubDepartmentViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = SubDepartment
-    queryset = SubDepartment.objects.none()
-    serializer_class = SubDepartmentSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'department': 'department__id',
-        'subsector': 'department__subsector__id',
-        'sector': 'department__subsector__sector__id',
-        'subcategory': 'department__subsector__sector__subcategory__id',
-        'category': 'department__subsector__sector__subcategory__category__id',
-        'profclass': 'department__subsector__sector__subcategory__category__profclass__id',
-        'section': 'department__subsector__sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = SubDepartment.objects.select_related('department__subsector__sector__subcategory__category__profclass__section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return SubDepartmentSerializer   # For POST, PUT, PATCH
-        return SubDepartmentDetailSerializer
-    
-    
-class TypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Type
-    queryset = Type.objects.none()
-    serializer_class = TypeSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'subdepartment': 'subdepartment__id',
-        'department': 'subdepartment__department__id',
-        'subsector': 'subdepartment__department__subsector__id',
-        'sector': 'subdepartment__department__subsector__sector__id',
-        'subcategory': 'subdepartment__department__subsector__sector__subcategory__id',
-        'category': 'subdepartment__department__subsector__sector__subcategory__category__id',
-        'profclass': 'subdepartment__department__subsector__sector__subcategory__category__profclass__id',
-        'section': 'subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Type.objects.select_related('subdepartment__department__subsector__sector__subcategory__category__profclass__section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return TypeSerializer   # For POST, PUT, PATCH
-        return TypeDetailSerializer
-    
-
-class BrandListView(APIView):
-    def get(self, request):
-        search = request.query_params.get('search')
-        if search:
-            brand_objs_lst = Brand.objects.filter(name__icontains=search)[:10]
-        else:
-            brand_objs_lst = Brand.objects.all()[:10]
-        serializer = BrandIdNameSerializer(brand_objs_lst, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-class BrandViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Brand
-    queryset = Brand.objects.none()
-    serializer_class = BrandSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'type': 'type__id',
-        'subdepartment': 'type__subdepartment__id',
-        'department': 'type__subdepartment__department__id',
-        'subsector': 'type__subdepartment__department__subsector__id',
-        'sector': 'type__subdepartment__department__subsector__sector__id',
-        'subcategory': 'type__subdepartment__department__subsector__sector__subcategory__id',
-        'category': 'type__subdepartment__department__subsector__sector__subcategory__category__id',
-        'profclass': 'type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
-        'section': 'type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Brand.objects.select_related('type__subdepartment__department__subsector__sector__subcategory__category__profclass__section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return BrandSerializer   # For POST, PUT, PATCH
-        return BrandDetailSerializer
-
-
-class ProductViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Product
-    queryset = Product.objects.none()
-    serializer_class = ProductSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'brand': 'brand__id',
-        'type': 'brand__type__id',
-        'subdepartment': 'brand__type__subdepartment__id',
-        'department': 'brand__type__subdepartment__department__id',
-        'subsector': 'brand__type__subdepartment__department__subsector__id',
-        'sector': 'brand__type__subdepartment__department__subsector__sector__id',
-        'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
-        'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
-        'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
-        'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    def get_base_queryset(self):
-        qs = Product.objects.select_related('brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section').all()
-        return qs
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return ProductSerializer   # For POST, PUT, PATCH
-        return ProductDetailSerializer
-
-
-class ProductListView(APIView):
-    def get(self, request):
-        brand_id = request.query_params.get('brand_id')
-        if not brand_id:
-            return Response({
-                "error": "brand_id is required."
-            })
-        
-        brand = get_object_or_404(Brand, id=brand_id)
-        
-        search = request.query_params.get('search')
-        if search:
-            product_objs_lst = Product.objects.filter(brand=brand, name__icontains=search)[:10]
-        else:
-            product_objs_lst = Product.objects.filter(brand=brand)[:10]
-            
-        serializer = ProductIdNameSerializer(product_objs_lst, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    
-# class PostModelViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-#     model = PostModel
-#     queryset = PostModel.objects.all()
-#     serializer_class = PostModelSerializer
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-#     FILTER_FIELDS = {
-#         'brand': 'brand__id',
-#         'type': 'brand__type__id',
-#         'subdepartment': 'brand__type__subdepartment__id',
-#         'department': 'brand__type__subdepartment__department__id',
-#         'subsector': 'brand__type__subdepartment__department__subsector__id',
-#         'sector': 'brand__type__subdepartment__department__subsector__sector__id',
-#         'subcategory': 'brand__type__subdepartment__department__subsector__sector__subcategory__id',
-#         'category': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__id',
-#         'profclass': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__id',
-#         'section': 'brand__type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__id',
-#         'is_hidden': 'is_hidden',
-#         'on_hold': 'on_hold',
-#         'search': 'name'
-#     }
-#     # def get_base_queryset(self):
-#     #     return get_regular_query(self.model) 
-    
-#     def get_serializer_class(self):
-#         if self.action in ["create", "update", "partial_update"]:
-#             return PostModelSerializer   # For POST, PUT, PATCH
-#         return PostModelDetailSerializer
-
-
-class RoomFlashViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = RoomFlash
-    queryset = RoomFlash.objects.all()
-    serializer_class = RoomFlashSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-            
-        if instance.is_used:
-            return Response(
-                {
-                    "error": f"Cannot delete RoomFlash '{instance.name}' (Code: {instance.code}) "
-                             "because it is referenced in one or more users ResidentialDetail records.",
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Proceed with normal deletion if not used
-        return super().destroy(request, *args, **kwargs)
-
-class RoomFlashListView(APIView):
+class DimensionListView(APIView):
     permission_classes = [IsAuthenticated]
-    
     def get(self, request):
-        room_flashes = get_regular_query(RoomFlash)
-        room_flashes = room_flashes.order_by('code')
-        serializer = RoomFlashIdNameSerializer(room_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class RoomTypeViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = RoomType
-    queryset = RoomType.objects.all()
-    serializer_class = RoomTypeSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
-    }
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-            
-        if instance.is_used:
-            return Response(
-                {
-                    "error": f"Cannot delete RoomType '{instance.name}' (Code: {instance.code}) "
-                             "because it is referenced in one or more users ResidentialDetail records.",
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Proceed with normal deletion if not used
-        return super().destroy(request, *args, **kwargs)
-
-
-class RoomTypeListView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        room_types = get_regular_query(RoomType)
-        room_types = room_types.order_by('code')
-        serializer = RoomTypeIdNameSerializer(room_types, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-# ==================
-# Import Features
-# ==================
-
-
-def clean(value):
-    # This handles None, np.nan, and pd.NaT all at once
-    if pd.isna(value):
-        return None
-    
-    # Convert to string and strip whitespace
-    cleaned_value = str(value).strip()
-    
-    # Return the value if it's not an empty string, otherwise return None
-    return cleaned_value if cleaned_value else None
-
-
-class UploadGlobsView(APIView):
-    model = Glob
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["glob", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                name = clean(row.get("glob") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([name, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                    
-                objs.append(
-                    Glob(
-                        name=name, 
-                        code=code, 
-                        is_hidden = is_hidden, 
-                        on_hold = on_hold, 
-                        hold_date = hold_date
-                    )
-                )
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            with transaction.atomic():
-                Glob.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Globs uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED)
-
-
-class UploadContinentsView(APIView):
-    model = Continent
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        glob_cache = {g.name: g for g in Glob.objects.all()}
-        
-        objs = []
-        invalid_rows = []
-
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                glob_obj = glob_cache.get(glob)
-                if not glob_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Glob '{glob}' not found"})
-                    continue
-                
-                objs.append(Continent(
-                    glob = glob_obj, 
-                    name = continent, 
-                    code = code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date)
-                )
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )        
-        try:
-            with transaction.atomic():
-                Continent.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["glob", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Continents uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED)
-
-
-class UploadCountriesView(APIView):
-    model = Country
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        continent_cache = {
-            (c.name, c.glob.name): c
-            for c in Continent.objects.select_related('glob').all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                continent_obj = continent_cache.get((continent, glob))
-                if not continent_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Continent '{continent}' not found for glob: {glob}"})
-                    continue
-                
-                objs.append(Country(
-                    continent=continent_obj,
-                    name=country, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date)
-                )
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-                
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )        
-        try:
-            with transaction.atomic():
-                Country.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["continent","name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Countries uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )    
-        
-        
-class UploadStatesView(APIView):
-    model = State
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        # This runs 1 query that gets EVERYTHING (countries + contient + glob)
-        country_cache = {
-            (c.name, c.continent.name, c.continent.glob.name): c
-            for c in Country.objects.select_related('continent__glob').all()
-        }
-                
-        objs = []
-        invalid_rows = []
-
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                    
-                country_obj = country_cache.get((country, continent, glob))
-                if not country_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Country '{country}' not found for continent: {continent}, glob: {glob}"})
-                    continue
-                
-                objs.append(State(
-                    country=country_obj,
-                    name=state, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date)
-                )
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})       
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )        
-        try:
-            with transaction.atomic():
-                State.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["country", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} States uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-            
-
-class UploadDistrictsView(APIView):
-    model = District
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        state_cache = {
-            (s.name, s.country.name, s.country.continent.name, s.country.continent.glob.name): s
-            for s in State.objects.select_related('country__continent__glob').all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                    
-                state_obj = state_cache.get((state, country, continent, glob))
-                if not state_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"State '{state}' not found for country: {country}, continent: {continent}, glob: {glob}"})
-                    continue
-                    
-                objs.append(District(
-                    state=state_obj,
-                    name=district, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date)
-                )
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-                    
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )        
-        try:
-            with transaction.atomic():
-                District.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["state", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Districts uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )    
-        
-        
-class UploadTalukasView(APIView):
-    model = Taluka
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        district_cache = {
-            (d.name, 
-             d.state.name, 
-             d.state.country.name, 
-             d.state.country.continent.name, 
-             d.state.country.continent.glob.name): d
-             for d in District.objects.select_related('state__country__continent__glob').all()
-        }
-         
-        objs = []
-        invalid_rows = []
-
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                district_obj = district_cache.get((district, state, country, continent, glob))
-                if not district_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"District '{district}' not found for state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
-                    continue
-                
-                objs.append(Taluka(
-                    district=district_obj,
-                    name=taluka, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date)
-                )
-                    
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )        
-        try:
-            with transaction.atomic():
-                Taluka.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["district", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Talukas uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )            
-            
-
-class UploadCityVillagesView(APIView):
-    model = CityVillage
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        taluka_cache = {
-            (t.name,
-             t.district.name,
-             t.district.state.name,
-             t.district.state.country.name,
-             t.district.state.country.continent.name,
-             t.district.state.country.continent.glob.name): t
-             for t in Taluka.objects.select_related('district__state__country__continent__glob').all()
-        }
-           
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")    
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                taluka_obj = taluka_cache.get((taluka, district, state, country, continent, glob))
-                if not taluka_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Taluka '{taluka}' not found for district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
-                    continue
-                
-                objs.append(CityVillage(
-                    taluka=taluka_obj,
-                    name=city_village, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date)
-                )
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )        
-        try:
-            with transaction.atomic():
-                CityVillage.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["taluka", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} City/Villages uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-class UploadWardsView(APIView):
-    model = Ward
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=400)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=400)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-                
-        city_village_cache = {
-            (cv.name,
-             cv.taluka.name,
-             cv.taluka.district.name,
-             cv.taluka.district.state.name,
-             cv.taluka.district.state.country.name,
-             cv.taluka.district.state.country.continent.name,
-             cv.taluka.district.state.country.continent.glob.name): cv
-             for cv in CityVillage.objects.select_related('taluka__district__state__country__continent__glob').all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")
-                ward = clean(row.get("ward") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, ward, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                city_village_obj = city_village_cache.get((city_village, taluka, district, state, country, continent, glob))
-                if not city_village_obj:   
-                    invalid_rows.append({"row": idx + 2, "error": f"City/Village '{city_village}' not found for taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
-                    continue
-                
-                objs.append(Ward(
-                    city_village=city_village_obj,
-                    name=ward, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                     
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            with transaction.atomic():
-                Ward.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["city_village", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Wards uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadSocietiesView(APIView):
-    model = Society
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        ward_cache = {
-            (
-                w.name,
-                w.city_village.name,
-                w.city_village.taluka.name,
-                w.city_village.taluka.district.name,
-                w.city_village.taluka.district.state.name,
-                w.city_village.taluka.district.state.country.name,
-                w.city_village.taluka.district.state.country.continent.name,
-                w.city_village.taluka.district.state.country.continent.glob.name
-            ): w
-            for w in Ward.objects.select_related('city_village__taluka__district__state__country__continent__glob').all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = row.get("is_hidden", False)
-                on_hold = row.get("on_hold", False)
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")
-                ward = clean(row.get("ward") or "")
-                society = clean(row.get("society") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                
-                ward_obj = ward_cache.get((ward, city_village, taluka, district, state, country, continent, glob))
-                if not ward_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Ward '{ward}' not found for city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
-                    continue
-                
-                objs.append(Society(
-                    ward=ward_obj, 
-                    name=society, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-                
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            with transaction.atomic():
-                Society.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["ward", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Societies uploaded successfully",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadBlocksView(APIView):
-    model = Block
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        society_cache = {
-            (
-                s.name,
-                s.ward.name,
-                s.ward.city_village.name,
-                s.ward.city_village.taluka.name,
-                s.ward.city_village.taluka.district.name,
-                s.ward.city_village.taluka.district.state.name,
-                s.ward.city_village.taluka.district.state.country.name,
-                s.ward.city_village.taluka.district.state.country.continent.name,
-                s.ward.city_village.taluka.district.state.country.continent.glob.name,
-             ): s
-            for s in Society.objects.select_related('ward__city_village__taluka__district__state__country__continent__glob').all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields    
-                is_hidden = row.get("is_hidden", False)
-                on_hold = row.get("on_hold", False)
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")
-                ward = clean(row.get("ward") or "")
-                society = clean(row.get("society") or "")
-                block = clean(row.get("block") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                
-                society_obj = society_cache.get((society, ward, city_village, taluka, district, state, country, continent, glob))
-                if not society_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Society '{society}' not found for ward: {ward}, city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}"})
-                    continue
-                
-                objs.append(
-                    Block(
-                        society=society_obj,
-                        name=block,
-                        code=code,
-                        is_hidden=is_hidden,
-                        on_hold=on_hold,
-                        hold_date=hold_date
-                    )
-                )
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-            
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            with transaction.atomic():
-                Block.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["society", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Blocks uploaded successfully",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-
-class UploadFloorsView(APIView):
-    model = Floor
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        block_cache = {
-            (
-                b.name,
-                b.society.name,
-                b.society.ward.name,
-                b.society.ward.city_village.name,
-                b.society.ward.city_village.taluka.name,
-                b.society.ward.city_village.taluka.district.name,
-                b.society.ward.city_village.taluka.district.state.name,
-                b.society.ward.city_village.taluka.district.state.country.name,
-                b.society.ward.city_village.taluka.district.state.country.continent.name,
-                b.society.ward.city_village.taluka.district.state.country.continent.glob.name,
-             ): b
-            for b in Block.objects.select_related('society__ward__city_village__taluka__district__state__country__continent__glob').all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = row.get("is_hidden", False)
-                on_hold = row.get("on_hold", False)
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")
-                ward = clean(row.get("ward") or "")
-                society = clean(row.get("society") or "")
-                block = clean(row.get("block") or "")
-                floor_no = row.get("floor_no")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                
-                block_obj = block_cache.get((block, society, ward, city_village, taluka, district, state, country, continent, glob))
-                if not block_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Block '{block}' not found for society: {society}, ward: {ward}, city_village: {city_village}, taluka: {taluka}, district: {district}, state: {state}, country: {country}, continent: {continent}, glob: {glob}."})
-                    continue
-                
-                objs.append(
-                    Floor(
-                        block=block_obj,
-                        no=floor_no,
-                        code=code,
-                        is_hidden=is_hidden,
-                        on_hold=on_hold,
-                        hold_date=hold_date
-                    )
-                )
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response(
-                {
-                    "error": "No valid rows found in the file.",
-                    "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        try:
-            with transaction.atomic():
-                Floor.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["block", "no"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Floors uploaded successfully",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadHousesView(APIView):
-    model = House
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "house_no", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        floor_cache = {
-            (
-                f.no,
-                f.block.name,
-                f.block.society.name,
-                f.block.society.ward.name,
-                f.block.society.ward.city_village.name,
-                f.block.society.ward.city_village.taluka.name,
-                f.block.society.ward.city_village.taluka.district.name,
-                f.block.society.ward.city_village.taluka.district.state.name,
-                f.block.society.ward.city_village.taluka.district.state.country.name,
-                f.block.society.ward.city_village.taluka.district.state.country.continent.name,
-                f.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
-             ): f
-            for f in Floor.objects.select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob').all()
-        }
-        
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = row.get("is_hidden", False)
-                on_hold = row.get("on_hold", False)
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")
-                ward = clean(row.get("ward") or "")
-                society = clean(row.get("society") or "")
-                block = clean(row.get("block") or "")
-                floor_no = row.get("floor_no")
-                house_no = row.get("house_no")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, house_no, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                
-                floor_obj = floor_cache.get((floor_no, block, society, ward, city_village, taluka, district, state, country, continent, glob))
-                if not floor_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Floor '{floor_no}' not found for block {block}, society {society}, ward {ward}, city_village {city_village}, taluka {taluka}, district {district}, state {state}, country {country}, continent {continent}, glob {glob}."})
-                    continue
-                
-                objs.append(
-                    House(
-                        floor=floor_obj,
-                        no=house_no,
-                        code=code,
-                        is_hidden=is_hidden,
-                        on_hold=on_hold,
-                        hold_date=hold_date
-                    )
-                )
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response(
-                {
-                    "error": "No valid rows found in the file.",
-                    "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                House.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["floor","no"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"]
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Houses uploaded successfully",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadRoomsView(APIView):
-    model = Room
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["glob", "continent", "country", "state", "district", "taluka", "city_village", "ward", "society", "block", "floor_no", "house_no", "room_no", "room_type", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        house_cache = {
-            (
-                h.no,
-                h.floor.no,
-                h.floor.block.name,
-                h.floor.block.society.name,
-                h.floor.block.society.ward.name,
-                h.floor.block.society.ward.city_village.name,
-                h.floor.block.society.ward.city_village.taluka.name,
-                h.floor.block.society.ward.city_village.taluka.district.name,
-                h.floor.block.society.ward.city_village.taluka.district.state.name,
-                h.floor.block.society.ward.city_village.taluka.district.state.country.name,
-                h.floor.block.society.ward.city_village.taluka.district.state.country.continent.name,
-                h.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob.name,
-            ): h
-            for h in House.objects.all()
-        }
-        
-        room_type_objs =  RoomType.objects.all()
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                # Normalize boolean fields
-                is_hidden = row.get("is_hidden", False)
-                on_hold = row.get("on_hold", False)
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                glob = clean(row.get("glob") or "")
-                continent = clean(row.get("continent") or "")
-                country = clean(row.get("country") or "")
-                state = clean(row.get("state") or "")
-                district = clean(row.get("district") or "")
-                taluka = clean(row.get("taluka") or "")
-                city_village = clean(row.get("city_village") or "")
-                ward = clean(row.get("ward") or "")
-                society = clean(row.get("society") or "")
-                block = clean(row.get("block") or "")
-                floor_no = row.get("floor_no")
-                house_no = clean(row.get("house_no") or "")
-                room_no = row.get("room_no")
-                room_type = clean(row.get("room_type") or "")
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([glob, continent, country, state, district, taluka, city_village, ward, society, block, floor_no, house_no, room_no,code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                house_obj = house_cache[(house_no, floor_no, block, society, ward, city_village, taluka, district, state, country, continent, glob)]
-                if not house_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"House '{house_no}' not found for floor {floor_no}, block {block}, society {society}, ward {ward}, city_village {city_village}, taluka {taluka}, district {district}, state {state}, country {country}, continent {continent}, glob {glob}."})
-                    continue
-                
-                if room_type:
-                    room_type_obj = room_type_objs.filter(name=room_type).first()
-                    if not room_type_obj:
-                        invalid_rows.append({"row": idx + 2, "error": "Room type not found."})
-                        continue
-                else:
-                    room_type_obj = None
-                
-                objs.append(
-                    Room(
-                        house=house_obj,
-                        no=room_no,
-                        room_type = room_type_obj,
-                        code=code,
-                        is_hidden=is_hidden,
-                        on_hold=on_hold,
-                        hold_date=hold_date
-                    )
-                )
-
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response(
-                {
-                    "error": "No valid rows found in the file.",
-                    "invalid_rows": invalid_rows,
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Room.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=[
-                        "is_hidden",
-                        "on_hold",
-                        "hold_date",
-                        "house",
-                        "room_type",
-                        "no"
-                    ],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} rooms uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-             
-# class UploadRoomFlashesView(APIView):
-#     model = RoomFlash
-#     parser_classes = [MultiPartParser]
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-#     def post(self, request):
-#         serializer = FileUploadSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         file = serializer.validated_data['file']
-
-#         try:
-#             df = read_file(file, required_columns=["room_flash", "code", "is_hidden", "on_hold", "hold_date"])
-#         except ValidationError as e:
-#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as e:
-#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Check if the DataFrame is empty
-#         if df.empty:
-#             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         objs = []
-#         invalid_rows = []
-        
-#         for idx, row in df.iterrows():
-#             try:
-#                 hold_date = row.get('hold_date')
-#                 if pd.isna(hold_date):  # check for NaT or NaN
-#                     hold_date = None
-#                 else:
-#                     hold_date = pd.to_datetime(hold_date).date()
-                    
-#                 # Normalize boolean fields
-#                 is_hidden = normalize_bool(row.get("is_hidden"))
-#                 on_hold = normalize_bool(row.get("on_hold"))
-                
-#                 # Calculate hidden and on_hold values
-#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-#                 # Clean text safely
-#                 room_flash_name = clean(row.get("room_flash"))
-#                 code = row.get("code")
-                
-#                 # Skip invalid rows early
-#                 if not all([room_flash_name, code]):
-#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-#                     continue
-                
-#                 objs.append(RoomFlash(
-#                     name=room_flash_name, 
-#                     code=code, 
-#                     is_hidden = is_hidden, 
-#                     on_hold = on_hold, 
-#                     hold_date = hold_date
-#                 ))
-                   
-#             except Exception as e:
-#                 invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-#         if not objs:
-#             return Response({
-#                 "error": "No valid records found in the file.",
-#                 "invalid_rows": invalid_rows
-#                 }, status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         try:
-#             with transaction.atomic():
-#                 RoomFlash.objects.bulk_create(
-#                     objs,
-#                     update_conflicts=True,
-#                     unique_fields=["code"],
-#                     update_fields=["name", "is_hidden", "on_hold", "hold_date"],
-#                 )
-#         except Exception as e:
-#             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         return Response(
-#             {
-#                 "message": f"{len(objs)} RoomFlash uploaded successfully",
-#                 "invalid_rows": invalid_rows,
-#             }, status=status.HTTP_201_CREATED
-#         )
-
-
-class UploadRoomTypesView(APIView):
-    model = RoomType
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["room_type", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                room_type_name = clean(row.get("room_type"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([room_type_name, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                
-                objs.append(RoomType(
-                    name=room_type_name, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                RoomType.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} RoomType uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-                   
-class ModelNameView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = ModelNameSerializer
-    
-    def get(self, request):
-        user = request.user
-        if user.is_system_user==False or user.is_verified==False:
-            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        model_names = ModelName.objects.all()
-        serializer = self.serializer_class(model_names, many=True)
+        dimensions = Dimension.objects.filter(is_active=True)
+        serializer = DimensionIdNameSerializer(dimensions, many=True)
         return Response(serializer.data)
 
-
-
-
-# ======================================================================
-# Personal Upload excel/csv
-# ======================================================================
-class UploadReligionView(APIView):
-    model = Religion
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+class LevelViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = Level.objects.all()
+    serializer_class = LevelSerializer
     
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return LevelSerializer
+        return LevelDetailSerializer
 
-        try:
-            df = read_file(file, required_columns=["religion", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([religion, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                
-                objs.append(Religion(
-                    name=religion, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
+    def perform_destroy(self, instance):
         try:
             with transaction.atomic():
-                Religion.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
+                level_logger.info(f"Try to delete(archived) level {instance.name}")
+                qs = Level.objects.select_for_update().filter(
+                    dimension=instance.dimension,
                 )
+                
+                # update children
+                child = qs.filter(parent=instance).first()
+                if child:
+                    child.parent = instance.parent
+                    child.save(update_fields=['parent'])
+                
+                # CLOSE THE GAP (Shift everyone up)
+                qs.filter(sort_order__gt=instance.sort_order).update(sort_order=F('sort_order') - 1)
+
+                # ACTUAL DELETE
+                instance.soft_delete(user=self.request.user)
+                
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            level_logger.exception("Failed to delete level:", e)
+            raise ValidationError({"error": "Failed to delete. Please try again."})
+                
+        # return super().perform_destroy(instance)
+
+class LevelListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        dimension_id = request.query_params.get('dimension_id', "").strip()
+        if not dimension_id:
+            return Response({"dimension_id": "Dimension cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        if not dimension_id.isdigit():
+            return Response({"dimension_id": "Dimension must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(
-            {
-                "message": f"{len(objs)} Religion uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
+        levels = Level.objects.filter(
+            dimension_id=dimension_id,
         )
+        serializer = LevelIdNameSerializerWithCustomColumn(levels, many=True)
+        return Response(serializer.data)
 
-class UploadSampradayView(APIView):
-    model = Sampraday
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+from collections import defaultdict
+from django.db.models import F
+
+class NodeViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+    queryset = Node.objects.select_related("dimension", "level", "parent")
+    serializer_class = NodeSerializer
+    pagination_class = ConfigurationPagination
     
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
+    def get_serializer_class(self):
+        if self.action in ["create", "update", "partial_update"]:
+            return NodeSerializer
+        return NodeIdNameSerializer
+    
+    def perform_destroy(self, instance):
         try:
-            df = read_file(file, required_columns=["religion", "sampraday", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            instance.soft_delete(user=self.request.user)
         except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({"error": "Failed to delete. Please try again."})
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    def list(self, request, *args, **kwargs):
+        dimension = request.query_params.get("dimension", "").strip()
+        level = request.query_params.get("level", "").strip()
+        search_query = request.query_params.get("search", "").strip()
 
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        if not dimension or not dimension.isdigit():
+             return Response({"dimension": "Valid dimension is required."}, status=status.HTTP_400_BAD_REQUEST)
+         
+        if not level or not level.isdigit():
+             return Response({"level": "Valid level is required."}, status=status.HTTP_400_BAD_REQUEST)
         
-        religion_cache = {
-            r.name : r for r in Religion.objects.all() 
-        }
+        # Step A: Get all explicitly deleted node IDs (bypassing the SoftDeleteManager)
+        deleted_node_ids = Node.all_objects.filter(is_deleted=True).values_list('id', flat=True)
         
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([religion, sampraday, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                    
-                religion_obj = religion_cache.get(religion)
-                if not religion_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Religion '{religion}' not found"})
-                    continue    
-                
-                objs.append(Sampraday(
-                    religion = religion_obj,
-                    name=sampraday, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
+        # Step B: Get ALL descendants of those deleted nodes using the Closure table
+        # This catches children, grandchildren (Countries), etc.
+        hidden_branch_ids = NodeClosure.objects.filter(
+            ancestor_id__in=deleted_node_ids
+        ).values('descendant_id')
 
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
+        # 1. Filter Target Nodes (Base Queryset)
+        queryset = Node.objects.filter(
+            dimension_id=int(dimension),
+            level_id=int(level),
+        ).exclude(
+            id__in=hidden_branch_ids
+        ).annotate(
+            # This calculates the count of nodes having the same parent_id 
+            # and same level_id across the entire table
+            parent_total_count=Window(
+                expression=Count('id'),
+                partition_by=[F('parent_id'), F('level_id')]
             )
+        ) # Ordering is mandatory for pagination!
+        
+        # 2. Apply Name/Code Search
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |      # Match Name
+                Q(code__icontains=search_query)       # Match Code (Optional)
+            )        
+        
+        code_start_param = request.query_params.get("code_start", "").strip()
+        code_end_param = request.query_params.get("code_end", "").strip()
 
         try:
-            with transaction.atomic():
-                Sampraday.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["religion", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Sampraday uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadPanthView(APIView):
-    model = Panth
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        sampraday_cache = {
-            (s.name, s.religion.name) : s for s in Sampraday.objects.select_related("religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([sampraday, religion, panth, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                    
-                sampraday_obj = sampraday_cache.get((sampraday, religion))
-                if not sampraday_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sampraday '{sampraday}' not found for religion: {religion}"})
-                    continue    
-                
-                objs.append(Panth(
-                    sampraday = sampraday_obj,
-                    name=panth, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                Panth.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["sampraday", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Panth uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadAwasthaView(APIView):
-    model = Awastha
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["awastha", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                awastha = clean(row.get("awastha"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([awastha, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue    
-                
-                objs.append(Awastha(
-                    name=awastha, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
+            code_start = parse_positive_int(code_start_param)
+        except ValueError:
+            return Response({"code_start": "Code start must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            with transaction.atomic():
-                Awastha.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            code_end = parse_positive_int(code_end_param)
+        except ValueError:
+            return Response({"code_end": "Code end must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if code_start is not None and code_end is not None and code_end < code_start:
+            return Response({"code_end": "Code end must be greater than code start."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # apply filters
+        if code_start is not None:
+            queryset = queryset.filter(code__gte=code_start)
+        if code_end is not None:
+            queryset = queryset.filter(code__lte=code_end)
+
+
+        # 3. Standard Filters (Hidden / On Hold)
+        is_hidden_param = request.query_params.get("is_hidden", "").strip()
+        if is_hidden_param != "":
+            is_hidden_bool = is_hidden_param.lower() == "true"
+            queryset = queryset.filter(is_hidden=is_hidden_bool)
         
-        return Response(
-            {
-                "message": f"{len(objs)} Awastha uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
+        on_hold_param = request.query_params.get("on_hold", "").strip()
+        if on_hold_param != "":
+            on_hold_bool = on_hold_param.lower() == "true"
+            queryset = queryset.filter(on_hold=on_hold_bool)
         
+        hold_date_start_param = request.query_params.get("hold_date_start", "").strip()
+        hold_date_end_param = request.query_params.get("hold_date_end", "").strip()
 
-class UploadVarnaView(APIView):
-    model = Varna
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
+        if hold_date_start_param != "":
+            hold_date_start = parse_date(hold_date_start_param)
+            if hold_date_start is None:
+                return Response({"hold_date_start": "On hold start date must be a valid date."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(hold_date__gte=hold_date_start)
 
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        panth_cache = {
-            (
-                p.name,
-                p.sampraday.name,
-                p.sampraday.religion.name
-            ): p
-            for p in Panth.objects.select_related("sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                    
-                panth_obj = panth_cache.get((panth, sampraday, religion))
-                if not panth_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Panth '{panth}' not found for sampraday: {sampraday}, religion: {religion}"}) 
-                    continue    
-                
-                objs.append(Varna(
-                    panth = panth_obj,
-                    name=varna, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                Varna.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["panth", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Varna uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadCasteView(APIView):
-    model = Caste
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        varna_cache = {
-            (v.name,
-             v.panth.name,
-             v.panth.sampraday.name,
-             v.panth.sampraday.religion.name) : v
-            for v in Varna.objects.select_related("panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                    
-                varna_obj = varna_cache.get((varna, panth, sampraday, religion))
-                if not varna_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Varna '{varna}' not found for panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
-                    continue    
-                
-                objs.append(Caste(
-                    varna = varna_obj,
-                    name=caste, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                Caste.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["varna", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Caste uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-        
-
-class UploadSubCasteView(APIView):
-    model = SubCaste
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        caste_cache = {
-            (c.name, 
-             c.varna.name,
-             c.varna.panth.name, 
-             c.varna.panth.sampraday.name, 
-             c.varna.panth.sampraday.religion.name) : c
-            for c in Caste.objects.select_related("varna__panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, subcaste, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                    
-                caste_obj = caste_cache.get((caste, varna, panth, sampraday, religion))
-                if not caste_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Caste '{caste}' not found for varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"}) 
-                    continue    
-                
-                objs.append(SubCaste(
-                    caste = caste_obj,
-                    name=subcaste, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})   
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                SubCaste.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["caste", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} SubCaste uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-class UploadGotraView(APIView):
-    model = Gotra
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        subcaste_cache = {
-            (s.name, 
-             s.caste.name, 
-             s.caste.varna.name, 
-             s.caste.varna.panth.name, 
-             s.caste.varna.panth.sampraday.name, 
-             s.caste.varna.panth.sampraday.religion.name) : s
-            for s in SubCaste.objects.select_related("caste__varna__panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                 
-                    
-                subcaste_obj = subcaste_cache.get((subcaste, caste, varna, panth, sampraday, religion))
-                if not subcaste_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sub Caste {subcaste} not found for caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."}) 
-                    continue    
-                
-                objs.append(Gotra(
-                    subcaste = subcaste_obj,
-                    name=gotra, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                   
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                Gotra.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["subcaste", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Gotra uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadSubGotraView(APIView):
-    model = SubGotra
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]    
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        gotra_cache = {
-            (g.name, 
-             g.subcaste.name, 
-             g.subcaste.caste.name, 
-             g.subcaste.caste.varna.name,
-             g.subcaste.caste.varna.panth.name, 
-             g.subcaste.caste.varna.panth.sampraday.name, 
-             g.subcaste.caste.varna.panth.sampraday.religion.name) : g
-            for g in Gotra.objects.select_related("subcaste__caste__varna__panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                subgotra = clean(row.get("subgotra"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([sampraday, religion, panth, varna, caste, subcaste, gotra, subgotra, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-                    continue
-                    
-                gotra_obj = gotra_cache.get((gotra, subcaste, caste, varna, panth, sampraday, religion))
-                if not gotra_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Gotra '{gotra}' not found for subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
-                    continue    
-                
-                objs.append(SubGotra(
-                    gotra = gotra_obj,
-                    name=subgotra, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))                                
+        if hold_date_end_param != "":
+            hold_date_end = parse_date(hold_date_end_param)
+            if hold_date_end is None:
+                return Response({"hold_date_end": "On hold end date must be a valid date."}, status=status.HTTP_400_BAD_REQUEST)
             
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+            if hold_date_end > hold_date_start:
+                return Response({"hold_date_end": "On hold end date must be greater than on hold start date."}, status=status.HTTP_400_BAD_REQUEST)
+            queryset = queryset.filter(hold_date__lte=hold_date_end)
 
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                SubGotra.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["gotra", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} SubGotra uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadKulView(APIView):
-    model = Kul
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        subgotra_cache = {
-            (sg.name,
-            sg.gotra.name,
-            sg.gotra.subcaste.name,
-            sg.gotra.subcaste.caste.name,
-            sg.gotra.subcaste.caste.varna.name,
-            sg.gotra.subcaste.caste.varna.panth.name,
-            sg.gotra.subcaste.caste.varna.panth.sampraday.name,
-            sg.gotra.subcaste.caste.varna.panth.sampraday.religion.name): sg
-            for sg in SubGotra.objects.select_related("gotra__subcaste__caste__varna__panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
+            
+        # 4. Ancestor Filtering
+        ancestor_ids_param = request.query_params.get("ancestor_ids", "").strip()
+        if ancestor_ids_param != "":
             try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
+                # Convert "1,5" -> [1, 5]
+                ancestor_ids = [int(x) for x in ancestor_ids_param.split(',') if x.strip().isdigit()]
                 
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                subgotra = clean(row.get("subgotra"))
-                kul = clean(row.get("kul"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                    
-                subgotra_obj = subgotra_cache.get((subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
-                if not subgotra_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubGotra '{subgotra}' not found for gotra: {gotra}, sub caste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}."})
-                    continue    
-                
-                objs.append(Kul(
-                    subgotra = subgotra_obj,
-                    name=kul, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+                if ancestor_ids:
+                    for ancestor_id in ancestor_ids:
+                        # Use NodeClosure for efficient lookup
+                        queryset = queryset.filter(
+                            id__in=NodeClosure.objects.filter(
+                                ancestor_id=ancestor_id,
+                            ).values('descendant_id')
+                        )
+            except ValueError:
+                pass # Ignore invalid format
+            
+        # ==============================================
+        # 5. Dynamic Attribute Filtering (The Fix)
+        # ==============================================
+        
+        # A. Get Schema for this level
+        level_obj = Level.objects.filter(id=level).first()
+        defined_schema = level_obj.extra_fields_schema if level_obj else []
+        
+        # Map schema for easy lookup: {'isgenz': {'type': 'boolean', ...}}
+        schema_map = {col['name']: col for col in defined_schema} 
 
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
+        # B. Loop through request parameters
+        # We explicitly exclude standard params to avoid collisions
+        standard_params = ['dimension', 'level', 'search', 'page', 'page_size', 'is_hidden', 'on_hold', 'ancestor_ids']
         
-        try:
-            with transaction.atomic():
-                Kul.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["subgotra", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Kul uploaded successfully",
-                "invalid_rows": invalid_rows,
-            }, status=status.HTTP_201_CREATED
-        )
-
-
-class UploadVanshView(APIView):
-    model = Vansh
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-
-        try:
-            df = read_file(file, required_columns=["religion","sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "code", "is_hidden", "on_hold", "hold_date"])   
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        kul_cache = {
-            (kul.name,
-            kul.subgotra.name,
-            kul.subgotra.gotra.name,
-            kul.subgotra.gotra.subcaste.name,
-            kul.subgotra.gotra.subcaste.caste.name,
-            kul.subgotra.gotra.subcaste.caste.varna.name,
-            kul.subgotra.gotra.subcaste.caste.varna.name,
-            kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-            kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-            kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): kul
-            for kul in Kul.objects.select_related("subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday"))
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                subgotra = clean(row.get("subgotra"))
-                kul = clean(row.get("kul"))
-                vansh = clean(row.get("vansh"))
-                code = row.get("code")
-                
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                kul_obj = kul_cache.get((kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
-                if not kul_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Kul '{kul} not found for subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
-                    continue
-                
-                objs.append(Vansh(
-                    kul = kul_obj,
-                    name=vansh, 
-                    code=code, 
-                    is_hidden = is_hidden, 
-                    on_hold = on_hold, 
-                    hold_date = hold_date
-                ))
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Vansh.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["kul", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:  
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response({
-            "message": f"{len(objs)} Vansh uploaded successfully",
-            "invalid_rows": invalid_rows,
-        })
-
-
-class UploadFamilyView(APIView):
-    model = Family
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["religion", "sampraday", "panth", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        vansh_cache = {
-            (v.name,
-             v.kul.name,
-             v.kul.subgotra.name,
-             v.kul.subgotra.gotra.name,
-             v.kul.subgotra.gotra.subcaste.name,
-             v.kul.subgotra.gotra.subcaste.caste.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-             v.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): v
-            for v in Vansh.objects.select_related("kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get("hold_date")
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                religion = clean(row.get("religion"))
-                sampraday = clean(row.get("sampraday")) 
-                panth = clean(row.get("panth"))
-                varna = clean(row.get("varna"))
-                caste = clean(row.get("caste"))
-                subcaste = clean(row.get("subcaste"))
-                gotra = clean(row.get("gotra"))
-                subgotra = clean(row.get("subgotra"))
-                kul = clean(row.get("kul"))
-                vansh = clean(row.get("vansh"))
-                family = clean(row.get("family"))
-                code = row.get("code")    
-                
-                if not all([religion, sampraday, panth, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                vansh_obj = vansh_cache.get((vansh, kul, subgotra, gotra, subcaste, caste, varna, panth, sampraday, religion))
-                if not vansh_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Vansh '{vansh}' not found for kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
-                    continue
-                
-                objs.append(Family(
-                    vansh = vansh_obj,
-                    name = family,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+        for param, raw_value in request.query_params.items():
+            if param in standard_params:
+                # print("Skipping standard param:", param)
                 continue
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Family.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["vansh", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Families uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
 
+            # ==========================================
+            # 1. Handle Range Filters
+            # ==========================================
+            processed_ranges = set()
 
-# class UploadPidhiView(APIView):
-#     model = Pidhi
-#     permission_classes = [IsAuthenticated]
-#     serializer_class = FileUploadSerializer
-    
-#     def post(self, request):
-#         serializer = FileUploadSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         file = serializer.validated_data['file']
+            if param.endswith('_start') or param.endswith('_end'):
+                base_param = param[:-6] if param.endswith('_start') else param[:-4]
 
-#         try:
-#             df = read_file(file, required_columns=["religion","sampraday", "panth", "awastha", "varna", "caste", "subcaste", "gotra", "subgotra", "kul", "vansh", "family", "pidhi", "code", "is_hidden", "on_hold", "hold_date"])
-#         except ValidationError as e:
-#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as e:
-#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Check if the DataFrame is empty
-#         if df.empty:
-#             return Response({"error": "File is empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         family_cache = {
-#             (f.name,
-#              f.vansh.name,
-#              f.vansh.kul.name,
-#              f.vansh.kul.subgotra.name,
-#              f.vansh.kul.subgotra.gotra.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.caste.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.name,
-#              f.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion.name): f
-#             for f in Family.objects.all()
-#         }
+                # prevent double-processing when both start & end are present
+                if base_param in processed_ranges:
+                    continue
+                processed_ranges.add(base_param)
+
+                if base_param in schema_map:
+                    column_def = schema_map[base_param]
+                    field_type = column_def.get('type', 'char')
+                    default_val_raw = column_def.get('default_value')
+
+                    if field_type in ['int', 'positive_int', 'float', 'date']:
+                        start_param = f"{base_param}_start"
+                        end_param = f"{base_param}_end"
+
+                        start_raw = request.query_params.get(start_param, "").strip()
+                        end_raw = request.query_params.get(end_param, "").strip()
+
+                        try:
+                            start_val, _ = cast_value_by_type(start_raw, field_type)  # ✅ from start_raw
+                            end_val, _ = cast_value_by_type(end_raw, field_type)      # ✅ from end_raw
+
+                            if start_val is None and end_val is None:
+                                continue
+
+                            if start_val is not None and end_val is not None and end_val < start_val:
+                                return Response(
+                                    {end_param: f"Value for '{end_param}' must be >= '{start_param}'."},
+                                    status=status.HTTP_400_BAD_REQUEST
+                                )
+
+                            typed_default = None
+                            print("Default Value:", default_val_raw)
+                            if default_val_raw is not None:
+                                typed_default, _ = cast_value_by_type(default_val_raw, field_type)
+
+                            default_in_range = default_in_bounds(typed_default, start_val, end_val)
+
+                            print("Default in range:", default_in_range)
+
+                            range_kwargs = {}
+                            if start_val is not None:
+                                range_kwargs[f"attributes__{base_param}__gte"] = start_val
+                            if end_val is not None:
+                                range_kwargs[f"attributes__{base_param}__lte"] = end_val
+
+                            range_q = Q(**range_kwargs)
+
+                            # Updated Query logic to handle missing keys OR explicitly null values
+                            if default_in_range:
+                                queryset = queryset.filter(
+                                    range_q | 
+                                    ~Q(attributes__has_key=base_param) | 
+                                    Q(**{f"attributes__{base_param}__isnull": True})
+                                )
+                            else:
+                                queryset = queryset.filter(range_q)
+
+                        except ValueError as e:
+                            print(f"Skipping range filter for {base_param}: {e}")
+
+                continue
+            # # ==========================================
+            # # 1. Handle Range Filters (_start)
+            # # ==========================================
+            # if param.endswith('_start'):
+            #     # Extract base param name (e.g., 'area_start' -> 'area')
+            #     base_param = param[:-6] 
+            #     print("Base Param:", base_param)
                 
-    
-#         objs = []
-#         invalid_rows = []
-        
-#         for idx, row in df.iterrows():
-#             try:
-#                 hold_date = row.get('hold_date')
-#                 if pd.isna(hold_date):  # check for NaT or NaN
-#                     hold_date = None
-#                 else:
-#                     hold_date = pd.to_datetime(hold_date).date()
+            #     if base_param in schema_map:
+            #         column_def = schema_map[base_param]
+            #         field_type = column_def.get('type', 'char')
+            #         default_val_raw = column_def.get('default_value') # <-- Get default value
                     
-#                 # Normalize boolean fields
-#                 is_hidden = normalize_bool(row.get("is_hidden"))
-#                 on_hold = normalize_bool(row.get("on_hold"))
-                
-#                 # Calculate hidden and on_hold values
-#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-#                 # Clean text safely
-#                 religion = clean(row.get("religion"))
-#                 sampraday = clean(row.get("sampraday")) 
-#                 panth = clean(row.get("panth"))
-#                 awastha = clean(row.get("awastha"))
-#                 varna = clean(row.get("varna"))
-#                 caste = clean(row.get("caste"))
-#                 subcaste = clean(row.get("subcaste"))
-#                 gotra = clean(row.get("gotra"))
-#                 subgotra = clean(row.get("subgotra"))
-#                 kul = clean(row.get("kul"))
-#                 vansh = clean(row.get("vansh"))
-#                 family = clean(row.get("family"))
-#                 pidhi = clean(row.get("pidhi"))
-#                 code = row.get("code")
-                
-#                 if not all([religion, sampraday, panth, awastha, varna, caste, subcaste, gotra, subgotra, kul, vansh, family, pidhi, code]):
-#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-#                     continue
-                
-#                 family_obj = family_cache.get((family, vansh, kul, subgotra, gotra, subcaste, caste, varna, awastha, panth, sampraday, religion))
-#                 if not family_obj:
-#                     invalid_rows.append({"row": idx + 2, "error": f"Family '{family}' not found for vansh: {vansh}, kul: {kul}, subgotra: {subgotra}, gotra: {gotra}, subcaste: {subcaste}, caste: {caste}, varna: {varna}, awastha: {awastha}, panth: {panth}, sampraday: {sampraday}, religion: {religion}"})
-#                     continue
-                
-#                 objs.append(Pidhi(
-#                     family = family_obj,
-#                     name = pidhi,
-#                     code = code,
-#                     is_hidden = is_hidden,
-#                     on_hold = on_hold,
-#                     hold_date = hold_date
-#                 ))
-                
-#             except Exception as e:
-#                 invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-#         if not objs:
-#             return Response({
-#                 "error": "No valid records found in the file.",
-#                 "invalid_rows": invalid_rows
-#                 }, status=status.HTTP_400_BAD_REQUEST
-#             )
-        
-#         try:
-#             with transaction.atomic():
-#                 Pidhi.objects.bulk_create(
-#                     objs,
-#                     update_conflicts=True,
-#                     unique_fields=["code"],
-#                     update_fields=["family", "name", "is_hidden", "on_hold", "hold_date"],
-#                 )
-#         except Exception as e:
-#             return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         return Response(
-#             {
-#                 "message": f"{len(objs)} Pidhis uploaded successfully.",
-#                 "invalid_rows": invalid_rows
-#             }, status=status.HTTP_201_CREATED
-#         )
- 
-# ======================================================================
-# Professional Upload excel/csv
-# ====================================================================== 
+            #         # Ensure it's a numeric/date type
+            #         if field_type in ['int', 'positive_int', 'float', 'date']:
+            #             end_param = f"{base_param}_end"
+            #             end_raw_value = request.query_params.get(end_param, "").strip()
+                        
+            #             # if not end_raw_value:
+            #             #     return Response({"error": f"Query parameter '{end_param}' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+                        
+            #             try:
+            #                 start_val, _ = cast_value_by_type(raw_value, field_type)
+            #                 end_val, _ = cast_value_by_type(end_raw_value, field_type)
 
-class UploadSectionView(APIView):
-    model = Section
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                objs.append(Section(
-                    name = section,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Section.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],  # field(s) to check for conflicts
-                    update_fields=["name", "is_hidden", "on_hold", "hold_date"],  # fields to update
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Section uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-   
- 
-class UploadClassView(APIView):
-    model = Class
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        section_cache = {
-            s.name : s for s in Section.objects.all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                section_obj = section_cache.get(section)
-                if not section_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Section: '{section}' not found."})
-                    continue
-                
-                objs.append(Class(
-                    section = section_obj,
-                    name = class_name,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Class.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["section", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Class uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )      
+            #                 print("Range Filter:", base_param, start_val, end_val)
+                            
+            #                 if start_val is not None and end_val is not None:
+                                
+            #                     # --- NEW: Default Value Logic for Ranges ---
+            #                     typed_default = None
+            #                     if default_val_raw is not None:
+            #                         typed_default, _ = cast_value_by_type(default_val_raw, field_type)
 
+            #                     # Check if the default value sits inside the requested bounds
+            #                     default_in_range = False
+            #                     if typed_default is not None:
+            #                         if start_val <= typed_default <= end_val:
+            #                             default_in_range = True
+            #                     # -------------------------------------------
 
-class UploadProfCategoryView(APIView):
-    model = ProfCategory
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-       
-       # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        profclass_cache = {
-            (c.name, c.section.name) : c for c in Class.objects.select_related("section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
+            #                     if default_in_range:
+            #                         # If the default is within the range, include nodes that are missing the key entirely
+            #                         queryset = queryset.filter(
+            #                             Q(**{
+            #                                 f"attributes__{base_param}__gte": start_val,
+            #                                 f"attributes__{base_param}__lte": end_val
+            #                             }) | 
+            #                             ~Q(attributes__has_key=base_param)
+            #                         )
+            #                     else:
+            #                         # Standard strict range search
+            #                         queryset = queryset.filter(**{
+            #                             f"attributes__{base_param}__gte": start_val,
+            #                             f"attributes__{base_param}__lte": end_val
+            #                         })
+                                    
+            #             except ValueError as e:
+            #                 print(f"Skipping range filter for {base_param}: {e}")
+                
+            #     # Move to next parameter in the loop
+            #     continue
+                
+            # ==========================================
+            # 3. Handle Exact Match (Your Existing Logic)
+            # ==========================================
+            if param in schema_map:
+                column_def = schema_map[param]
+                field_type = column_def.get('type', 'char')
+                default_val_raw = column_def.get('default_value')
+                
+                try:
+                    # 1. Cast the Request Value
+                    typed_value, lookup = cast_value_by_type(raw_value, field_type)
+                    if typed_value is None:
+                        continue
+
+                    # 2. Cast the Default Value
+                    typed_default, _ =  (default_val_raw, field_type)
                     
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
+                    # 3. Check if user is searching for the default
+                    is_searching_default = (typed_default is not None) and (typed_value == typed_default)
+
+                    if is_searching_default:
+                        # LOGIC: Implicit Default (Missing Key) OR Explicit Default (Saved Value)
+                        queryset = queryset.filter(
+                            Q(**{f"attributes__{param}__{lookup}": typed_value}) | 
+                            ~Q(attributes__has_key=param)
+                        )
+                    else:
+                        # LOGIC: Standard search (Must exist and match)
+                        queryset = queryset.filter(**{f"attributes__{param}__{lookup}": typed_value})
+
+                except ValueError as e:
+                    # Handle invalid input format (e.g. user sent "abc" for an int field)
+                    print(f"Skipping filter for {param}: {e}")
                     continue
-                
-                class_obj = profclass_cache.get((class_name, section))
-                if not class_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Class: '{class_name}' not found for section: {section}"})
-                    continue
-                
-                objs.append(ProfCategory(
-                    profclass = class_obj,
-                    name = category,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+
+        # ==============================================
+        # 6. Pagination & Response Construction
+        # ==============================================
+        page = self.paginate_queryset(queryset)
         
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                ProfCategory.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["profclass", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} ProfCategory uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-                
-class UploadProfSubCategoryView(APIView):
-    model = ProfSubCategory
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-       
-       # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        category_cache = {
-            (p.name, 
-             p.profclass.name,
-             p.profclass.section.name) : p
-            for p in ProfCategory.objects.select_related("profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                category_obj = category_cache.get((category, class_name, section))
-                if not category_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Category: '{category}' not found for class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(ProfSubCategory(
-                    category = category_obj,
-                    name = subcategory,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
+        if page is not None:
+            # Serialize ONLY the paginated nodes
+            node_data_list = NodeOutputSerializer(page, many=True).data
             
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                ProfSubCategory.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["category", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} ProfSubCategory uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-                
+            # Extract IDs for just this page
+            node_map = {n['id']: n for n in node_data_list}
+            target_ids = list(node_map.keys())
 
-class UploadSectorView(APIView):
-    model = Sector
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "code", "is_hidden", "on_hold", "hold_date"])    
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        subcategory_cache = {
-            (sb.name,
-             sb.category.name,
-             sb.category.profclass.name,
-             sb.category.profclass.section.name) : sb
-            for sb in ProfSubCategory.objects.select_related("category__profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                subcategory_obj = subcategory_cache.get((subcategory, category, class_name, section))
-                if not subcategory_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubCategory: '{subcategory}' not found for category: {category}, class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(Sector(
-                    subcategory = subcategory_obj,
-                    name = sector,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Sector.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["subcategory", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Sector uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )                
-                
-
-class UploadSubSectorView(APIView):
-    model = SubSector
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        sector_cache = {
-            (s.name,
-             s.subcategory.name,
-             s.subcategory.category.name,
-             s.subcategory.category.profclass.name,
-             s.subcategory.category.profclass.section.name) : s
-            for s in Sector.objects.select_related("subcategory__category__profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                subsector = clean(row.get("subsector"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, subsector, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                sector_obj = sector_cache.get((sector, subcategory, category, class_name, section))
-                if not sector_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sector: '{sector}' not found for subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(SubSector(
-                    sector = sector_obj,
-                    name = subsector,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
+            # Fetch Paths (Closures) ONLY for these items
+            grouped_paths = defaultdict(dict)
             
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                SubSector.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["sector", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
+            if target_ids:
+                closures = NodeClosure.objects.filter(
+                    descendant_id__in=target_ids,
+                    ancestor__level__is_deleted=False
+                ).select_related(
+                    'ancestor', 
+                    'ancestor__level'
+                ).order_by(
+                    'descendant_id', 
+                    '-depth' 
                 )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} SubSector uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )                
 
-class UploadDepartmentView(APIView):
-    model = Department
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+                for c in closures:
+                    if c.ancestor.level: # Check just in case root has no level
+                        level_name = c.ancestor.level.name
+                        grouped_paths[c.descendant_id][level_name] = {
+                            "id": c.ancestor.id,
+                            "name": c.ancestor.name,
+                            "code": c.ancestor.code,
+                            "sort_order": c.ancestor.level.sort_order
+                        }
+
+            # Combine & Return Paginated Response
+            result = []
+            # Iterate over the LIST to preserve order from node_data_list
+            for node_data in node_data_list:
+                nid = node_data['id']
+                result.append({
+                    "node": node_data,
+                    "path": grouped_paths.get(nid, {})
+                })
+            
+            return self.get_paginated_response(result)
+
+        # Fallback if pagination is disabled
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)    
     
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file'] 
+    @action(detail=False, methods=['get'], url_path='bulk-edit-details')
+    def get_bulk_edit_details(self, request):
+        ids_param = request.query_params.get('ids', [])
+        all_ids = request.query_params.get('all_ids', False)
+        level_id = request.query_params.get('level_id', None)
+
         
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"level_id": "Level is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            nodes = Node.objects.filter(level_id=level_id)
         
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        subsector_cache = {
-            (s.name,
-             s.sector.name,
-             s.sector.subcategory.name,
-             s.sector.subcategory.category.name,
-             s.sector.subcategory.category.profclass.name,
-             s.sector.subcategory.category.profclass.section.name) : s
-            for s in SubSector.objects.select_related("sector__subcategory__category__profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
+        elif ids_param:
             try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                subsector = clean(row.get("subsector"))
-                department = clean(row.get("department"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, subsector, department, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                    
-                subsector_obj = subsector_cache.get((subsector, sector, subcategory, category, class_name, section))
-                if not subsector_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"SubSector: '{subsector}' not found for sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(Department(
-                    subsector = subsector_obj,
-                    name = department,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-                
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
+                ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return Response({"ids": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not ids:
+                return Response({"ids": "No valid numeric ids provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+            nodes = Node.objects.filter(id__in=ids)
+
+        else:
+            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
         
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
+        if not nodes.exists():
+            return Response({"error": "No valid nodes found"}, status=status.HTTP_404_NOT_FOUND)
         
-        try:
-            with transaction.atomic():
-                Department.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["subsector", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        total_selected = nodes.count()
+        
+        if total_selected == 0:
+            return Response({"error": "No valid nodes found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        common_ancestors_qs = NodeClosure.objects.filter(
+            descendant_id__in=ids
+        ).values(
+            'ancestor_id', 
+            'ancestor__name', 
+            'ancestor__level__name'
+        ).annotate(
+            link_count=Count('descendant_id')
+        ).filter(
+            link_count=total_selected  # MUST match the number of selected items
+        )
+        
+        # Format: {"Glob": 1, "Continent": 5}
+        common_parents = {}
+        for row in common_ancestors_qs:
+            # We exclude 'Self' (depth=0) usually, but for dropdowns it's fine to keep all
+            level_name = row['ancestor__level__name']
+            common_parents[level_name] = {
+                "id": row['ancestor_id'],
+                "name": row['ancestor__name'], 
+            }
         
         return Response(
             {
-                "message": f"{len(objs)} Department uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )    
+                "common_parents": common_parents, 
+                "total_selected": total_selected
+            }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['put'], url_path='bulk-update')
+    def bulk_update(self, request, *args, **kwargs):
+        ids = request.data.get('ids', [])
+        all_ids = request.data.get('all_ids', False)
+        level_id = request.data.get('level_id', None)
+
+        payload = request.data.get('payload', {})
+        
+        if not payload:
+            return Response({"payload": "Payload is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"level_id": "Level is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            nodes = Node.objects.filter(level_id=level_id)
+        
+        elif ids:
+            if not isinstance(ids, list):
+                return Response({"ids": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            nodes = Node.objects.filter(id__in=ids)
+        else:
+            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
+        
+        if not nodes.exists():
+            return Response({"error": "No valid nodes found"}, status=status.HTTP_404_NOT_FOUND)
+                
+        results = []
+        errors = []
+        payload_attributes = payload.pop('attributes', None)
+        
+        
+        try:
+            with transaction.atomic():
+                for node in nodes:
+                    node_data = payload.copy()
+                    node_data['is_deleted'] = node.is_deleted
+                    
+                    if payload_attributes:
+                        current_attributes = node.attributes.copy() if node.attributes else {}
+                        current_attributes.update(payload_attributes)
+                        node_data['attributes'] = current_attributes
+                    
+                    input_serializer = NodeSerializer(node, data=node_data, partial=True)
+                
+                    if input_serializer.is_valid():
+                        print(input_serializer.validated_data)
+                        input_serializer.save()
+                        results.append({"id": node.id, "node": input_serializer.data})
+                    else:
+                        print(input_serializer.errors)
+                        errors.append({"id": node.id, "errors": input_serializer.errors})
+                        raise ValidationError(input_serializer.errors)
+        except ValidationError as e:
+            print(e.messages)
+            # return Response({"error": str(e.messages[0] if e.messages and isinstance(e.messages, list) else e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+        return Response(
+            {
+                "message": f"Successfully updated {len(results)} nodes",
+                "updated_ids": [r['id'] for r in results],
+            }, status=status.HTTP_200_OK
+        )
+        
+    
+    # In views.py, inside NodeViewSet class
+
+    @action(detail=False, methods=['post'], url_path='merge-to-existing')
+    def merge_nodes(self, request):
+        """
+        Merge multiple source nodes into one target node.
+        1. Source Node names become Aliases for Target.
+        2. Children of Source are moved to Target.
+        3. Source Nodes are deleted.
+        """
+        serializer = NodeMergeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        target = serializer.validated_data.get('target_node')
+        sources = serializer.validated_data.get('source_nodes')
+        merge_date = serializer.validated_data.get('merge_date')
+
+        # Counters for response
+        moved_children_count = 0
+        created_aliases_count = 0
+
+        try:
+            with transaction.atomic():
+                
+                # NEW: Log the merge on the TARGET node
+                source_names = ", ".join([s.name for s in sources])
+                target._change_reason = f"Merged with: {source_names}, Merge Date: {merge_date}"
+                target.merge_date = merge_date
+                target.save(update_fields=['updated_at', 'merge_date']) # Touch the node to create a history record
+
+                for source in sources:
+                    # A. Create Alias
+                    # We save the old name so users searching for "Old Country" find "New Country"
+                    # ensure we don't create duplicate aliases
+                    if not NodeAlias.objects.filter(node=target, name__iexact=source.name).exists():
+                        NodeAlias.objects.create(
+                            node=target, 
+                            name=source.name, 
+                            note=f"Merged from Node ID {source.id}"
+                        )
+                        created_aliases_count += 1
+                    
+                    # Also move existing aliases from Source to Target
+                    existing_aliases = NodeAlias.objects.filter(node=source)
+                    for alias in existing_aliases:
+                        if not NodeAlias.objects.filter(node=target, name__iexact=alias.name).exists():
+                            alias.node = target
+                            alias.save()
+
+                    # B. Reparent Children (CRITICAL STEP)
+                    # We must iterate and .save() to trigger the 'manage_node_closure' signal
+                    # found in your signals.py. If we do .update(), the closure table won't fix itself.
+                    children = Node.objects.filter(parent=source)
+                    for child in children:
+                        child.parent = target
+                        child.save() # This triggers signals.py to fix ancestry
+                        moved_children_count += 1
+
+                    # C. Delete Source
+                    # (Optional: You could set is_archived=True instead of deleting)
+                    source._change_reason = f"Merged into '{target.name}' (ID: {target.id})"
+                    source.soft_delete(user=request.user)
+
+            return Response({
+                "message": "Merge successful",
+                "target_node": {
+                    "id": target.id,
+                    "name": target.name
+                },
+                "summary": {
+                    "merged_nodes_count": len(sources),
+                    "children_moved": moved_children_count,
+                    "aliases_created": created_aliases_count
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            level_logger.exception("Merge failed:", str(e))
+            return Response(
+                {
+                    "error": "Failed to merge nodes (existing)",
+                    "details": str(e)
+                }, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    
+    @action(detail=False, methods=['post'], url_path='merge-to-new')
+    def merge_to_new_node(self, request):
+        serializer = NodeMergeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Everything is already validated and fetched!
+        data = serializer.validated_data
+        
+        new_name = data.get('name')
+        new_code = data.get('code')
+        dimension = data.get('dimension') # Actual Dimension Object
+        level = data.get('level')         # Actual Level Object
+        parent = data.get('parent')   # Actual Node Object (or None)
+        attributes = data.get('attributes', {})
+        sources = data.get('source_nodes_objects') # The list of Node objects we stored in validate()
+        merge_date = data.get('merge_date')
+
+        try:
+            with transaction.atomic():
+                # 1. Create New Node
+                new_node = Node.objects.create(
+                    name=new_name,
+                    code=new_code,
+                    dimension=dimension,
+                    level=level,
+                    parent=parent,
+                    attributes=attributes,
+                    merge_date=merge_date
+                )
+
+                # NEW: Document the creation reason
+                source_names = ", ".join([s.name for s in sources])
+                update_change_reason(new_node, f"Created by merging: {source_names}, Merge Date: {merge_date}")
+
+                # 2. Merge Logic (Aliases & Children)
+                summary = {"children_moved": 0, "aliases_created": 0}
+
+                for source in sources:
+                    # A. Create Alias (History)
+                    if not NodeAlias.objects.filter(node=new_node, name__iexact=source.name).exists():
+                        NodeAlias.objects.create(
+                            node=new_node, 
+                            name=source.name, 
+                            note=f"Merged from deleted ID {source.id}"
+                        )
+                        summary['aliases_created'] += 1
+                    
+                    # B. Move existing aliases SAFELY (Replaced the .update() line)
+                    existing_aliases = NodeAlias.objects.filter(node=source)
+                    for alias in existing_aliases:
+                        if not NodeAlias.objects.filter(node=new_node, name__iexact=alias.name).exists():
+                            alias.node = new_node
+                            alias.save()
                        
 
-class UploadSubDepartmentView(APIView):
-    model = SubDepartment
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        department_cache = {
-            (d.name,
-             d.subsector.name,
-             d.subsector.sector.name,
-             d.subsector.sector.subcategory.name,
-             d.subsector.sector.subcategory.category.name,
-             d.subsector.sector.subcategory.category.profclass.name,
-             d.subsector.sector.subcategory.category.profclass.section.name) : d
-            for d in Department.objects.select_related("subsector__sector__subcategory__category__profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                subsector = clean(row.get("subsector"))
-                department = clean(row.get("department"))
-                subdepartment = clean(row.get("subdepartment"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                    
-                department_obj = department_cache.get((department, subsector, sector, subcategory, category, class_name, section))
-                if not department_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Department: '{department}' not found for subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(SubDepartment(
-                    department = department_obj,
-                    name = subdepartment,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-            
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                SubDepartment.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["department", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Sub Department uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-     
-     
-class UploadTypeView(APIView):
-    model = Type
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)                
-                          
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        subdepartment_cache = {
-            (sb.name,
-             sb.department.name,
-             sb.department.subsector.name,
-             sb.department.subsector.sector.name,
-             sb.department.subsector.sector.subcategory.name,
-             sb.department.subsector.sector.subcategory.category.name,
-             sb.department.subsector.sector.subcategory.category.profclass.name,
-             sb.department.subsector.sector.subcategory.category.profclass.section.name) : sb
-            for sb in SubDepartment.objects.select_related("department__subsector__sector__subcategory__category__profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                subsector = clean(row.get("subsector"))
-                department = clean(row.get("department"))
-                subdepartment = clean(row.get("subdepartment"))
-                type_name = clean(row.get("type"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                subdepartment_obj = subdepartment_cache.get((subdepartment, department, subsector, sector, subcategory, category, class_name, section))
-                if not subdepartment_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Sub Department: '{subdepartment}' not found for department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(Type(
-                    subdepartment = subdepartment_obj,
-                    name = type_name,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-            
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Type.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["subdepartment", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Type uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )      
+                    # Move Children
+                    children = Node.objects.filter(parent=source)
+                    for child in children:
+                        child.parent = new_node
+                        child.save() # Trigger Signal
+                        summary['children_moved'] += 1
 
+                    # Delete Source
+                    # NEW: Document the deletion reason
+                    source._change_reason = f"Merged into new '{new_node.name}' (ID: {new_node.id})"
+                    source.soft_delete(user=request.user)
 
-class UploadBrandView(APIView):
-    model = Brand
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def post(self, request):
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
-        
-        try:
-            df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "brand", "code", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-                
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty."}, status=400)
-        
-        type_cache = {
-            (t.name,
-             t.subdepartment.name,
-             t.subdepartment.department.name,
-             t.subdepartment.department.subsector.name,
-             t.subdepartment.department.subsector.sector.name,
-             t.subdepartment.department.subsector.sector.subcategory.name,
-             t.subdepartment.department.subsector.sector.subcategory.category.name,
-             t.subdepartment.department.subsector.sector.subcategory.category.profclass.name,
-             t.subdepartment.department.subsector.sector.subcategory.category.profclass.section.name) : t
-            for t in Type.objects.select_related("subdepartment__department__subsector__sector__subcategory__category__profclass__section").all()
-        }
-        
-        objs = []
-        invalid_rows = []
-        
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
-                    
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                section = clean(row.get("section"))
-                class_name = clean(row.get("class"))
-                category = clean(row.get("category"))
-                subcategory = clean(row.get("subcategory"))
-                sector = clean(row.get("sector"))
-                subsector = clean(row.get("subsector"))
-                department = clean(row.get("department"))
-                subdepartment = clean(row.get("subdepartment"))
-                type_name = clean(row.get("type"))
-                brand_name = clean(row.get("brand"))
-                code = row.get("code")
-                
-                # Skip invalid rows early
-                if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, code]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required fields."})
-                    continue
-                
-                type_obj = type_cache.get((type_name, subdepartment, department, subsector, sector, subcategory, category, class_name, section))
-                
-                if not type_obj:
-                    invalid_rows.append({"row": idx + 2, "error": f"Type: '{type_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-                    continue
-                
-                objs.append(Brand(
-                    type = type_obj,
-                    name = brand_name,
-                    code = code,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-            
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-        if not objs:
             return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
+                "message": "Merge successful",
+                "new_node": {
+                    "id": new_node.id, 
+                    "name": new_node.name,
+                    "attributes": new_node.attributes
+                },
+                "summary": summary
+            }, status=status.HTTP_201_CREATED)
         
-        try:
-            with transaction.atomic():
-                Brand.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["type", "name"],
-                    update_fields=["code", "is_hidden", "on_hold", "hold_date"],
-                )
+        except ValidationError as e:
+            return Response(e.message_dict, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+    # @action(detail=False, methods=['get'], url_path='export-selected')
+    # def export_selected(self, request):
+    #     level_id = request.query_params.get('level_id')
+    #     all_ids = request.query_params.get('all_ids', False)
+    #     ids_param = request.query_params.get('ids')
         
-        return Response(
-            {
-                "message": f"{len(objs)} Brand uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
+    #     target_level = None
+    #     nodes = []
+
+    #     if all_ids and all_ids in ["true", "True", True]:
+    #         if not level_id:
+    #             return Response({"error": "level_id is required"}, status=400)
+            
+    #         try:
+    #             target_level = Level.objects.get(id=level_id)
+    #         except Level.DoesNotExist:
+    #             return Response({"error": "Level not found"}, status=404)
+
+    #         nodes = Node.objects.filter(level_id=level_id).select_related('parent', 'parent__parent', 'parent__parent__parent')
+
+    #     # Case A: Export Selected Nodes by ID
+    #     elif ids_param:
+    #         try:
+    #             ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+    #         except ValueError:
+    #             return Response({"error": "Invalid ids format"}, status=400)
+            
+    #         if not ids:
+    #             return Response({"error": "No ids provided"}, status=400)
+                
+    #         nodes = Node.objects.filter(id__in=ids).select_related('level', 'parent', 'parent__parent', 'parent__parent__parent')
+            
+    #         if not nodes.exists():
+    #             return Response({"error": "No nodes found for the provided IDs"}, status=404)
+            
+    #         # Validation: Ensure all nodes are from the SAME level
+    #         first_node = nodes.first()
+    #         target_level = first_node.level
+            
+    #         if nodes.exclude(level=target_level).exists():
+    #             return Response({
+    #                 "error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."
+    #             }, status=400)
+        
+    #     else:
+    #         return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
+
+    #     # ---------------------------------------------------------
+    #     # GENERATE EXCEL DATA (Same logic as before)
+    #     # ---------------------------------------------------------
+        
+    #     dimension = target_level.dimension
+        
+    #     # 1. Identify Ancestor Levels (for columns like Glob | Continent | ...)
+    #     ancestor_levels = Level.objects.filter(
+    #         dimension=dimension,
+    #         sort_order__lt=target_level.sort_order
+    #     ).order_by('sort_order')
+        
+    #     ancestor_col_names = [lvl.name for lvl in ancestor_levels]
+
+    #     data = []
+    #     for node in nodes:
+    #         row = {}
+            
+    #         # A. Fill Ancestor Columns (Walk up the parent chain)
+    #         curr = node
+    #         for ancestor_name in reversed(ancestor_col_names):
+    #             if curr.parent:
+    #                 row[ancestor_name] = curr.parent.name
+    #                 curr = curr.parent
+    #             else:
+    #                 row[ancestor_name] = "" 
+
+    #         # B. Fill Self Data
+    #         row[target_level.name] = node.name
+    #         row['Code'] = node.code
+    #         row['Hidden'] = node.is_hidden
+    #         row['On Hold'] = node.on_hold
+    #         row['Hold Date'] = node.hold_date
+
+    #         # C. Fill Custom Columns (Attributes)
+    #         attributes = node.attributes or {}
+    #         for key, value in attributes.items():
+    #             row[key] = value
+                
+    #         data.append(row)
+
+    #     if not data:
+    #         return Response({"message": "No data to export"}, status=200)
+
+    #     # 2. Build DataFrame
+    #     df = pd.DataFrame(data)
+        
+    #     # 3. Order Columns
+    #     custom_schema_keys = [col['name'] for col in (target_level.extra_fields_schema or [])]
+    #     final_columns = ancestor_col_names + [target_level.name, 'Code', 'Hidden', 'On Hold'] + custom_schema_keys
+        
+    #     # Ensure all columns exist (fill missing with None)
+    #     for col in final_columns:
+    #         if col not in df.columns:
+    #             df[col] = None
+
+    #     df = df[final_columns]
+
+    #     # 4. Return Response
+    #     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    #     filename = f"{target_level.name}_Export.xlsx"
+    #     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+    #     with pd.ExcelWriter(response, engine='openpyxl') as writer:
+    #         df.to_excel(writer, index=False, sheet_name=target_level.name)
+            
+    #     return response
+
+    @action(detail=False, methods=['get'], url_path='export-selected')
+    def export_selected(self, request):
+        level_id = request.query_params.get('level_id')
+        all_ids = request.query_params.get('all_ids', False)
+        ids_param = request.query_params.get('ids')
+
+        target_level = None
+        nodes_qs = None
+
+        # -----------------------------
+        # Pick nodes + target_level
+        # -----------------------------
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"error": "level_id is required"}, status=400)
+
+            try:
+                target_level = Level.objects.select_related("dimension", "parent").get(id=level_id)
+            except Level.DoesNotExist:
+                return Response({"error": "Level not found"}, status=404)
+
+            # no fixed-depth select_related anymore
+            nodes_qs = Node.objects.filter(level_id=level_id).select_related("level")
+
+        elif ids_param:
+            ids = [int(x) for x in ids_param.split(",") if x.strip().isdigit()]
+            if not ids:
+                return Response({"error": "No ids provided"}, status=400)
+
+            nodes_qs = Node.objects.filter(id__in=ids).select_related("level")
+
+            if not nodes_qs.exists():
+                return Response({"error": "No nodes found for the provided IDs"}, status=404)
+
+            first_node = nodes_qs.first()
+            target_level = first_node.level
+
+            if nodes_qs.exclude(level=target_level).exists():
+                return Response(
+                    {"error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."},
+                    status=400
+                )
+        else:
+            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
+
+        # evaluate once (we’ll need ids multiple times)
+        nodes = list(nodes_qs)
+        if not nodes:
+            return Response({"message": "No data to export"}, status=200)
+
+        # -----------------------------
+        # FIX: Exclude Hidden Branches (Descendants of Deleted Ancestors)
+        # -----------------------------
+        deleted_node_ids = Node.all_objects.filter(
+            is_deleted=True, 
+            dimension=target_level.dimension
+        ).values_list('id', flat=True)
+        
+        hidden_branch_ids = NodeClosure.objects.filter(
+            ancestor_id__in=deleted_node_ids
+        ).values('descendant_id')
+
+        nodes_qs = nodes_qs.exclude(id__in=hidden_branch_ids)
+        # -----------------------------
+
+        # evaluate once (we’ll need ids multiple times)
+        nodes = list(nodes_qs)
+        if not nodes:
+            return Response({"message": "No data to export"}, status=200)
+
+        # -----------------------------
+        # Build ancestor columns (dynamic)
+        # -----------------------------
+        ancestor_levels = get_level_ancestors(target_level)  # Root -> Parent
+        ancestor_col_names = [lvl.name for lvl in ancestor_levels]
+
+        # -----------------------------
+        # Fetch ancestors for all nodes using NodeClosure (dynamic depth)
+        # We only need ancestors whose level is in ancestor_col_names
+        # -----------------------------
+        node_ids = [n.id for n in nodes]
+
+        closures = (
+            NodeClosure.objects
+            .filter(descendant_id__in=node_ids, ancestor__level__in=ancestor_levels)
+            .select_related("ancestor", "ancestor__level")
         )
 
+        # node_ancestors[node_id][level_name] = ancestor_node
+        node_ancestors = defaultdict(dict)
+        for c in closures:
+            node_ancestors[c.descendant_id][c.ancestor.level.name] = c.ancestor
 
-class UploadDesignationView(APIView):
-    model = Designation
-    parser_classes = [MultiPartParser]
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+        # -----------------------------
+        # Build rows
+        # -----------------------------
+        custom_schema_keys = [col.get("name") for col in (target_level.extra_fields_schema or []) if col.get("name")]
+
+        data = []
+        for node in nodes:
+            row = {}
+
+            # --- NEW: Inject ID here ---
+            row["ID"] = node.id
+
+            # A) ancestor columns in correct order
+            path = node_ancestors.get(node.id, {})
+            for col in ancestor_col_names:
+                row[col] = getattr(path.get(col), "name", "")  # empty if missing
+
+            # B) self columns
+            row[target_level.name] = node.name
+            row["Code"] = node.code
+            row["Hidden"] = node.is_hidden
+            row["On Hold"] = node.on_hold
+            row["Hold Date"] = node.hold_date  # keep it!
+
+            # C) attributes
+            attrs = node.attributes or {}
+            for k, v in attrs.items():
+                row[k] = v
+
+            data.append(row)
+
+        if not data:
+            return Response({"message": "No data to export"}, status=200)
+
+        df = pd.DataFrame(data)
+
+        # -----------------------------
+        # Column ordering (include Hold Date)
+        # -----------------------------
+        final_columns = ["ID"] + ancestor_col_names + [
+            target_level.name, "Code", "Hidden", "On Hold", "Hold Date"
+        ] + custom_schema_keys
+
+        for col in final_columns:
+            if col not in df.columns:
+                df[col] = None
+
+        df = df[final_columns]
+
+        # -----------------------------
+        # Export
+        # -----------------------------
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        filename = f"{target_level.name}_Export.xlsx"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        with pd.ExcelWriter(response, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name=target_level.name[:31])  # Excel sheet name limit
+
+        return response                
     
-    def post(self, request):
-        category = request.query_params.get('category')
-        if check_designation_category(category) == False:
-            return Response({"error": "Invalid category."}, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser, FormParser])
+    def upload_excel(self, request):
+        """
+        Uploads Excel with dynamic full-hierarchy mapping.
         
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        file = serializer.validated_data['file']
+        Payload:
+        - file: (Binary Excel)
+        - level_id: (ID of the level we are importing items INTO, e.g., Country Level ID)
+        - mapping: JSON String. Example for Country Import:
+            {
+                "Glob": "Glob Column Name",       <-- Ancestor (Context)
+                "Continent": "Continent Column",  <-- Parent (Required for lookup)
+                "Country": "Country Name Column", <-- Target Item (Matches Target Level Name)
+                "code": "Code",
+                "is_hidden": "Hidden?",
+                "attributes": { "area": "Area Column" }
+            }
+        """
+        file_obj = request.FILES.get('file')
+        level_id = request.data.get('level_id')
+        mapping_str = request.data.get('mapping')
+
+        print("File:", file_obj)
+        print("Level ID:", level_id)
+        print("Mapping:", mapping_str)
+
+        if not file_obj:
+            print("Missing file")
+            return Response({"file": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not level_id:
+            print("Missing level_id")
+            return Response({"level_id": "Level is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not mapping_str:
+            print("Missing mapping")
+            return Response({"mapping": "Mapping is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            df = read_file(file, required_columns=["name","display_name", "code", "reporting_designation", "is_hidden", "on_hold", "hold_date"])
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-         
-        # Check if the DataFrame is empty
-        if df.empty:
-            return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
+            mapping = json.loads(mapping_str)
+        except json.JSONDecodeError:
+            return Response({"mapping": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Fetch Target Level
+        try:
+            target_level = Level.objects.get(pk=level_id)
+        except Level.DoesNotExist:
+            return Response({"level_id": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Read Excel
+        try:
+            df = pd.read_excel(file_obj)
+            
+            # FIX: Cast to 'object' dtype so Pandas actually allows 'None' 
+            # instead of reverting it back to 'NaN' for numeric columns.
+            df = df.astype(object).where(pd.notnull(df), None) 
+            
+            df.columns = df.columns.str.strip() # Strip whitespace from headers
+            print("Excel headers:", list(df.columns))
+        except Exception as e:
+            return Response({"file": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Identify Key Columns from Mapping
+        # We assume the mapping keys match the Level Names (e.g., "Country")
         
-        # We map the designation 'name' to the actual object
-        designation_cache = {
-            d.name: d for d in Designation.objects.filter(category=category)
-        }
+        # A. Target Name Column
+        target_level_name_key = target_level.name # e.g., "Country"
         
-        objs = []
-        invalid_rows = []
+        if target_level_name_key in mapping:
+            col_target_name = mapping[target_level_name_key]
+        else:
+             # If the mapping doesn't contain the Level Name, we can't find the new item's name
+             return Response({
+                 "mapping": f"Mapping missing key for '{target_level_name_key}'."
+             }, status=status.HTTP_400_BAD_REQUEST)
+
+        if col_target_name not in df.columns:
+            return Response({"file": f"Excel file missing column '{col_target_name}'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # B. Parent Resolution Columns
+        # We resolve the immediate parent to attach the new node correctly.
+        parent_level = target_level.parent
+        col_parent_name = None
         
-        for idx, row in df.iterrows():
-            try:
-                hold_date = row.get('hold_date')
-                if pd.isna(hold_date):  # check for NaT or NaN
-                    hold_date = None
-                else:
-                    hold_date = pd.to_datetime(hold_date).date()
+        if parent_level:
+            parent_key = parent_level.name # e.g., "Continent"
+            if parent_key in mapping:
+                col_parent_name = mapping[parent_key]
+                if col_parent_name not in df.columns:
+                     return Response({"file": f"Excel file missing column '{col_parent_name}' (required for Parent {parent_key})"}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"file": f"Mapping missing key for '{parent_key}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 4. Prepare Schema for Attributes (Validation Setup)
+        schema = target_level.extra_fields_schema or []
+        valid_attr_keys = {col['name']: col['type'] for col in schema} # dict for fast lookup
+
+        summary = {"created": 0, "updated": 0, "errors": []}
+
+        if mapping.get("id") in ["", None]:
+            return Response({"mapping": "Missing 'ID' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if mapping.get(target_level.name) in ["", None]:
+            return Response({"mapping": f"Missing '{target_level.name}' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if mapping.get("code") in ["", None]:
+            return Response({"mapping": "Missing 'code' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        if mapping.get("is_hidden") in ["", None]:
+            return Response({"mapping": "Missing 'is_hidden' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if mapping.get("on_hold") not in ["", None]:
+        #     return Response({"error": "Missing 'on_hold' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        # else:
+            if mapping.get("hold_date") in ["", None]:
+                return Response({"mapping": "Missing 'hold_date' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+        # 5. Process Rows
+        try:
+            for index, row in df.iterrows():
+                row_index = index + 2
+                row_data = row.to_dict()
+
+                # Get Node ID
+                print("Row Data:", row_data)
+                id_val = row_data.get("ID")
+                if id_val in ["", None]:
+                    id_val = None
+                else:    
+                    if isinstance(id_val, str) and id_val.isdigit():
+                        id_val = int(id_val)
+                    elif isinstance(id_val, float):
+                        id_val = int(id_val)
+                    elif not isinstance(id_val, int):
+                        id_val = None
+
+                # --- Step 1: Get Target Name ---
+                name_val = row_data.get(col_target_name)
+                if not name_val:
+                    continue # Skip empty rows
                 
-                # Normalize boolean fields
-                is_hidden = normalize_bool(row.get("is_hidden"))
-                on_hold = normalize_bool(row.get("on_hold"))
-                
-                # Calculate hidden and on_hold values
-                is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-                # Clean text safely
-                name = clean(row.get("name") or "")
-                display_name = clean(row.get("display_name") or "")
-                code = row.get("code")
-                reporting_designation_name = clean(row.get("reporting_designation") or "")
-                
-                if not all([name, display_name, code, reporting_designation_name]):
-                    invalid_rows.append({"row": idx + 2, "error": "Missing required field(s)"})
-                    continue
-                
-                if check_designation_name(name) == False:
-                    invalid_rows.append({"row": idx + 2, "error": "Invalid name format"})
-                    continue
-                
-                reporting_designation_obj = None
-                calculated_post_no = 0
-                
-                if reporting_designation_name:
-                    if check_designation_name(reporting_designation_name) == False:
-                         invalid_rows.append({"row": idx + 2, "error": "Invalid reporting designation format"})
-                         continue
-                
-                    # get the actual object from designation_cache
-                    reporting_designation_obj = designation_cache.get(reporting_designation_name)
-                    if not reporting_designation_obj:
-                        invalid_rows.append({"row": idx + 2, "error": f"Designation: '{reporting_designation_name}' not found for category: {category}"})
-                        continue
+                try:
+                    with transaction.atomic():
+                        # --- Step 2: Resolve Parent Node ---
+                        parent_node = None
+                        if parent_level:
+                            parent_name_val = row_data.get(col_parent_name)
+                            
+                            if not parent_name_val:
+                                summary["errors"].append(f"Row {row_index}: Missing parent '{parent_level.name}'.")
+                                continue
+                            
+                            # Find the parent node
+                            # We search for a Node with the Parent's Name + Parent's Level + Same Dimension
+                            parent_node = Node.objects.filter(
+                                name=parent_name_val,
+                                level=parent_level,
+                                dimension=target_level.dimension
+                            ).first()
+
+                            if not parent_node:
+                                summary["errors"].append(f"Row {row_index}: Parent '{parent_level.name}' named '{parent_name_val}' not found.")
+
+                                
+                        # --- NEW Step 3: Find Existing Node (Determine Create vs Update) ---
+                        node = None
+                        print("Id:", id_val)
+                        if id_val is not None:
+                            node = Node.objects.filter(id=id_val, level=target_level).first()
+                            print("Node in condition: ", node)
+                            if not node:
+                                # raise Exception(f"Row {row_index}: Provided ID '{id_val}' does not exist.")
+                                print(f"Row {row_index}: Provided ID '{id_val}' does not exist, so a new node will be created.")
+                                summary["errors"].append(f"Row {row_index}: Provided ID '{id_val}' does not exist so a new node will be created.")
+                            
+                        print("Node: ", node)
+
+                        # --- Step 3: Extract Standard Fields ---
+                        # Helper to safely get value based on mapping key
+                        def get_mapped_val(key, default=None):
+                            if key in mapping and mapping[key] in row_data:
+                                return row_data[mapping[key]]
+                            return default
+
+                        code_val = get_mapped_val('code')
+                        print(f"Code: {code_val}, Type: {type(code_val)}")
+
+                        if code_val in ["", None]:
+                            raise Exception(f"Row {row_index}: Missing Code.")
                         
-                    calculated_post_no = reporting_designation_obj.post_no + 1
-                
-                objs.append(Designation(
-                    reporting_designation = reporting_designation_obj,
-                    name = name,
-                    display_name = display_name,
-                    code = code,
-                    post_no = calculated_post_no,
-                    category = category,
-                    is_hidden = is_hidden,
-                    on_hold = on_hold,
-                    hold_date = hold_date
-                ))
-            
-            except Exception as e:
-                invalid_rows.append({"row": idx + 2, "error": f"An unexpected error occurred: {str(e)}"})
-        
-        if not objs:
-            return Response({
-                "error": "No valid records found in the file.",
-                "invalid_rows": invalid_rows
-                }, status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            with transaction.atomic():
-                Designation.objects.bulk_create(
-                    objs,
-                    update_conflicts=True,
-                    unique_fields=["code"],
-                    update_fields=["name", "display_name", "post_no", "reporting_designation", "category", "is_hidden", "on_hold", "hold_date"],
-                )
-        except Exception as e:
-            return Response({"error": f"Failed to create records: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(
-            {
-                "message": f"{len(objs)} Designation uploaded successfully.",
-                "invalid_rows": invalid_rows
-            }, status=status.HTTP_201_CREATED
-        )
-            
-# class UploadPostModelView(APIView):
-#     model = PostModel
-#     parser_classes = [MultiPartParser]
-#     permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-#     def post(self, request):
-#         serializer = FileUploadSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         file = serializer.validated_data['file']
+                        if type(code_val) not in [str, int]:
+                            raise Exception(f"Row {row_index}: Code '{code_val}' is not numeric.")
 
-#         try:
-#             df = read_file(file, required_columns=["section", "class", "category", "subcategory", "sector", "subsector", "department", "subdepartment", "type", "brand", "postmodel", "code", "is_hidden", "on_hold", "hold_date"])
-#         except ValidationError as e:
-#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as e:
-#             return Response({"error": f"Failed to read file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Check if the DataFrame is empty
-#         if df.empty:
-#             return Response({"error": "File is empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         objs = []
-#         invalid_rows = []
-        
-#         for idx, row in df.iterrows():
-#             try:
-#                 hold_date = row.get('hold_date')
-#                 if pd.isna(hold_date):  # check for NaT or NaN
-#                     hold_date = None
-#                 else:
-#                     hold_date = pd.to_datetime(hold_date).date()
+                        
+                        if isinstance(code_val, str) and code_val.isdigit():
+                            code_val = int(code_val)
+
+                        if len(str(code_val)) > target_level.code_digits:
+                            raise Exception(f"Row {row_index}: Code '{code_val}' too long for level '{target_level.name}'.")
+                        
+                        # Validate Code
+                        if code_val <= 0:
+                            raise Exception(f"Row {row_index}: Code '{code_val}' is not positive.")
+                        
+                        collision_qs = Node.objects.filter(
+                            level=target_level,
+                            code=code_val,
+                            parent=parent_node
+                        ).exclude(name=name_val) # Exclude self if this is an update to existing node
+
+                        # Exclude self based on ID if updating, otherwise exclude by name
+                        if node:
+                            collision_qs = collision_qs.exclude(id=node.id)
+                        
+                        if collision_qs.exists():
+                            raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision_qs.first().name}'.")
+                        
+
+                        is_hidden_raw = get_mapped_val('is_hidden', None)
+                        if is_hidden_raw is None:
+                            is_hidden = False
+                        else:
+                            is_hidden = check_bool_value(is_hidden_raw)
+                            if is_hidden is None:
+                                raise Exception(f"Row {row_index}: Invalid value for is_hidden: {is_hidden_raw}")
+                            
+                        on_hold_raw = get_mapped_val('on_hold', None)
+                        if on_hold_raw is None:
+                            on_hold = False
+                        else:
+                            on_hold = check_bool_value(on_hold_raw)
+                            if on_hold is None:
+                                raise Exception(f"Row {row_index}: Invalid value for on_hold: {on_hold_raw}")
+                            
+
                     
-#                 # Normalize boolean fields
-#                 is_hidden = normalize_bool(row.get("is_hidden"))
-#                 on_hold = normalize_bool(row.get("on_hold"))
-                
-#                 # Calculate hidden and on_hold values
-#                 is_hidden, on_hold, hold_date = calculate_hidden_hold(is_hidden, on_hold, hold_date)
-                
-#                 # Clean text safely
-#                 section = clean(row.get("section"))
-#                 class_name = clean(row.get("class"))
-#                 category = clean(row.get("category"))
-#                 subcategory = clean(row.get("subcategory"))
-#                 sector = clean(row.get("sector"))
-#                 subsector = clean(row.get("subsector"))
-#                 department = clean(row.get("department"))
-#                 subdepartment = clean(row.get("subdepartment"))
-#                 type_name = clean(row.get("type"))
-#                 brand_name = clean(row.get("brand"))
-#                 postmodel = clean(row.get("postmodel"))
-#                 code = row.get("code")
-                
-#                 # Skip invalid rows early
-#                 if not all([section, class_name, category, subcategory, sector, subsector, department, subdepartment, type_name, brand_name, postmodel, code]):
-#                     invalid_rows.append({"row": idx + 2, "error": "Missing required fields"})
-#                     continue
-                
-#                 try:
-#                     brand_obj = Brand.objects.get(
-#                         name=brand_name,
-#                         type__name=type_name,
-#                         type__subdepartment__name=subdepartment,
-#                         type__subdepartment__department__name=department,
-#                         type__subdepartment__department__subsector__name=subsector,
-#                         type__subdepartment__department__subsector__sector__name=sector,
-#                         type__subdepartment__department__subsector__sector__subcategory__name=subcategory,
-#                         type__subdepartment__department__subsector__sector__subcategory__category__name=category,
-#                         type__subdepartment__department__subsector__sector__subcategory__category__profclass__name=class_name,
-#                         type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name=section
-#                     )
-#                 except Brand.DoesNotExist:
-#                     invalid_rows.append({"row": idx + 2, "error": f"Brand: '{brand_name}' not found for subdepartment: {subdepartment}, department: {department}, subsector: {subsector}, sector: {sector}, subcategory: {subcategory}, category: {category}, class: {class_name}, section: {section}"})
-#                     continue
-                
-#                 objs.append(PostModel(
-#                     brand=brand_obj,
-#                     name=postmodel,
-#                     code=code,
-#                     is_hidden=is_hidden,
-#                     on_hold=on_hold,
-#                     hold_date=hold_date
-#                 ))
-#             except Exception as e:
-#                 invalid_rows.append({"row": idx + 2, "error": str(e)})
-        
-#         if not objs:
-#             return Response({"error": "No valid rows found in the file"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         try:
-#             with transaction.atomic():
-#                 PostModel.objects.bulk_create(
-#                     objs,
-#                     update_conflicts=True,
-#                     unique_fields=["code"],
-#                     update_fields=["name", "is_hidden", "on_hold", "hold_date"],
-#                 )
-#         except Exception as e: 
-#             return Response({"error": f"Failed to create records: {e}"}, status=400)
-        
-#         return Response(
-#             {
-#                 "message": f"{len(objs)} PostModel uploaded successfully.",
-#                 "invalid_rows": invalid_rows
-#             }, status=status.HTTP_201_CREATED
-#         )
-                   
-                                                    
+                        # Date parsing
+                        hold_date_raw = get_mapped_val('hold_date')
+                        hold_date_val = None
+                        if hold_date_raw:
+                            try:
+                                dt = pd.to_datetime(hold_date_raw, dayfirst=True)
+                                hold_date_val = dt.date()
+                            except:
+                                summary["errors"].append(f"Row {row_index}: Invalid date format for Hold Date.")
+                                continue
 
-class ModelAndAccessRulesView(APIView):
-    permission_classes = [IsAuthenticated]
-    # serializer_class = BulkModelAccessSerializer
-    
-    def get(self, request, user_id=None):
-        if user_id==None:
-            user_id = request.user.id
-        user = get_object_or_404(CustomUser, id=user_id)
-        serializer = ModelAndRecordRuleAccessOutputSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    def post(self, request):
-        user = request.user
-        if user.is_verified==False:
-            return Response({"message":"You have not permission to access this resource"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        serializer = ModelAndRecordRuleAccessInputSerializer(data=request.data, context={"request": request} )
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+                        # --- Step 4: Extract Attributes ---
+                        node_attributes = {}
+                        if 'attributes' in mapping and isinstance(mapping['attributes'], dict):
+                            for sys_attr, excel_header in mapping['attributes'].items():
+                                # Only process if this attribute is defined in the Level Schema
+                                if sys_attr in valid_attr_keys:
+                                    val = row_data.get(excel_header)
+                                    if val is not None:
+                                        node_attributes[sys_attr] = val
 
-class ResidentialSearchView(APIView, RecordRuleMixin):
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        # that variable help to RecordRuleMixin class
-        self.action = 'list'
+
+                        # --- Step 6: Update or Create ---
+                        # node, created = Node.objects.update_or_create(
+                        #     name=name_val,
+                        #     level=target_level,
+                        #     parent=parent_node,
+                        #     defaults={
+                        #         "code": code_val,
+                        #         "is_hidden": is_hidden,
+                        #         "on_hold": on_hold,
+                        #         "hold_date": hold_date_val,
+                        #         "attributes": node_attributes,
+                        #         "dimension": target_level.dimension
+                        #     }
+                        # )
+
+                        # We avoid update_or_create so we can validate BEFORE hitting the DB
+                        # node = Node.objects.filter(
+                        #     name=name_val,
+                        #     level=target_level,
+                        #     parent=parent_node,
+                        #     dimension=target_level.dimension
+                        # ).first()
+
+                        # if id_val is not None:
+                        #     node = Node.objects.filter(id=id_val).first()
+                        # else:
+                        #     node = None
+
+                        created = False
+                        if not node:
+                            node = Node(
+                                name=name_val,
+                                code=code_val,
+                                is_hidden=is_hidden,
+                                on_hold=on_hold,
+                                hold_date=hold_date_val,
+                                level=target_level,
+                                parent=parent_node,
+                                dimension=target_level.dimension,
+                                attributes=node_attributes
+                            )
+                            created = True
+                        else:
+                            # FIX 2: Apply the updates to the existing node!
+                            node.name = name_val
+                            node.code = code_val
+                            node.is_hidden = is_hidden
+                            node.on_hold = on_hold
+                            node.hold_date = hold_date_val
+                            node.parent = parent_node
+                            node.attributes = node_attributes
+
+                        # --- Step 7: Validate (Model Logic) ---
+                        try:
+                            node.validate_attributes() 
+                            node.save()
+
+                        except ValidationError as e:
+                            # Since we are in atomic transaction, this exception will rollback the batch
+                            # If you prefer to skip rows instead of rollback, change this to `continue` 
+                            # and append to summary["errors"]
+                            print("e.messages", e)
+                            clean_error_text = " ".join(e.messages)
+                            
+                            # Raise the exception with just the clean text
+                            # raise Exception(f"Row {row_index}: {clean_error_text}")
+                            return Response({"error": f"Row {row_index}: {clean_error_text}"}, status=status.HTTP_400_BAD_REQUEST)
+
+                        # Track this in your history API!
+                        reason = "Created via Excel Import" if created else "Updated via Excel Import"
+                        update_change_reason(node, reason)
+
+                
+                        if created: 
+                            summary["created"] += 1
+                        else: 
+                            summary["updated"] += 1
+
+                except IntegrityError as e:
+                    summary["errors"].append(f"Row {row_index}: This data already exists.")
+                except ValidationError as e:
+                    clean_error_text = " ".join(e.messages)
+                    summary["errors"].append(f"Row {row_index}: {clean_error_text}")
+                except Exception as e:
+                    summary["errors"].append(f"Row {row_index}: {str(e)}")
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if summary["errors"]:
+            return Response({"message": "Completed with errors", "summary": summary}, status=status.HTTP_200_OK)
+
+        return Response({"message": "Success", "summary": summary}, status=status.HTTP_200_OK)
+
+
+    @action(detail=True, methods=["POST"], url_path="split")
+    def split_node(self, request, pk):
+        # Lock the source node
+        source_node = Node.all_objects.select_for_update().filter(id=pk).first()
+        if not source_node:
+            return Response({"error": "Node not found"}, status=status.HTTP_404_NOT_FOUND)
         
-        serializer = ResidentialSearchInputSerializer(data=request.data)
+        if source_node.is_deleted:
+            return Response({"error": "Cannot split a deleted node."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = SplitNodeInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        search_key = data.get("search_key", "glob")
-        glob_name = data.get("glob")
-        continent_name = data.get("continent")
-        country_name = data.get("country")
-        state_name = data.get("state")
-        district_name = data.get("district")
-        taluka_name = data.get("taluka")
-        city_village_name = data.get("city_village")
-        ward_name = data.get("ward")
-        society_name = data.get("society")
-        block_name = data.get("block")
-        floor_no = data.get("floor")
-        house_no = data.get("house")
-        room_no = data.get("room")
         
-        filters = {}
-        if search_key == "glob":
-            qs = get_regular_query(Glob)
-            if glob_name:
-                filters['name__icontains'] = glob_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+        splits = serializer.validated_data.get('splits')
+        split_date = serializer.validated_data.get('split_date')
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj).data,
-                    "continent": None,
-                    "country": None,
-                    "state": None,
-                    "district": None,
-                    "taluka": None,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+        source_node_childrens = list(Node.objects.filter(parent=source_node).values_list('id', flat=True))
+        source_children_set = set(source_node_childrens)
 
-        elif search_key == "continent":
-            qs = get_regular_query(Continent).select_related('glob')
-            if glob_name:
-                filters['glob__name__icontains']=glob_name
-            if continent_name:
-                filters['name__icontains'] = continent_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+        requested_children_set = set()
+        for node in splits:
+            requested_children_set |= set(node.get("children_ids", []))
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.glob).data,
-                    "continent": ContinentIdNameSerializer(obj).data,
-                    "country": None,
-                    "state": None,
-                    "district": None,
-                    "taluka": None,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+        invalid = sorted(list(requested_children_set - source_children_set))
+        if invalid:
+            return Response(
+                {"error": "Some children_ids are not children of the source node.", "invalid_child_ids": invalid},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        elif search_key == "country":
-            qs = get_regular_query(Country).select_related('continent__glob')
-            if glob_name:
-                filters['continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['continent__name__icontains'] = continent_name
-            if country_name:
-                filters['name__icontains'] = country_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+        # Anything not mentioned
+        unassigned_childrens = sorted(list(source_children_set - requested_children_set))
+        if unassigned_childrens:
+            return Response(
+                {"error": "Some children_ids are not mentioned in the splits.", "unassigned_child_ids": unassigned_childrens},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.continent).data,
-                    "country": CountryIdNameSerializer(obj).data,
-                    "state": None,
-                    "district": None,
-                    "taluka": None,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+        with transaction.atomic():
+            created_nodes = []
 
-        elif search_key == "state":
-            qs = get_regular_query(State).select_related('country__continent__glob')
-            if glob_name:
-                filters['country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['country__name__icontains'] = country_name
-            if state_name:
-                filters['name__icontains'] = state_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
-
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.country).data,
-                    "state": StateIdNameSerializer(obj).data,
-                    "district": None,
-                    "taluka": None,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
-
-        elif search_key == "district":
-            qs = get_regular_query(District).select_related('state__country__continent__glob')
-            if glob_name:
-                filters['state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['state__country__name__icontains'] = country_name
-            if state_name:
-                filters['state__name__icontains'] = state_name
-            if district_name:
-                filters['name__icontains'] = district_name
+            # 1. Create New Nodes
+            for split in splits:
                 
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                # Use .copy() to avoid mutating the original validated data
+                node_data = split.get('node', {}).copy()
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.state.country).data,
-                    "state": StateIdNameSerializer(obj.state).data,
-                    "district": DistrictIdNameSerializer(obj).data,
-                    "taluka": None,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+                # Safely convert ANY loaded Django model back to its raw primary key
+                for key, value in node_data.items():
+                    if isinstance(value, models.Model):
+                        node_data[key] = value.pk
 
-        elif search_key == "taluka":
-            qs = get_regular_query(Taluka).select_related('district__state__country__continent__glob')
-            if glob_name:
-                filters['district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['district__state__name__icontains'] = state_name
-            if district_name:
-                filters['district__name__icontains'] = district_name
-            if taluka_name:
-                filters['name__icontains'] = taluka_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                # node_data = split.get('node', {})
+                # parent_id = node_data.get('parent_id')
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.district).data,
-                    "taluka": TalukaIdNameSerializer(obj).data,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+                # Ensure the new node inherits the exact parent/level/dimension of the source
+                # node_data['parent'] = source_node.parent_id
+                # node_data['level'] = parent_id if parent_id else source_node.level_id
+                # node_data['dimension'] = source_node.dimension_id
 
-        elif search_key == "city_village":
-            qs = get_regular_query(CityVillage).select_related('taluka__district__state__country__continent__glob')
-            if glob_name:
-                filters['taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['name__icontains'] = city_village_name
-            
-            qs = qs.filter(**filters)            
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                existing_node_qs = Node.objects.filter(
+                    dimension=node_data.get('dimension'),
+                    level=node_data.get('level'),
+                    name__iexact=node_data.get('name'),
+                    code=node_data.get('code'),
+                )
+                
+                source_node_level_parent = source_node.level.parent
+                if source_node_level_parent is not None:
+                    existing_node_obj = existing_node_qs.filter(level__parent=source_node_level_parent).first()
+                else:
+                    existing_node_obj = existing_node_qs.first()
+                
+                print("existing_node_obj", existing_node_obj)
+                print("source_node:", source_node)
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj).data,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "ward":
-            qs = get_regular_query(Ward).select_related('city_village__taluka__district__state__country__continent__glob')
-            if glob_name:
-                filters['city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['city_village__taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['city_village__taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['city_village__taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['city_village__taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['city_village__name__icontains'] = city_village_name
-            if ward_name:
-                filters['name__icontains'] = ward_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                if existing_node_obj:
+                    node_serializer = NodeSerializer(existing_node_obj, data=node_data)
+                else:
+                    node_serializer = NodeSerializer(data=node_data)
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.city_village.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.city_village.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.city_village.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.city_village.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.city_village.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.city_village.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj.city_village).data,
-                    "ward": WardIdNameSerializer(obj).data,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "society":
-            qs = get_regular_query(Society).select_related('ward__city_village__taluka__district__state__country__continent__glob')
-            
-            if glob_name:
-                filters['ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['ward__city_village__taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['ward__city_village__taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['ward__city_village__taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['ward__city_village__taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['ward__city_village__name__icontains'] = city_village_name
-            if ward_name:
-                filters['ward__name__icontains'] = ward_name
-            if society_name:
-                filters['name__icontains'] = society_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                node_serializer.is_valid(raise_exception=True)
+                node_serializer.validated_data['split_date'] = split_date
+                new_node = node_serializer.save()
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.ward.city_village.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.ward.city_village.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.ward.city_village.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.ward.city_village.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.ward.city_village.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.ward.city_village.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj.ward.city_village).data,
-                    "ward": WardIdNameSerializer(obj.ward).data,
-                    "society": SocietyIdNameSerializer(obj).data,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "block":
-            qs = get_regular_query(Block).select_related('society__ward__city_village__taluka__district__state__country__continent__glob')
-            
-            if glob_name:
-                filters['society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['society__ward__city_village__taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['society__ward__city_village__taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['society__ward__city_village__taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['society__ward__city_village__name__icontains'] = city_village_name
-            if ward_name:
-                filters['society__ward__name__icontains'] = ward_name
-            if society_name:
-                filters['society__name__icontains'] = society_name
-            if block_name:
-                filters['name__icontains'] = block_name
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                # NEW: Log why this node was created
+                if not existing_node_obj:
+                    update_change_reason(new_node, f"Created by splitting '{source_node.name}', Split Date: {split_date}")
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.society.ward.city_village.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.society.ward.city_village.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.society.ward.city_village.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.society.ward.city_village.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj.society.ward.city_village).data,
-                    "ward": WardIdNameSerializer(obj.society.ward).data,
-                    "society": SocietyIdNameSerializer(obj.society).data,
-                    "block": BlockIdNameSerializer(obj).data,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "floor":
-            qs = get_regular_query(Floor).select_related('block__society__ward__city_village__taluka__district__state__country__continent__glob')
-            
-            if glob_name:
-                filters['block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['block__society__ward__city_village__taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['block__society__ward__city_village__taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['block__society__ward__city_village__name__icontains'] = city_village_name
-            if ward_name:
-                filters['block__society__ward__name__icontains'] = ward_name
-            if society_name:
-                filters['block__society__name__icontains'] = society_name
-            if block_name:
-                filters['block__name__icontains'] = block_name
-            if floor_no:
-                filters['no'] = floor_no
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+                created_nodes.append(new_node)
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.block.society.ward.city_village.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.block.society.ward.city_village.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.block.society.ward.city_village.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj.block.society.ward.city_village).data,
-                    "ward": WardIdNameSerializer(obj.block.society.ward).data,
-                    "society": SocietyIdNameSerializer(obj.block.society).data,
-                    "block": BlockIdNameSerializer(obj.block).data,
-                    "floor": FloorIdNameSerializer(obj).data,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+            # 2. Assign Aliases
+            source_node_alias_lst = list(NodeAlias.objects.filter(node=source_node).values_list('name', flat=True))
+            source_node_alias_lst.append(source_node.name)
 
-        elif search_key == "house":
-            qs = get_regular_query(House).select_related('floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
+            for new_node in created_nodes:
+                for alias_name in set(source_node_alias_lst):
+                    if alias_name.lower() == new_node.name.lower(): continue
+                    if not NodeAlias.objects.filter(node=new_node, name__iexact=alias_name).exists():
+                        NodeAlias.objects.create(
+                            node=new_node, 
+                            name=alias_name
+                        )
             
-            if glob_name:
-                filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['floor__block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['floor__block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['floor__block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['floor__block__society__ward__city_village__taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['floor__block__society__ward__city_village__taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['floor__block__society__ward__city_village__name__icontains'] = city_village_name
-            if ward_name:
-                filters['floor__block__society__ward__name__icontains'] = ward_name
-            if society_name:
-                filters['floor__block__society__name__icontains'] = society_name
-            if block_name:
-                filters['floor__block__name__icontains'] = block_name
-            if floor_no:
-                filters['floor__no'] = floor_no
-            if house_no:
-                filters['no'] = house_no
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
+            # 3. Assign Children & Trigger NodeClosure Logic
+            for index, split in enumerate(splits):
+                new_parent_node = created_nodes[index]
+                child_ids = split.get("children_ids", [])
+                
+                if child_ids:
+                    # Fetch the children that belong to this specific split
+                    children_to_move = Node.objects.filter(id__in=child_ids, parent=source_node)
+                    
+                    for child in children_to_move:
+                        child.parent = new_parent_node
+                        # CRITICAL: Calling .save() triggers `manage_node_closure` in signals.py
+                        # This automatically deletes old paths and creates the new hierarchy paths!
+                        child.save() 
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.floor.block.society.ward.city_village.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.floor.block.society.ward.city_village.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj.floor.block.society.ward.city_village).data,
-                    "ward": WardIdNameSerializer(obj.floor.block.society.ward).data,
-                    "society": SocietyIdNameSerializer(obj.floor.block.society).data,
-                    "block": BlockIdNameSerializer(obj.floor.block).data,
-                    "floor": FloorIdNameSerializer(obj.floor).data,
-                    "house": HouseIdNameSerializer(obj).data,
-                    "room": None
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "room":
-            qs = get_regular_query(Room).select_related('house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob')
-            if glob_name:
-                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__glob__name__icontains'] = glob_name
-            if continent_name:
-                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__continent__name__icontains'] = continent_name
-            if country_name:
-                filters['house__floor__block__society__ward__city_village__taluka__district__state__country__name__icontains'] = country_name
-            if state_name:
-                filters['house__floor__block__society__ward__city_village__taluka__district__state__name__icontains'] = state_name
-            if district_name:
-                filters['house__floor__block__society__ward__city_village__taluka__district__name__icontains'] = district_name
-            if taluka_name:
-                filters['house__floor__block__society__ward__city_village__taluka__name__icontains'] = taluka_name
-            if city_village_name:
-                filters['house__floor__block__society__ward__city_village__name__icontains'] = city_village_name
-            if ward_name:
-                filters['house__floor__block__society__ward__name__icontains'] = ward_name
-            if society_name:
-                filters['house__floor__block__society__name__icontains'] = society_name
-            if block_name:
-                filters['house__floor__block__name__icontains'] = block_name
-            if floor_no:
-                filters['house__floor__no'] = floor_no
-            if house_no:
-                filters['house__no'] = house_no
-            if room_no:
-                filters['no'] = room_no
-            
-            qs = qs.filter(**filters)
-            qs = self.apply_record_rules(qs)
-            # qs = qs[:10]
+            # 4. Soft delete the original source node
 
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country.continent.glob).data,
-                    "continent": ContinentIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country.continent).data,
-                    "country": CountryIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state.country).data,
-                    "state": StateIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district.state).data,
-                    "district": DistrictIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka.district).data,
-                    "taluka": TalukaIdNameSerializer(obj.house.floor.block.society.ward.city_village.taluka).data,
-                    "city_village": CityVillageIdNameSerializer(obj.house.floor.block.society.ward.city_village).data,
-                    "ward": WardIdNameSerializer(obj.house.floor.block.society.ward).data,
-                    "society": SocietyIdNameSerializer(obj.house.floor.block.society).data,
-                    "block": BlockIdNameSerializer(obj.house.floor.block).data,
-                    "floor": FloorIdNameSerializer(obj.house.floor).data,
-                    "house": HouseIdNameSerializer(obj.house).data,
-                    "room": RoomIdNameSerializer(obj).data
-                }
-                for obj in qs
-            ]
-            
-        else:
-            # fallback → default globs
-            qs = get_regular_query(Glob)
-            qs = self.apply_record_rules(qs)
-            qs = qs[:10]
-            results = [
-                {
-                    "glob": GlobIdNameSerializer(obj).data,
-                    "continent": None,
-                    "country": None,
-                    "state": None,
-                    "district": None,
-                    "taluka": None,
-                    "city_village": None,
-                    "ward": None,
-                    "society": None,
-                    "block": None,
-                    "floor": None,
-                    "house": None,
-                    "room": None
-                }
-                for obj in qs
-            ]
+            # Check if the source_node was updated/reused in any of the splits
+            source_node_reused = any(n.id == source_node.id for n in created_nodes)
 
-        # Return unified response structure
-        # output = ResidentialOutputSerializer(results, many=True)
-        # return Response(output.data, status=status.HTTP_200_OK)
-        return Response(results, status=status.HTTP_200_OK) 
-       
-            
+            # NEW: Log why this node is being deleted
+            new_node_names = ", ".join([n.name for n in created_nodes])
+            source_node._change_reason = f"Split into {len(created_nodes)} nodes: {new_node_names}"
 
-class PersonalSearchView(APIView):
+            if not source_node_reused:
+                # It was not reused, so we safely delete it
+                source_node.soft_delete(user=request.user)
+            else:
+                # It WAS reused! We don't delete it, but we force a save 
+                # to ensure the `_change_reason` we just set gets logged in history.
+                source_node.save(update_fields=['updated_at'])
+
+        return Response({
+            "message": f"Successfully split {source_node.name}",
+            "new_nodes": [{"id": n.id, "name": n.name} for n in created_nodes]
+        }, status=status.HTTP_201_CREATED)
+
+
+    @action(detail=False, methods=['POST'], url_path='multiple-delete')
+    def multiple_delete(self, request):
+        print("request.data", request.data)
+        level_id = request.data.get('level_id')
+        all_ids = request.data.get('all_ids', False)
+        ids = request.data.get('ids')
+
+        # -----------------------------
+        # Pick nodes + target_level
+        # -----------------------------
+        if all_ids and all_ids in ["true", "True", True]:
+            if not level_id:
+                return Response({"level_id": "level_id is required"}, status=400)
+
+            try:
+                target_level = Level.objects.select_related("dimension", "parent").get(id=level_id)
+            except Level.DoesNotExist:
+                return Response({"level_id": "Level not found"}, status=404)
+
+            # no fixed-depth select_related anymore
+            node_qs = Node.objects.filter(level=target_level)
+
+            if not node_qs.exists():
+                return Response({"level_id": "No nodes found."}, status=404)
+            # node_qs.update(is_deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
+
+        elif ids:
+            if not ids:
+                return Response({"ids": "No ids provided"}, status=400)
+            
+            if not isinstance(ids, list):
+                return Response({"ids": "ids must be a list"}, status=400)
+
+            node_qs = Node.objects.filter(id__in=ids)
+
+            if not node_qs.exists():
+                return Response({"ids": "No nodes found."}, status=404)
+
+            # nodes_qs.update(is_deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
+
+        # Soft delete all provided nodes
+        if node_qs:
+            for node in node_qs:
+                node.soft_delete(user=request.user)
+
+        return Response({"message": "Nodes deleted successfully"}, status=200)
+
+    
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db.models import Q
+from collections import defaultdict
+
+class NodeSearchAPIView(APIView):
     permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        serializer = PersonalInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        
-        search_key = data.get('search_key')
-        religion_name = data.get('religion')
-        sampraday_name = data.get('sampraday')
-        panth_name = data.get('panth')
-        awastha_name = data.get('awastha')
-        varna_name = data.get('varna')
-        caste_name = data.get('caste')
-        subcaste_name = data.get('subcaste')
-        gotra_name = data.get('gotra')
-        subgotra_name = data.get('subgotra')
-        kul_name = data.get('kul')
-        vansh_name = data.get('vansh')
-        family_name = data.get('family')
-        pidhi_name = data.get('pidhi')
-        
-        
-        filters = {}
-        awastha_objs = get_regular_query(Awastha)
-        if awastha_objs.exists():
-            awastha_data = AwasthaIdNameSerializer(awastha_objs, many=True).data
-        else:
-            awastha_data = []
-            
-        pidhi_objs = get_regular_query(Pidhi)
-        if pidhi_objs.exists():
-            pidhi_data = PidhiIdNameSerializer(pidhi_objs, many=True).data
-        else:
-            pidhi_data = []
-            
-        if search_key == "religion":
-            qs = get_regular_query(Religion)
-            if religion_name:
-                qs = qs.filter(name__icontains=religion_name)
-            qs = qs[:10]
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj).data,
-                    "sampraday": None,
-                    "panth": None,
-                    "awastha": awastha_data,
-                    "varna": None,
-                    "caste": None,
-                    "subcaste": None,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data,
-                }
-                for obj in qs
-            ]
-
-        elif search_key == "sampraday":
-            qs = get_regular_query(Sampraday).select_related('religion')
-            if religion_name:
-                filters['religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['name__icontains'] = sampraday_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj).data,
-                    "panth": None,
-                    "awastha": awastha_data,
-                    "varna": None,
-                    "caste": None,
-                    "subcaste": None,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "panth":
-            qs = get_regular_query(Panth).select_related('sampraday__religion')
-            if religion_name:
-                filters['sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['name__icontains'] = panth_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj).data,
-                    "awastha": awastha_data,
-                    "varna": None,
-                    "caste": None,
-                    "subcaste": None,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data,
-                }
-                for obj in qs
-            ]
-        # elif search_key == "awastha":
-        #     qs = get_regular_query(Awastha).select_related('panth__sampraday__religion')
-        #     if religion_name:
-        #         filters['panth__sampraday__religion__name__icontains'] = religion_name
-        #     if sampraday_name:
-        #         filters['panth__sampraday__name__icontains'] = sampraday_name
-        #     if panth_name:
-        #         filters['panth__name__icontains'] = panth_name
-        #     if awastha_name:
-        #         filters['name__icontains'] = awastha_name
-            
-        #     qs = qs.filter(**filters)
-        #     qs = qs[:10]
-            
-        #     results = [
-        #         {
-        #             "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
-        #             "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
-        #             "panth": PanthIdNameSerializer(obj.panth).data,
-        #             "awastha": AwasthaIdNameSerializer(obj).data,
-        #             "varna": None,
-        #             "caste": None,
-        #             "subcaste": None,
-        #             "gotra": None,
-        #             "subgotra": None,
-        #             "kul": None,
-        #             "vansh": None,
-        #             "family": None,
-        #             "pidhi": None,
-        #         }
-        #         for obj in qs
-        #     ]
-        
-        elif search_key == "varna":
-            qs = get_regular_query(Varna).select_related('panth__sampraday__religion')
-            if religion_name:
-                filters['panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['name__icontains'] = varna_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj).data,
-                    "caste": None,
-                    "subcaste": None,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data,
-                }
-                for obj in qs
-            ]
-        
-        
-        elif search_key == "caste":
-            qs = get_regular_query(Caste).select_related('varna__panth__sampraday__religion')
-            if religion_name:
-                filters['varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['name__icontains'] = caste_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.varna).data,
-                    "caste": CasteIdNameSerializer(obj).data,
-                    "subcaste": None,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }
-                for obj in qs
-            ] 
-        
-        
-        elif search_key == "subcaste":
-            qs = get_regular_query(SubCaste).select_related('caste__varna__panth__sampraday__religion')
-            if religion_name:
-                filters['caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['caste__varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['name__icontains'] = subcaste_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.caste.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj).data,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }
-                for obj in qs
-            ] 
-        
-        
-        elif search_key == "gotra":
-            qs = get_regular_query(Gotra).select_related('subcaste__caste__varna__panth__sampraday__religion')
-            if religion_name:
-                filters['subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['subcaste__caste__varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['subcaste__caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['subcaste__caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['subcaste__name__icontains'] = subcaste_name
-            if gotra_name:
-                filters['name__icontains'] = gotra_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.subcaste.caste.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj).data,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }
-                for obj in qs
-            ]  
-        
-        
-        elif search_key == "subgotra":
-            qs = get_regular_query(SubGotra).select_related('gotra__subcaste__caste__varna__panth__sampraday__religion')
-            if religion_name:
-                filters['gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['gotra__subcaste__caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['gotra__subcaste__caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['gotra__subcaste__name__icontains'] = subcaste_name
-            if gotra_name:
-                filters['gotra__name__icontains'] = gotra_name
-            if subgotra_name:
-                filters['name__icontains'] = subgotra_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.gotra.subcaste.caste.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.gotra.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.gotra.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.gotra.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj.gotra).data,
-                    "subgotra": SubGotraIdNameSerializer(obj).data,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "kul":
-            qs = get_regular_query(Kul).select_related('subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
-            if religion_name:
-                filters['subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['subgotra__gotra__subcaste__name__icontains'] = subcaste_name
-            if gotra_name:
-                filters['subgotra__gotra__name__icontains'] = gotra_name
-            if subgotra_name:
-                filters['subgotra__name__icontains'] = subgotra_name
-            if kul_name:
-                filters['name__icontains'] = kul_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.subgotra.gotra.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.subgotra.gotra.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.subgotra.gotra.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj.subgotra.gotra).data,
-                    "subgotra": SubGotraIdNameSerializer(obj.subgotra).data,
-                    "kul": KulIdNameSerializer(obj).data,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "vansh":
-            qs = get_regular_query(Vansh).select_related('kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
-            if religion_name:
-                filters['kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
-            if gotra_name:
-                filters['kul__subgotra__gotra__name__icontains'] = gotra_name  
-            if subgotra_name:
-                filters['kul__subgotra__name__icontains'] = subgotra_name  
-            if kul_name:
-                filters['kul__name__icontains'] = kul_name
-            if vansh_name:
-                filters['name__icontains'] = vansh_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.kul.subgotra.gotra.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj.kul.subgotra.gotra).data,
-                    "subgotra": SubGotraIdNameSerializer(obj.kul.subgotra).data,
-                    "kul": KulIdNameSerializer(obj.kul).data,
-                    "vansh": VanshIdNameSerializer(obj).data,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }
-                for obj in qs
-            ]  
-            
-        elif search_key == "family":
-            qs = get_regular_query(Family).select_related('vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
-            if religion_name:
-                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            if sampraday_name:
-                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-            if panth_name:
-                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
-            if varna_name:
-                filters['vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
-            if caste_name:
-                filters['vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
-            if subcaste_name:
-                filters['vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
-            if gotra_name:
-                filters['vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
-            if subgotra_name:
-                filters['vansh__kul__subgotra__name__icontains'] = subgotra_name  
-            if kul_name:
-                filters['vansh__kul__name__icontains'] = kul_name
-            if vansh_name:    
-                filters['vansh__name__icontains'] = vansh_name
-            if family_name:
-                filters['name__icontains'] = family_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-                    "sampraday": SampradayIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-                    "panth": PanthIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
-                    "awastha": awastha_data,
-                    "varna": VarnaIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
-                    "caste": CasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste.caste).data,
-                    "subcaste": SubCasteIdNameSerializer(obj.vansh.kul.subgotra.gotra.subcaste).data,
-                    "gotra": GotraIdNameSerializer(obj.vansh.kul.subgotra.gotra).data,
-                    "subgotra": SubGotraIdNameSerializer(obj.vansh.kul.subgotra).data,
-                    "kul": KulIdNameSerializer(obj.vansh.kul).data,
-                    "vansh": VanshIdNameSerializer(obj.vansh).data,
-                    "family": FamilyIdNameSerializer(obj).data,
-                    "pidhi": pidhi_data
-                }                
-                for obj in qs
-            ]
-
-        
-        # elif search_key == "pidhi":
-        #     qs = get_regular_query(Pidhi).select_related('family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion')
-        #     if pidhi_name:
-        #         filters['name__icontains'] = pidhi_name
-        #     if family_name:
-        #         filters['family__name__icontains'] = family_name
-        #     if vansh_name:
-        #         filters['family__vansh__name__icontains'] = vansh_name    
-        #     if kul_name:
-        #         filters['family__vansh__kul__name__icontains'] = kul_name
-        #     if subgotra_name:
-        #         filters['family__vansh__kul__subgotra__name__icontains'] = subgotra_name  
-        #     if gotra_name:
-        #         filters['family__vansh__kul__subgotra__gotra__name__icontains'] = gotra_name  
-        #     if subcaste_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__name__icontains'] = subcaste_name
-        #     if caste_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__name__icontains'] = caste_name
-        #     if varna_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = varna_name
-        #     if awastha_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__name__icontains'] = awastha_name
-        #     if panth_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__name__icontains'] = panth_name
-        #     if sampraday_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__name__icontains'] = sampraday_name
-        #     if religion_name:
-        #         filters['family__vansh__kul__subgotra__gotra__subcaste__caste__varna__panth__sampraday__religion__name__icontains'] = religion_name
-            
-        #     qs = qs.filter(**filters)
-        #     qs = qs[:10]
-            
-        #     results = [
-        #         {
-        #             "religion": ReligionIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday.religion).data,
-        #             "sampraday": SampradayIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth.sampraday).data,
-        #             "panth": PanthIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.panth).data,
-        #             "awastha": AwasthaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna.awastha).data,
-        #             "varna": VarnaIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste.varna).data,
-        #             "caste": CasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste.caste).data,
-        #             "subcaste": SubCasteIdNameSerializer(obj.family.vansh.kul.subgotra.gotra.subcaste).data,
-        #             "gotra": GotraIdNameSerializer(obj.family.vansh.kul.subgotra.gotra).data,
-        #             "subgotra": SubGotraIdNameSerializer(obj.family.vansh.kul.subgotra).data,
-        #             "kul": KulIdNameSerializer(obj.family.vansh.kul).data,
-        #             "vansh": VanshIdNameSerializer(obj.family.vansh).data,
-        #             "family": FamilyIdNameSerializer(obj.family).data,
-        #             "pidhi": PidhiIdNameSerializer(obj).data
-        #         }                
-        #         for obj in qs
-        #     ]
-        
-        else:
-            # fallback - default religions
-            qs = get_regular_query(Religion)
-            qs = qs[:10]
-            results = [
-                {
-                    "religion": ReligionIdNameSerializer(obj).data,
-                    "sampraday": None,
-                    "panth": None,
-                    "awastha": awastha_data,
-                    "varna": None,
-                    "caste": None,
-                    "subcaste": None,
-                    "gotra": None,
-                    "subgotra": None,
-                    "kul": None,
-                    "vansh": None,
-                    "family": None,
-                    "pidhi": pidhi_data
-                }                
-                for obj in qs
-            ]
-        
-        # return unified response structure
-        output = PersonalOutputSerializer(results, many=True)
-        return Response(results, status=status.HTTP_200_OK)
-        # return Response(output.data, status=200)
-
-
-class ProfessionalSearchView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        serializer = ProfessionalInputSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        
-        data = serializer.validated_data
-        search_key = data.get("search_key")  
-        section_name = data.get("section")
-        profclass_name = data.get("profclass")
-        category_name = data.get("category")
-        subcategory_name = data.get("subcategory")
-        sector_name = data.get("sector")
-        subsector_name = data.get("subsector")
-        department_name = data.get("department")
-        subdepartment_name = data.get("subdepartment")
-        type_name = data.get("type")
-        brand_name = data.get("brand")
-        
-        
-        if search_key == "section":
-            qs = get_regular_query(Section)
-            if section_name:
-                qs = qs.filter(name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj).data,
-                    "profclass": None,
-                    "category": None,
-                    "subcategory": None,
-                    "sector": None,
-                    "subsector": None,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }                
-                for obj in qs
-            ]
-        
-        elif search_key == "profclass":
-            qs = get_regular_query(Class).select_related("section")
-            if profclass_name:
-                qs = qs.filter(name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.section).data,
-                    "profclass": ClassIdNameSerializer(obj).data,
-                    "category": None,
-                    "subcategory": None,
-                    "sector": None,
-                    "subsector": None,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "category":
-            qs = get_regular_query(ProfCategory).select_related("profclass__section")
-            if category_name:
-                qs = qs.filter(name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj).data,
-                    "subcategory": None,
-                    "sector": None,
-                    "subsector": None,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "subcategory":
-            qs = get_regular_query(ProfSubCategory).select_related("category__profclass__section")
-            if subcategory_name:
-                qs = qs.filter(name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj).data,
-                    "sector": None,
-                    "subsector": None,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "sector":
-            qs = get_regular_query(Sector).select_related("subcategory__category__profclass__section")
-            if sector_name:
-                qs = qs.filter(name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj).data,
-                    "subsector": None,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "subsector":
-            qs = get_regular_query(SubSector).select_related("sector__subcategory__category__profclass__section")
-            if subsector_name:
-                qs = qs.filter(name__icontains=subsector_name)
-            if sector_name:
-                qs = qs.filter(sector__name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(sector__subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(sector__subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(sector__subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(sector__subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.sector.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.sector.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.sector.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.sector.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj.sector).data,
-                    "subsector": SubSectorIdNameSerializer(obj).data,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "department":
-            qs = get_regular_query(Department).select_related("subsector__sector__subcategory__category__profclass__section")
-            if department_name:
-                qs = qs.filter(name__icontains=department_name)
-            if subsector_name:
-                qs = qs.filter(subsector__name__icontains=subsector_name)
-            if sector_name:
-                qs = qs.filter(subsector__sector__name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(subsector__sector__subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(subsector__sector__subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.subsector.sector.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.subsector.sector.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.subsector.sector.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.subsector.sector.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj.subsector.sector).data,
-                    "subsector": SubSectorIdNameSerializer(obj.subsector).data,
-                    "department": DepartmentIdNameSerializer(obj).data,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "subdepartment":
-            qs = get_regular_query(SubDepartment).select_related("department__subsector__sector__subcategory__category__profclass__section")
-            if subdepartment_name:
-                qs = qs.filter(name__icontains=subdepartment_name)
-            if department_name:
-                qs = qs.filter(department__name__icontains=department_name)
-            if subsector_name:
-                qs = qs.filter(department__subsector__name__icontains=subsector_name)
-            if sector_name:
-                qs = qs.filter(department__subsector__sector__name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(department__subsector__sector__subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(department__subsector__sector__subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.department.subsector.sector.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.department.subsector.sector.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.department.subsector.sector.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj.department.subsector.sector).data,
-                    "subsector": SubSectorIdNameSerializer(obj.department.subsector).data,
-                    "department": DepartmentIdNameSerializer(obj.department).data,
-                    "subdepartment": SubDepartmentIdNameSerializer(obj).data,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "type":
-            qs = get_regular_query(Type).select_related("subdepartment__department__subsector__sector__subcategory__category__profclass__section")
-            if type_name:
-                qs = qs.filter(name__icontains=type_name)
-            if subdepartment_name:
-                qs = qs.filter(subdepartment__name__icontains=subdepartment_name)
-            if department_name:
-                qs = qs.filter(subdepartment__department__name__icontains=department_name)
-            if subsector_name:
-                qs = qs.filter(subdepartment__department__subsector__name__icontains=subsector_name)
-            if sector_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.subdepartment.department.subsector.sector.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj.subdepartment.department.subsector.sector).data,
-                    "subsector": SubSectorIdNameSerializer(obj.subdepartment.department.subsector).data,
-                    "department": DepartmentIdNameSerializer(obj.subdepartment.department).data,
-                    "subdepartment": SubDepartmentIdNameSerializer(obj.subdepartment).data,
-                    "type": TypeIdNameSerializer(obj).data,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        elif search_key == "brand":
-            qs = get_regular_query(Brand).select_related("type__subdepartment__department__subsector__sector__subcategory__category__profclass__section")
-            if brand_name:
-                qs = qs.filter(name__icontains=brand_name)
-            if type_name:
-                qs = qs.filter(type__name__icontains=type_name)
-            if subdepartment_name:
-                qs = qs.filter(type__subdepartment__name__icontains=subdepartment_name)
-            if department_name:
-                qs = qs.filter(type__subdepartment__department__name__icontains=department_name)
-            if subsector_name:
-                qs = qs.filter(type__subdepartment__department__subsector__name__icontains=subsector_name)
-            if sector_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__name__icontains=sector_name)
-            if subcategory_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__name__icontains=subcategory_name)
-            if category_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__name__icontains=category_name)
-            if profclass_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__name__icontains=profclass_name)
-            if section_name:
-                qs = qs.filter(type__subdepartment__department__subsector__sector__subcategory__category__profclass__section__name__icontains=section_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass.section).data,
-                    "profclass": ClassIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category.profclass).data,
-                    "category": ProfCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory.category).data,
-                    "subcategory": ProfSubCategoryIdNameSerializer(obj.type.subdepartment.department.subsector.sector.subcategory).data,
-                    "sector": SectorIdNameSerializer(obj.type.subdepartment.department.subsector.sector).data,
-                    "subsector": SubSectorIdNameSerializer(obj.type.subdepartment.department.subsector).data,
-                    "department": DepartmentIdNameSerializer(obj.type.subdepartment.department).data,
-                    "subdepartment": SubDepartmentIdNameSerializer(obj.type.subdepartment).data,
-                    "type": TypeIdNameSerializer(obj.type).data,
-                    "brand": BrandIdNameSerializer(obj).data,
-                }
-                for obj in qs
-            ]
-            
-        
-        else:
-            # fallback - default sections
-            qs = get_regular_query(Section)
-            qs = qs[:10]
-            results = [
-                {
-                    "section": SectionIdNameSerializer(obj).data,
-                    "profclass": None,
-                    "category": None,
-                    "subcategory": None,
-                    "sector": None,
-                    "subsector": None,
-                    "department": None,
-                    "subdepartment": None,
-                    "type": None,
-                    "brand": None,
-                }
-                for obj in qs
-            ]
-        
-        output = ProfessionalOutputSerializer(results, many=True)
-        return Response(results, status=status.HTTP_200_OK)
-        # return Response(output.data, status=status.HTTP_200_OK)
-    
-    
-class DesignationViewSet(FilteredQuerysetMixin, RecordRuleMixin, viewsets.ModelViewSet):
-    model = Designation
-    queryset = Designation.objects.all()
-    serializer_class = DesignationSerializer
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    pagination_class = ConfigurationPagination
-    FILTER_FIELDS = {
-        'category': 'category',
-        'is_hidden': 'is_hidden',
-        'on_hold': 'on_hold',
-        'search': 'name'
+    """
+    POST /api/search/nodes/?dimension=1
+    Body:
+    {
+        "Glob": "Earth",
+        "Continent": "Asia",
+        "Country": "In",
+        "search_key": "Country"
     }
-    
-    def get_serializer_class(self):
-        if self.action in ["create", "update", "partial_update"]:
-            return DesignationSerializer   # For POST, PUT, PATCH
-        return DesignationGetSerializer
-
-
-class DesignationListView(RecordRuleMixin, APIView):
-    model = Designation
-    permission_classes = [IsAuthenticated]
-    def get_base_queryset(self):
-        return get_regular_query(self.model)
-    
-    def get(self, request):
-        qs = self.get_base_queryset()
-        category = request.query_params.get('category', "").strip()
+    """
+    def post(self, request):
+        # 1. Get Params
+        dimension_id = request.query_params.get('dimension')
+        if not dimension_id:
+            return Response({"dimension": "Dimension is required"}, status=400)
         
-        if category == '':
-            return Response(
-                {
-                    "error": "Query paramter 'category' cannot be empty."
-                }, status=status.HTTP_400_BAD_REQUEST
+        try:
+            dimension_obj = Dimension.objects.get(id=dimension_id)
+        except Dimension.DoesNotExist:
+            return Response({"dimension": "Dimension does not exist"}, status=400)
+        
+        print(request.data)
+        
+        search_data = request.data.copy()
+        target_level_name = search_data.pop('search_key', "").strip() # e.g., "Country"
+
+        if not target_level_name:
+            return Response({"search_key": "search_key is required."}, status=400)
+        
+        target_level_obj = Level.objects.filter(name=target_level_name, dimension=dimension_obj).first()
+        print("Target Level:", target_level_obj)
+        if not target_level_obj:
+            return Response({"error": f"'{target_level_name}' does not exist"}, status=400)
+        
+
+        # 2. Get the Search Value (e.g., "In" for Country)
+        raw_value = search_data.get(target_level_name)
+        search_value = str(raw_value).strip() if raw_value else ""
+
+        # 1. Get raw IDs of explicitly deleted nodes
+        deleted_node_ids = Node.all_objects.filter(is_deleted=True, dimension=dimension_obj).values_list('id', flat=True)
+        
+        # 2. Get all descendants (children, grandchildren, etc.) of those deleted nodes
+        hidden_branch_ids = NodeClosure.objects.filter(
+            ancestor_id__in=deleted_node_ids
+        ).values('descendant_id')
+
+        # 3. Step A: Find CANDIDATE Nodes first
+        # We search for ANY node at Level="Country" that contains "In"
+        nodes = Node.objects.filter(
+            dimension_id=dimension_obj,
+            # level__name__iexact=target_level_name,
+            # level__name__iexact=target_level_obj.name,
+            level=target_level_obj,
+            is_hidden=False,
+            on_hold=False
+        ).exclude(
+            id__in=hidden_branch_ids
+        ).distinct()
+        
+        # CONDITIONAL: Filter by Name OR Alias
+        if search_value:
+            nodes = nodes.filter(                   # Match Current ID
+                Q(name__icontains=search_value) |             # Match Current Name
+                Q(aliases__name__icontains=search_value)      # Match Alias Name
             )
-        else:
-            qs = qs.filter(category=category)
         
-        qs = qs.order_by('code')
-        output = DesignationIdNameSerializer(qs, many=True)
-        return Response(output.data, status=status.HTTP_200_OK)
-    
+        # IMPORTANT: Order matching to ensure "First 10" is consistent
+        nodes = nodes.prefetch_related('aliases').order_by('name')
 
-class DownloadSampleFile(APIView):
+        if not nodes.exists():
+            return Response([])
+
+        # 4. Step B: Validate Hierarchy (The "Parent Check")
+        # We need to verify that each candidate belongs to "Earth" -> "Asia"
+        
+        # Prepare filters from body (exclude the target itself)
+        # parent_filters = {"Glob": "Earth", "Continent": "Asia"}
+        parent_filters = {k: v for k, v in search_data.items() if k != target_level_name}
+        
+        # Prefetch ancestors for all nodes to avoid N+1 queries
+        # We use NodeClosure to get the full path
+        node_ids = nodes.values_list('id', flat=True)
+        
+        closures = NodeClosure.objects.filter(
+            descendant_id__in=node_ids
+        ).select_related('ancestor', 'ancestor__level').order_by('descendant_id', '-depth')
+
+        # Group ancestors by Node ID
+        # node_paths = { 101: { "Glob": <NodeObj>, "Continent": <NodeObj> }, ... }
+        node_paths = defaultdict(dict)
+        for c in closures:
+            node_paths[c.descendant_id][c.ancestor.level.name] = c.ancestor
+
+        final_results = []
+
+        for node in nodes:
+            # STOPPING CONDITION
+            if len(final_results) >= 10:
+                break
+            
+            # Get ancestors
+            my_path = node_paths.get(node.id, {})
+            
+            # --- HIERARCHY VALIDATION ---
+            is_valid = True
+            # for req_level, req_name in parent_filters.items():
+            #     if req_level not in my_path:
+            #         # Special case: If the user filters by "Country" and we ARE the Country, check self.
+            #         # But usually parent filters are strictly ancestors.
+            #         is_valid = False 
+            #         continue
+                
+            #     ancestor_node = my_path[req_level]
+            #     if ancestor_node.name.lower() != req_name.lower():
+            #         is_valid = False
+            #         break
+            for req_level, req_name in parent_filters.items():
+                req_name = str(req_name).strip()
+                if not req_name:
+                    continue  # ignore empty filters
+
+                ancestor_node = my_path.get(req_level)
+
+                if not ancestor_node:
+                    # allow missing Zone for old data
+                    if req_level.lower() == "zone":
+                        continue
+                    is_valid = False
+                    break
+
+                if ancestor_node.name.lower() != req_name.lower():
+                    is_valid = False
+                    break
+            
+            if is_valid:
+                # --- MATCH TYPE LOGIC (Current vs Alias) ---
+                match_type = "Current Name"
+                matched_word = node.name
+                
+                # Check if we matched via Alias
+                # We use 'search_value' from the outer scope
+                if search_value and search_value.lower() not in node.name.lower():
+                    for alias in node.aliases.all():
+                        if search_value.lower() in alias.name.lower():
+                            match_type = "Alias"
+                            matched_word = alias.name
+                            break
+                
+                # --- BUILD RESPONSE ---
+                formatted_item = {}
+                
+                # 1. Add Metadata
+                formatted_item['meta'] = {
+                    "match_type": match_type,
+                    "matched_word": matched_word
+                }
+                
+                # 2. Add Ancestors (Glob, Continent, etc.)
+                for level_name, node_obj in my_path.items():
+                    formatted_item[level_name] = {
+                        "id": node_obj.id,
+                        "name": node_obj.name,
+                        "code": node_obj.code
+                    }
+
+                # 3. [FIX] EXPLICITLY ADD THE TARGET NODE ITSELF
+                # We use 'target_level_name' (e.g., "Country") as the key
+                formatted_item[target_level_name] = {
+                    "id": node.id,
+                    "name": node.name,
+                    "code": node.code
+                }
+                
+                final_results.append(formatted_item)
+
+        return Response(final_results)
+
+class CustomColumnView(APIView):
     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        router = request.query_params.get('router', "").strip()
-        if router == '':
-            return Response({"error": "Query paramter 'router' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+    def get(self, request, pk):
+        existing_col_name = request.query_params.get('col_name', "").strip()
+        level = get_object_or_404(Level, pk=pk)
+        if existing_col_name == "":
+            return Response(level.extra_fields_schema or [], status=status.HTTP_200_OK)
         
-        try:
-            file = SampleFile.objects.get(router=router)
-        except SampleFile.DoesNotExist:
-            return Response({"error": "Sample file not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get sample file: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        for extra_col in level.extra_fields_schema or []:
+            if extra_col['name'] == existing_col_name:
+                return Response(extra_col, status=status.HTTP_200_OK)
         
-        if not file.file:
-            return Response({"error": "File not associated with this record."}, status=status.HTTP_404_NOT_FOUND)
-            
-        return Response({"file_url": file.file.url}, status=status.HTTP_200_OK)
-
-
-# =======================================================
-# Flash Views
-# =======================================================
-
-class ProductSearchView(RecordRuleMixin, APIView):
-    model = Product
-    permission_classes = [IsAuthenticated]
+        return Response({"col_name": "Column not found"}, status=status.HTTP_404_NOT_FOUND)
     
-    def post(self, request):
-        serializer = ProductSearchInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+    def post(self, request, pk):
+        level = get_object_or_404(Level, pk=pk)
+        input_serializer = ColumnDefinitionSerializer(data=request.data, context={"level": level})
+        input_serializer.is_valid(raise_exception=True)
         
-        input_data = serializer.validated_data
-        search_key = input_data.get('search_key')
-        sector_name = input_data.get('sector')
-        brand_name = input_data.get('brand')
-        product_name = input_data.get('product')
+        new_col = input_serializer.validated_data
+        print("New col:", new_col['name'])
+        print("Level:", level.name)
+        if new_col["name"] in [level.name.lower(), "name", "code", "is_hidden", "on_hold", "hold_date", "created_at", "updated_at", "id", "level", "parent"]:
+            return Response({"error": f"Column name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
         
-        filters = {}
-        if search_key == "sector":
-            qs = get_regular_query(Sector)
-            if sector_name:
-                qs = qs.filter(name__icontains=sector_name)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "sector": SectorIdNameSerializer(obj).data,
-                    "brand": None,
-                    "product": None,
-                }
-                for obj in qs
-            ]
-            
-        elif search_key == "brand":
-            qs = get_regular_query(Brand)
-            if brand_name:
-                filters['name__icontains'] = brand_name
-            if sector_name:
-                filters['type__subdepartment__department__subsector__sector__name__icontains'] = sector_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "sector": SectorIdNameSerializer(obj.type.subdepartment.department.subsector.sector).data,
-                    "brand": BrandIdNameSerializer(obj).data,
-                    "product": None,
-                }
-                for obj in qs
-            ]
+        current_schema = level.extra_fields_schema or []
         
-        elif search_key == "product":
-            qs = get_regular_query(Product)
-            if product_name:
-                filters['name__icontains'] = product_name
-            if brand_name:
-                filters['brand__name__icontains'] = brand_name
-            if sector_name:
-                filters['brand__type__subdepartment__department__subsector__sector__name__icontains'] = sector_name
-            
-            qs = qs.filter(**filters)
-            qs = qs[:10]
-            
-            results = [
-                {
-                    "sector": SectorIdNameSerializer(obj.brand.type.subdepartment.department.subsector.sector).data,
-                    "brand": BrandIdNameSerializer(obj.brand).data,
-                    "product": ProductIdNameSerializer(obj).data,
-                }
-                for obj in qs
-            ]
+        default_value = new_col.get("default_value")
+        if default_value:
+            pass
         
+        if any([col['name'] == new_col['name'] for col in current_schema]):
+            return Response({"error": f"Column with name '{new_col['name']}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        current_schema.append(new_col)
+        level.extra_fields_schema = current_schema
+        level.save()
+        
+        return Response(new_col, status=status.HTTP_201_CREATED)
+
+    def put(self, request, pk):
+        level = get_object_or_404(Level, pk=pk)
+        
+        current_name = request.query_params.get('col_name', "").strip()
+        if current_name == "":
+            return Response(
+                {"col_name": "Column name is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 1. Validate Input
+        # Note: Ensure you are using the Update Serializer we defined earlier
+        input_serializer = CustomDefinationUpdateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        validated_data = input_serializer.validated_data
+        
+        new_name = validated_data.get('new_name')
+        if new_name in [level.name.lower(), "name", "code", "is_hidden", "on_hold", "hold_date", "created_at", "updated_at", "id", "level", "parent"]:
+            return Response({"error": f"Column name '{new_name}' already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        # 2. Find existing column
+        current_schema = level.extra_fields_schema or []
+        target_index = -1
+        existing_col = None
+        
+        for i, col in enumerate(current_schema):
+            if col['name'] == current_name:
+                target_index = i
+                existing_col = col
+                break
+        
+        if target_index == -1:
+            return Response(
+                {"error": f"Column '{current_name}' not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 3. Handle Renaming (Only if new_name is provided AND different)
+        final_name = current_name
+        if new_name and new_name != current_name:
+            # Check for duplicates in OTHER columns
+            if any(col['name'] == new_name for col in current_schema):
+                return Response(
+                    {"error": f"Column with name '{new_name}' already exists"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            final_name = new_name
+            
+            # OPTIONAL: If renaming, you might want to update key/label too?
+            # existing_col['key'] = new_name
+            # existing_col['label'] = new_name.replace('_', ' ').title()
+
+        # 4. Prepare Values
+        existing_type = existing_col.get('type')
+        
+        # Use new default if provided, otherwise keep existing
+        # checking "if key in validated_data" allows clearing the default (setting to None)
+        if 'default_value' in validated_data:
+            default_value = validated_data['default_value']
+            if existing_type == 'boolean' and (default_value == "" or default_value is None):
+                default_value = "false"
+
+            new_default_value = validated_data['default_value']
         else:
-            qs = get_regular_query(Sector)
-            qs = qs[:10]
-            results = [
-                {
-                    "sector": SectorIdNameSerializer(obj).data,
-                    "brand": None,
-                    "product": None,
-                }
-                for obj in qs
-            ]
-        
-        output_data = ProductSearchOutputSerializer(results, many=True).data
-        return Response(output_data, status=status.HTTP_200_OK)
+            new_default_value = existing_col.get('default_value')
             
-                
+        # B. Required Status Logic
+        existing_required = existing_col.get('required', False)
+        # If 'required' is sent in body, use it; otherwise keep existing
+        new_required = validated_data.get('required', existing_required)
+        
+        # Handle Max Length (Only for char)
+        new_max_length = None
+        if existing_type == 'char':
+            existing_max = existing_col.get('max_length')
+            new_max_length = validated_data.get('max_length', existing_max)
+            print("new_max_length", new_max_length)
             
+        # if new_required and not existing_required:
+        #     if new_default_value in [None, ""]:
+        #         return Response(
+        #             {"default_value": "Required columns must have a default value"},
+        #             status=status.HTTP_400_BAD_REQUEST
+        #         )
+        
+        # 5. Validate Consistency
+        try:
+            new_default_value = validate_value_type(new_default_value, existing_type, new_max_length)
+            print(f"New Default Value: {new_default_value}, Type: {type(new_default_value)}")
+        except (ValidationError, ValueError) as e: # FIX: Catch both error types
+            # Unwrap the error message safely
+            msg = e.detail[0] if isinstance(e, ValidationError) and isinstance(e.detail, list) else str(e)
+            return Response({"default_value": msg}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 6. Apply Updates
+        existing_col['name'] = final_name
+        existing_col['default_value'] = new_default_value
+        existing_col['max_length'] = new_max_length
+        existing_col['required'] = new_required
+        
+        # 7. Save
+        level.extra_fields_schema[target_index] = existing_col
+        level.save()
+        
+        return Response(existing_col, status=status.HTTP_200_OK)
+    
+    
+    def delete(self, request, pk):
+        try:
+            level = get_object_or_404(Level, pk=pk)
+            col_name = request.query_params.get('col_name', "").strip()
+            if col_name == "":
+                return Response(
+                    {"col_name": "Column name is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
-class WardFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    model = WardFlash
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get(self, request):
-        ward_id = request.query_params.get('ward_id', "").strip()
-        if ward_id == '':
-            return Response({"error": "Query paramter 'ward_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            ward_obj = Ward.objects.get(id=ward_id)
-        except Ward.DoesNotExist:
-            return Response({"error": "Ward not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get ward: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = WardFlashOutputSerializer(ward_obj.ward_flashes.all(), many=True)
-        return Response(serializer.data)
-
-    def post(self, request):
-        ward_id = request.query_params.get('ward_id', "").strip()
-        if ward_id == '':
-            return Response({"error": "Query paramter 'ward_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            ward_obj = Ward.objects.get(id=ward_id)
-        except Ward.DoesNotExist:
-            return Response({"error": "Ward not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get ward: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = WardFlashBulkInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        flash_data = serializer.validated_data.get("flashes", [])
-        incoming_flash_ids = [
-            f.get("existing_id")
-            for f in flash_data
-            if f.get("existing_id")
-        ]
-        try:
-            with transaction.atomic():
-                # Delete existing flashes which are not included in new request
-                WardFlash.objects.filter(ward=ward_obj).exclude(id__in=incoming_flash_ids).delete()
-                
-                for flash in flash_data:
-                    flash_id = flash.pop("existing_id")
-                    product = flash.get("product")
-                    value = flash.get("value")
-
-                    if flash_id:  # update existing
-                        obj = get_object_or_404(WardFlash, id=flash_id, ward=ward_obj)
-                        obj.product = product
-                        obj.value = value
-                        obj.save()
-                    else:
-                        # Create new flash
-                        WardFlash.objects.create(
-                            ward=ward_obj,
-                            product=product,
-                            value=value
-                        )
-                        
-        except Exception as e:
-            return Response(
-                {
-                    "error": f"Failed to update ward flashes.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        updated_ward_flashes = ward_obj.ward_flashes.all()
-        serializer = WardFlashOutputSerializer(updated_ward_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class SocietyFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    model = SocietyFlash
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get(self, request):
-        society_id = request.query_params.get('society_id', "").strip()
-        if society_id == '':
-            return Response({"error": "Query paramter 'society_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            society_obj = Society.objects.get(id=society_id)
-        except Society.DoesNotExist:
-            return Response({"error": "Society not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get society: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = SocietyFlashOutputSerializer(society_obj.society_flashes.all(), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    def post(self, request):
-        society_id = request.query_params.get('society_id', "").strip()
-        if society_id == '':
-            return Response({"error": "Query paramter 'society_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            society_obj = Society.objects.get(id=society_id)
-        except Society.DoesNotExist:
-            return Response({"error": "Society not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get society: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = SocietyFlashBulkInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        flash_data = serializer.validated_data.get("flashes", [])
-        incoming_flash_ids = [
-            f.get("existing_id")
-            for f in flash_data
-            if f.get("existing_id")
-        ]
-        
-        try:
-            with transaction.atomic():
-                # Delete existing flashes which are not included in new request
-                SocietyFlash.objects.filter(society=society_obj).exclude(id__in=incoming_flash_ids).delete()
-                
-                for flash in flash_data:
-                    flash_id = flash.pop("existing_id")
-                    product = flash.get("product")
-                    value = flash.get("value")
-                    if flash_id:  # update existing
-                        obj = get_object_or_404(SocietyFlash, id=flash_id, society=society_obj)
-                        obj.product = product
-                        obj.value = value
-                        obj.save()
-                    else:
-                        # Create new flash
-                        SocietyFlash.objects.create(
-                            society=society_obj,
-                            product=product,
-                            value=value
-                        )
-                        
-        except Exception as e:
-            return Response(
-                {
-                    "error": f"Failed to update society flashes.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
+            current_schema = level.extra_fields_schema or []
+            target_index = -1
             
-        updated_society_flashes = society_obj.society_flashes.all()
-        serializer = SocietyFlashOutputSerializer(updated_society_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-class BlockFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    model = BlockFlash
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get(self, request):
-        block_id = request.query_params.get('block_id', "").strip()
-        if block_id == '':
-            return Response({"error": "Query paramter 'block_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            block_obj = Block.objects.get(id=block_id)
-        except Block.DoesNotExist:
-            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get block: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = BlockFlashOutputSerializer(block_obj.block_flashes.all(), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    def post(self, request):
-        block_id = request.query_params.get('block_id', "").strip()
-        if block_id == '':
-            return Response({"error": "Query paramter 'block_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            block_obj = Block.objects.get(id=block_id)
-        except Block.DoesNotExist:
-            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get block: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = BlockFlashBulkInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        flash_data = serializer.validated_data.get("flashes", [])
-        incoming_flash_ids = [
-            f.get("existing_id")
-            for f in flash_data
-            if f.get("existing_id")
-        ]
-        
-        try:
-            with transaction.atomic():
-                # Delete existing flashes which are not included in new request
-                BlockFlash.objects.filter(block=block_obj).exclude(id__in=incoming_flash_ids).delete()
-                
-                for flash in flash_data:
-                    flash_id = flash.pop("existing_id")
-                    product = flash.get("product")
-                    value = flash.get("value")
-                    
-                    if flash_id:  # update existing
-                        obj = get_object_or_404(BlockFlash, id=flash_id, block=block_obj)
-                        obj.product = product
-                        obj.value = value
-                        obj.save()
-                    else:
-                        # Create new flash
-                        BlockFlash.objects.create(
-                            block=block_obj,
-                            product=product,
-                            value=value
-                        )
-
-        except Exception as e:
-            return Response(
-                {
-                    "error": f"Failed to update block flashes.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            for i, col in enumerate(current_schema):
+                if col['name'] == col_name:
+                    target_index = i
+                    break
             
-        updated_block_flashes = block_obj.block_flashes.all()
-        serializer = BlockFlashOutputSerializer(updated_block_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-class FloorFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    model = FloorFlash
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get(self, request):
-        floor_id = request.query_params.get('floor_id', "").strip()
-        if floor_id == '':
-            return Response({"error": "Query paramter 'floor_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            floor_obj = Floor.objects.get(id=floor_id)
-        except Floor.DoesNotExist:
-            return Response({"error": "Floor not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get floor: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = FloorFlashOutputSerializer(floor_obj.floor_flashes.all(), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def post(self, request):
-        floor_id = request.query_params.get('floor_id', "").strip()
-        if floor_id == '':
-            return Response({"error": "Query paramter 'floor_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            floor_obj = Floor.objects.get(id=floor_id)
-        except Floor.DoesNotExist:
-            return Response({"error": "Floor not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get floor: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = FloorFlashBulkInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        flash_data = serializer.validated_data.get("flashes", [])
-        incoming_flash_ids = [
-            f.get("existing_id")
-            for f in flash_data
-            if f.get("existing_id")
-        ]
-        
-        try:
-            with transaction.atomic():
-                # Delete existing flashes which are not included in new request
-                FloorFlash.objects.filter(floor=floor_obj).exclude(id__in=incoming_flash_ids).delete()
-                
-                for flash in flash_data:
-                    flash_id = flash.pop("existing_id")
-                    product = flash.get("product")
-                    value = flash.get("value")
-                    
-                    if flash_id:  # update existing
-                        obj = get_object_or_404(FloorFlash, id=flash_id, floor=floor_obj)
-                        obj.product = product
-                        obj.value = value
-                        obj.save()
-                    else:
-                        # Create new flash
-                        FloorFlash.objects.create(
-                            floor=floor_obj,
-                            product=product,
-                            value=value
-                        )
-
-        except Exception as e:
-            return Response(
-                {
-                    "error": f"Failed to update floor flashes.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            if target_index == -1:
+                return Response(
+                    {"error": f"Column '{col_name}' not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
             
-        updated_floor_flashes = floor_obj.floor_flashes.all()
-        serializer = FloorFlashOutputSerializer(updated_floor_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-class HouseFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    model = HouseFlash
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
+            del current_schema[target_index]
+            level.extra_fields_schema = current_schema
+            level.save()
+        except Exception as e:
+            return Response({"Error": "Error on deleting column"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
-    def get(self, request):
-        house_id = request.query_params.get('house_id', "").strip()
-        if house_id == '':
-            return Response({"error": "Query paramter 'house_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            house_obj = House.objects.get(id=house_id)
-        except House.DoesNotExist:
-            return Response({"error": "House not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get house: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = HouseFlashOutputSerializer(house_obj.house_flashes.all(), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    def post(self, request):
-        house_id = request.query_params.get('house_id', "").strip()
-        if house_id == '':
-            return Response({"error": "Query paramter 'house_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            house_obj = House.objects.get(id=house_id)
-        except House.DoesNotExist:
-            return Response({"error": "House not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get house: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = HouseFlashBulkInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
 
-        flash_data = serializer.validated_data.get("flashes", [])
-        incoming_flash_ids = [
-            f.get("existing_id")
-            for f in flash_data
-            if f.get("existing_id")
-        ]
-        
-        try:
-            with transaction.atomic():
-                # Delete existing flashes which are not included in new request
-                HouseFlash.objects.filter(house=house_obj).exclude(id__in=incoming_flash_ids).delete()
-                
-                for flash in flash_data:
-                    flash_id = flash.pop("existing_id")
-                    product = flash.get("product")
-                    value = flash.get("value")
 
-                    if flash_id:  # update existing
-                        obj = get_object_or_404(HouseFlash, id=flash_id, house=house_obj)
-                        obj.product = product
-                        obj.value = value
-                        obj.save()
-                    else:
-                        # Create new flash
-                        HouseFlash.objects.create(
-                            house=house_obj,
-                            product=product,
-                            value=value
-                        )
+class NodeHistoryDiffView(BaseHistoryDiffAPIViewMixin):
+    model_class = Node
 
-        except Exception as e:
-            return Response(
-                {
-                    "error": f"Failed to update house flashes.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-        updated_house_flashes = house_obj.house_flashes.all()
-        serializer = HouseFlashOutputSerializer(updated_house_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
-class RoomFlashView(FilteredQuerysetMixin, RecordRuleMixin, APIView):
-    model = RoomFlash
-    permission_classes = [IsAuthenticated, HasModelAccessPermission]
-    
-    def get(self, request):
-        room_id = request.query_params.get('room_id', "").strip()
-        if room_id == '':
-            return Response({"error": "Query paramter 'room_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            room_obj = Room.objects.get(id=room_id)
-        except Room.DoesNotExist:
-            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get room: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = RoomFlashOutputSerializer(room_obj.room_flashes.all(), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def post(self, request):
-        room_id = request.query_params.get('room_id', "").strip()
-        if room_id == '':
-            return Response({"error": "Query paramter 'room_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            room_obj = Room.objects.get(id=room_id)
-        except Room.DoesNotExist:
-            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": f"Failed to get room: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        serializer = RoomFlashBulkInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        flash_data = serializer.validated_data.get("flashes", [])
-        incoming_flash_ids = [
-            f.get("existing_id")
-            for f in flash_data
-            if f.get("existing_id")
-        ]
-        
-        try:
-            with transaction.atomic():
-                # Delete existing flashes which are not included in new request
-                RoomFlash.objects.filter(room=room_obj).exclude(id__in=incoming_flash_ids).delete()
-                
-                for flash in flash_data:
-                    flash_id = flash.pop("existing_id")
-                    product = flash.get("product")
-                    value = flash.get("value")
-
-                    if flash_id:  # update existing
-                        obj = get_object_or_404(RoomFlash, id=flash_id, room=room_obj)
-                        obj.product = product
-                        obj.value = value
-                        obj.save()
-                    else:
-                        # Create new flash
-                        RoomFlash.objects.create(
-                            room=room_obj,
-                            product=product,
-                            value=value
-                        )
-
-        except Exception as e:
-            return Response(
-                {
-                    "error": f"Failed to update room flashes.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-        updated_room_flashes = room_obj.room_flashes.all()
-        serializer = RoomFlashOutputSerializer(updated_room_flashes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+class LevelHistoryDiffView(BaseHistoryDiffAPIViewMixin):
+    model_class = Level

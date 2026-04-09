@@ -1,442 +1,469 @@
-from django.shortcuts import render, get_object_or_404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from django.db import transaction
-from django.db.models import Q
-from .utils import *
-from .serializers import *
-from .models import *
-# Create your views here.
+# from django.shortcuts import render, get_object_or_404
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from rest_framework import status
+# from rest_framework.permissions import IsAuthenticated
+# from django.db import transaction
+# from django.db.models import Q
+# from .utils import *
+# from .serializers import *
+# from .models import *
+# from django.db.models import Exists, OuterRef
+# # Create your views here.
 
 
-class WalletToWalletTransfer(APIView):
-    permission_classes = [IsAuthenticated]
+# class WalletToWalletTransfer(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def post(self, request):
-        serializer = WalletToWalletTransferInputSerializer(
-            data=request.data,
-            context = {'request': request}
-        )
-        serializer.is_valid(raise_exception=True)
+#     def post(self, request):
+#         serializer = WalletToWalletTransferInputSerializer(
+#             data=request.data,
+#             context = {'request': request}
+#         )
+#         serializer.is_valid(raise_exception=True)
         
-        sender_wallet_member_obj = serializer.validated_data.get('sender_wallet_member')
-        money_request_obj = serializer.validated_data.get('money_request')
-        receiver_wallet_member_obj = money_request_obj.request_wallet_member
-        amount = money_request_obj.amount
-        summary = serializer.validated_data.get('summary')
+#         sender_wallet_member_obj = serializer.validated_data.get('sender_wallet_member')
+#         money_request_obj = serializer.validated_data.get('money_request')
+#         receiver_wallet_member_obj = money_request_obj.request_wallet_member
+#         amount = money_request_obj.amount
+#         summary = serializer.validated_data.get('summary')
         
-        sender_wallet_id = sender_wallet_member_obj.wallet.id
-        receiver_wallet_id = receiver_wallet_member_obj.wallet.id
+#         sender_wallet_id = sender_wallet_member_obj.wallet.id
+#         receiver_wallet_id = receiver_wallet_member_obj.wallet.id
         
-        transaction_obj = None
-        try:
-            with transaction.atomic():
+#         transaction_obj = None
+#         try:
+#             with transaction.atomic():
                 
-                # Prevent Deadlocks: Always lock the smaller ID first, then the larger ID.
-                # This ensures every transaction acquires locks in the exact same order.
-                ids_to_lock = sorted([sender_wallet_id, receiver_wallet_id])
+#                 # Prevent Deadlocks: Always lock the smaller ID first, then the larger ID.
+#                 # This ensures every transaction acquires locks in the exact same order.
+#                 ids_to_lock = sorted([sender_wallet_id, receiver_wallet_id])
 
-                # Fetch both in one query or sequentially in strictly sorted order
-                locked_wallets = {
-                    w.id: w for w in Wallet.objects.select_for_update().filter(id__in=ids_to_lock)
-                }
+#                 # Fetch both in one query or sequentially in strictly sorted order
+#                 locked_wallets = {
+#                     w.id: w for w in Wallet.objects.select_for_update().filter(id__in=ids_to_lock)
+#                 }
 
-                sender_wallet_obj = locked_wallets[sender_wallet_id]
-                receiver_wallet_obj = locked_wallets[receiver_wallet_id]
+#                 sender_wallet_obj = locked_wallets[sender_wallet_id]
+#                 receiver_wallet_obj = locked_wallets[receiver_wallet_id]
                 
-                # Re-check balance after locking (Crucial!)
-                if sender_wallet_obj.balance < amount:
-                    raise serializers.ValidationError("Insufficient balance.")
+#                 # Re-check balance after locking (Crucial!)
+#                 if sender_wallet_obj.balance < amount:
+#                     raise serializers.ValidationError("Insufficient balance.")
                 
-                # accept money request
-                request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "ACCEPTED")
-                money_request_obj.current_status = request_money_status_obj
-                money_request_obj.save()
-                money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=summary)
+#                 # accept money request
+#                 request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "ACCEPTED")
+#                 money_request_obj.current_status = request_money_status_obj
+#                 money_request_obj.save()
+#                 money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=summary)
                 
-                # create transaction
-                transaction_type_obj = get_or_create_transaction_type_obj_by_name("WALLET_TRANSFER")
-                transaction_status_obj = Status.get_or_create_status_by_model_name_and_status_name("Transaction", "INITIATED")
-                transaction_obj = Transaction.objects.create(
-                    sender_user = sender_wallet_member_obj.user,
-                    sender_wallet_member = sender_wallet_member_obj,
-                    receiver_wallet_member = receiver_wallet_member_obj,
-                    receiver_user = receiver_wallet_member_obj.user,
-                    amount = amount,
-                    transaction_type = transaction_type_obj,
-                    current_status = transaction_status_obj,
-                    summary = summary
-                )
+#                 # create transaction
+#                 transaction_type_obj = get_or_create_transaction_type_obj_by_name("WALLET_TRANSFER")
+#                 transaction_status_obj = Status.get_or_create_status_by_model_name_and_status_name("Transaction", "INITIATED")
+#                 transaction_obj = Transaction.objects.create(
+#                     sender_user = sender_wallet_member_obj.user,
+#                     sender_wallet_member = sender_wallet_member_obj,
+#                     receiver_wallet_member = receiver_wallet_member_obj,
+#                     receiver_user = receiver_wallet_member_obj.user,
+#                     amount = amount,
+#                     transaction_type = transaction_type_obj,
+#                     current_status = transaction_status_obj,
+#                     summary = summary
+#                 )
                 
-                # create pending status
-                transaction_obj.create_status_log_by_obj(transaction_status_obj, summary)
+#                 # create pending status
+#                 transaction_obj.create_status_log_by_obj(transaction_status_obj, summary)
                 
-                # decrease sender wallet member debit limit
-                decrease_sender_wallet_member_limit(sender_wallet_member_obj.id, amount)
+#                 # decrease sender wallet member debit limit
+#                 decrease_sender_wallet_member_limit(sender_wallet_member_obj.id, amount)
                 
-                # decrease sender wallet debit limit
-                decrease_sender_wallet_debit_limit(sender_wallet_obj, amount)
+#                 # decrease sender wallet debit limit
+#                 decrease_sender_wallet_debit_limit(sender_wallet_obj, amount)
                 
-                # decrease receiver wallet credit limit
-                decrease_receiver_wallet_credit_limit(receiver_wallet_obj, amount)
+#                 # decrease receiver wallet credit limit
+#                 decrease_receiver_wallet_credit_limit(receiver_wallet_obj, amount)
                 
-                # decrease sender wallet balance
-                decrease_sender_wallet_balance(sender_wallet_obj, amount)
+#                 # decrease sender wallet balance
+#                 decrease_sender_wallet_balance(sender_wallet_obj, amount)
                 
-                # increase receiver wallet balance
-                increase_receiver_wallet_balance(receiver_wallet_obj, amount)
+#                 # increase receiver wallet balance
+#                 increase_receiver_wallet_balance(receiver_wallet_obj, amount)
                 
-                # create wallet ledger for sender wallet
-                WalletLedger.objects.create(
-                    wallet = sender_wallet_obj,
-                    transaction = transaction_obj,
-                    entry_type = "DEBIT",
-                    balance_after = sender_wallet_obj.balance,
-                )
+#                 # create wallet ledger for sender wallet
+#                 WalletLedger.objects.create(
+#                     wallet = sender_wallet_obj,
+#                     transaction = transaction_obj,
+#                     entry_type = "DEBIT",
+#                     balance_after = sender_wallet_obj.balance,
+#                 )
                 
-                # create wallet ledger for receiver wallet
-                WalletLedger.objects.create(
-                    wallet = receiver_wallet_obj,
-                    transaction = transaction_obj,
-                    entry_type = "CREDIT",
-                    balance_after = receiver_wallet_obj.balance,
-                )
+#                 # create wallet ledger for receiver wallet
+#                 WalletLedger.objects.create(
+#                     wallet = receiver_wallet_obj,
+#                     transaction = transaction_obj,
+#                     entry_type = "CREDIT",
+#                     balance_after = receiver_wallet_obj.balance,
+#                 )
                 
-                # Final Success Status
-                status_success = transaction_obj.create_status_log("Transaction", "SUCCESS", summary)
-                transaction_obj.current_status = status_success
-                transaction_obj.save()
+#                 # Final Success Status
+#                 status_success = transaction_obj.create_status_log("Transaction", "SUCCESS", summary)
+#                 transaction_obj.current_status = status_success
+#                 transaction_obj.save()
                 
-                request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "PAID")
-                money_request_obj.current_status = request_money_status_obj
-                money_request_obj.transaction = transaction_obj
-                money_request_obj.save()
-                money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=summary)
+#                 request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "PAID")
+#                 money_request_obj.current_status = request_money_status_obj
+#                 money_request_obj.transaction = transaction_obj
+#                 money_request_obj.save()
+#                 money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=summary)
             
-            # send success response
-            return Response({"message": "Transaction successfully completed."}, status=status.HTTP_200_OK)
+#             # send success response
+#             return Response({"message": "Transaction successfully completed."}, status=status.HTTP_200_OK)
                     
-        except Exception as e:
-            request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "FAILED")
-            money_request_obj.current_status = request_money_status_obj
-            money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=str(e))
+#         except Exception as e:
+#             request_money_status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "FAILED")
+#             money_request_obj.current_status = request_money_status_obj
+#             money_request_obj.create_status_log_by_obj(request_money_status_obj, summary=str(e))
             
-            if transaction_obj:
-                money_request_obj.transaction = transaction_obj
-                failed_status = Status.get_or_create_status_by_model_name_and_status_name(
-                    "Transaction", "FAILED"
-                )
-                transaction_obj.current_status = failed_status
-                transaction_obj.save()
-                transaction_obj.create_status_log_by_obj(
-                    failed_status,
-                    summary=str(e)
-                )
-            money_request_obj.save()
+#             if transaction_obj:
+#                 money_request_obj.transaction = transaction_obj
+#                 failed_status = Status.get_or_create_status_by_model_name_and_status_name(
+#                     "Transaction", "FAILED"
+#                 )
+#                 transaction_obj.current_status = failed_status
+#                 transaction_obj.save()
+#                 transaction_obj.create_status_log_by_obj(
+#                     failed_status,
+#                     summary=str(e)
+#                 )
+#             money_request_obj.save()
                 
-            return Response(
-                {
-                    "error": f"Failed to create transaction.",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+#             return Response(
+#                 {
+#                     "error": f"Failed to create transaction.",
+#                     "details": str(e)
+#                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 
 
-class WalletView(APIView):
-    permission_classes = [IsAuthenticated]
+# class WalletView(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def _get_response_data(self, wallet_obj, wallet_member_obj, logged_user):
-        balance = None
-        limit = None
+#     def _get_response_data(self, wallet_obj, wallet_member_obj, logged_user):
+#         balance = None
+#         limit = None
         
-        if wallet_obj.owner_user_id == logged_user.id:
-            balance = wallet_obj.balance
-        else:
-            if wallet_member_obj.can_check_balance:
-                balance = wallet_obj.balance
-            else:
-                balance = None
-            # Not owner -> remaining limit
-            wallet_limit = wallet_member_obj.wallet_member_limits_of_wallet_member.first()
-            limit = wallet_limit.remaining() if wallet_limit else 0
+#         if wallet_obj.owner_user_id == logged_user.id:
+#             balance = wallet_obj.balance
+#         else:
+#             if wallet_member_obj.can_check_balance:
+#                 balance = wallet_obj.balance
+#             else:
+#                 balance = None
+#             # Not owner -> remaining limit
+#             wallet_limit = wallet_member_obj.wallet_member_limits_of_wallet_member.first()
+#             limit = wallet_limit.remaining() if wallet_limit else 0
 
-        if wallet_obj.wallet_type.name == "PROFESSIONAL" and wallet_obj.professional_detail:
-            company = wallet_obj.professional_detail.brand.name
-            return {
-                "wallet_member_id": wallet_member_obj.id,
-                "wallet_id": wallet_obj.id,
-                "wallet_type": wallet_obj.wallet_type.name,
-                "company": company,
-                "balance": balance,
-                "limit": limit
-            }
-        else:
-            return {
-                "wallet_member_id": wallet_member_obj.id,
-                "wallet_id": wallet_obj.id,
-                "wallet_type": wallet_obj.wallet_type.name,
-                "balance": balance,
-                "limit": limit
-            }
+#         if wallet_obj.wallet_type.name == "PROFESSIONAL" and wallet_obj.professional_detail:
+#             company = wallet_obj.professional_detail.brand.name
+#             return {
+#                 "wallet_member_id": wallet_member_obj.id,
+#                 "wallet_id": wallet_obj.id,
+#                 "wallet_type": wallet_obj.wallet_type.name,
+#                 "company": company,
+#                 "balance": balance,
+#                 "limit": limit
+#             }
+#         else:
+#             return {
+#                 "wallet_member_id": wallet_member_obj.id,
+#                 "wallet_id": wallet_obj.id,
+#                 "wallet_type": wallet_obj.wallet_type.name,
+#                 "balance": balance,
+#                 "limit": limit
+#             }
     
-    def get(self, request):
-        logged_user = request.user
+#     def get(self, request):
+#         logged_user = request.user
     
-        str_wallet_id = request.query_params.get('wallet_id', "").strip()
-        if str_wallet_id != "":
-            wallet_id = int(str_wallet_id)
-            wallet_obj = get_object_or_404(Wallet, id=wallet_id)
+#         str_wallet_id = request.query_params.get('wallet_id', "").strip()
+#         if str_wallet_id != "":
+#             wallet_id = int(str_wallet_id)
+#             wallet_obj = get_object_or_404(Wallet, id=wallet_id)
             
-            wallet_member = WalletMember.objects.filter(
-                user=logged_user,
-                wallet=wallet_obj
-            ).first()
+#             wallet_member = WalletMember.objects.filter(
+#                 user=logged_user,
+#                 wallet=wallet_obj
+#             ).first()
                 
-            if wallet_member:
-                output_data = self._get_response_data(wallet_obj, wallet_member, logged_user)
-            else:
-                return Response({"error": "You do not have access to this wallet."}, status=status.HTTP_403_FORBIDDEN)
+#             if wallet_member:
+#                 output_data = self._get_response_data(wallet_obj, wallet_member, logged_user)
+#             else:
+#                 return Response({"error": "You do not have access to this wallet."}, status=status.HTTP_403_FORBIDDEN)
                 
-            return Response(output_data, status=status.HTTP_200_OK)
+#             return Response(output_data, status=status.HTTP_200_OK)
             
-        data = []
-        wallet_member_objs = WalletMember.objects.filter(
-                user=logged_user
-            ).select_related(
-                "wallet",
-                "wallet__wallet_type",
-                "wallet__owner_user"
-            ).prefetch_related('wallet_member_limits_of_wallet_member')
+#         data = []
+#         wallet_member_objs = WalletMember.objects.filter(
+#                 user=logged_user
+#             ).select_related(
+#                 "wallet",
+#                 "wallet__wallet_type",
+#                 "wallet__owner_user"
+#             ).prefetch_related('wallet_member_limits_of_wallet_member')
         
-        for wm in wallet_member_objs:
-            wallet_obj = wm.wallet
+#         for wm in wallet_member_objs:
+#             wallet_obj = wm.wallet
 
-            output_data = self._get_response_data(wallet_obj, wm, logged_user)
-            data.append(output_data)
-        return Response(data, status=status.HTTP_200_OK)
+#             output_data = self._get_response_data(wallet_obj, wm, logged_user)
+#             data.append(output_data)
+#         return Response(data, status=status.HTTP_200_OK)
 
-class TransactionCategoryView(APIView):
-    permission_classes = [IsAuthenticated]
+# class TransactionCategoryView(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        transaction_category_objs = TransactionCategory.objects.filter(is_active=True)
-        output_data = TransactionCategoryOutputSerializer(transaction_category_objs, many=True).data
-        return Response(output_data, status=status.HTTP_200_OK)
+#     def get(self, request):
+#         transaction_category_objs = TransactionCategory.objects.filter(is_active=True)
+#         output_data = TransactionCategoryOutputSerializer(transaction_category_objs, many=True).data
+#         return Response(output_data, status=status.HTTP_200_OK)
 
 
-class TransactionHistoryView(APIView):
-    serializer_class = TransactionHistorySerializer
-    permission_classes = [IsAuthenticated]
+# class TransactionHistoryView(APIView):
+#     serializer_class = TransactionHistorySerializer
+#     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        user = self.request.user
+#     def get(self, request):
+#         user = self.request.user
         
-        wallet_id = request.query_params.get('wallet_id', None)
-        transaction_category_id = request.query_params.get('transaction_category_id', None)
+#         wallet_id = request.query_params.get('wallet_id', None)
+#         transaction_category_id = request.query_params.get('transaction_category_id', None)
         
-        # base filters
-        filters = (Q(sender_user=user) | Q(receiver_user=user))
+#         # base filters
+#         filters = (Q(sender_user=user) | Q(receiver_user=user))
         
-        # Filter by transaction category
-        if transaction_category_id:
-            transaction_category_obj = get_object_or_404(TransactionCategory, id=transaction_category_id)
+#         # Filter by transaction category
+#         if transaction_category_id:
+#             transaction_category_obj = get_object_or_404(TransactionCategory, id=transaction_category_id)
 
-            filters &= Q(transaction_category=transaction_category_obj)
+#             filters &= Q(transaction_category=transaction_category_obj)
         
-        # Filter by wallet
-        if wallet_id is not None:
-            wallet_obj = get_object_or_404(Wallet, id=wallet_id)
+#         # Filter by wallet
+#         if wallet_id is not None:
+#             wallet_obj = get_object_or_404(Wallet, id=wallet_id)
         
-            if not WalletMember.objects.filter(
-                wallet_id=wallet_id,
-                user=user
-            ).exists():
-                return Response(
-                    {"detail": "You do not have access to this wallet."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+#             if not WalletMember.objects.filter(
+#                 wallet_id=wallet_id,
+#                 user=user
+#             ).exists():
+#                 return Response(
+#                     {"detail": "You do not have access to this wallet."},
+#                     status=status.HTTP_403_FORBIDDEN
+#                 )
             
-            filters &= (
-                Q(sender_wallet_member__wallet=wallet_obj) |
-                Q(receiver_wallet_member__wallet=wallet_obj)
-            )
+#             filters &= (
+#                 Q(sender_wallet_member__wallet=wallet_obj) |
+#                 Q(receiver_wallet_member__wallet=wallet_obj)
+#             )
         
-        queryset = (
-            Transaction.objects.filter(filters)
-            .select_related(
-                'transaction_type',
-                'transaction_category',
-                'current_status',
-                'sender_user',
-                'receiver_user',
-            )
-            .order_by('-time_stamp')
-        )
+#         queryset = (
+#             Transaction.objects.filter(filters)
+#             .select_related(
+#                 'transaction_type',
+#                 'transaction_category',
+#                 'current_status',
+#                 'sender_user',
+#                 'receiver_user',
+#             )
+#             .order_by('-time_stamp')
+#         )
             
-        output_data = TransactionHistorySerializer(
-            queryset,
-            many=True,
-            context={'request': request}
-        ).data
-        return Response(output_data, status=status.HTTP_200_OK)
+#         output_data = TransactionHistorySerializer(
+#             queryset,
+#             many=True,
+#             context={'request': request}
+#         ).data
+#         return Response(output_data, status=status.HTTP_200_OK)
 
 
-class WalletLedgerView(APIView):
-    serializer_class = WalletLedgerSerializer
-    permission_classes = [IsAuthenticated]
+# class WalletLedgerView(APIView):
+#     serializer_class = WalletLedgerSerializer
+#     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        wallet_id = request.query_params.get('wallet_id', "").strip()
-        if wallet_id == "":
-            return Response({"error": "Query paramter 'wallet_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+#     def get(self, request):
+#         wallet_id = request.query_params.get('wallet_id', "").strip()
+#         if wallet_id == "":
+#             return Response({"error": "Query paramter 'wallet_id' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
         
-        wallet_obj = get_object_or_404(Wallet, id=wallet_id)
-        if request.user != wallet_obj.owner_user:
-            return Response({"error": "You do not have access to this wallet."}, status=status.HTTP_403_FORBIDDEN)
+#         wallet_obj = get_object_or_404(Wallet, id=wallet_id)
+#         if request.user != wallet_obj.owner_user:
+#             return Response({"error": "You do not have access to this wallet."}, status=status.HTTP_403_FORBIDDEN)
         
-        wallet_ledger_objs = WalletLedger.objects.filter(wallet=wallet_obj)
-        output_data = WalletLedgerSerializer(
-            wallet_ledger_objs,
-            many = True,
-        ).data
+#         wallet_ledger_objs = WalletLedger.objects.filter(wallet=wallet_obj)
+#         output_data = WalletLedgerSerializer(
+#             wallet_ledger_objs,
+#             many = True,
+#         ).data
         
-        return Response(output_data, status=status.HTTP_200_OK)
+#         return Response(output_data, status=status.HTTP_200_OK)
 
 
-class GetWalletMemberInfo(APIView):
-    permission_classes = [IsAuthenticated]
+# class GetWalletMemberInfo(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def get(self, request, wallet_member_id):
-        try:
-            wallet_member_obj = WalletMember.objects.get(id=wallet_member_id)
-        except WalletMember.DoesNotExist:
-            return Response({"error": "Invalid wallet member id"}, status=status.HTTP_404_NOT_FOUND)
+#     def get(self, request, wallet_member_id):
+#         try:
+#             wallet_member_obj = WalletMember.objects.get(id=wallet_member_id)
+#         except WalletMember.DoesNotExist:
+#             return Response({"error": "Invalid wallet member id"}, status=status.HTTP_404_NOT_FOUND)
         
-        output_data = WalletMemberInfoOutputSerializer(wallet_member_obj).data
-        return Response(output_data, status=status.HTTP_200_OK)
+#         output_data = WalletMemberInfoOutputSerializer(wallet_member_obj).data
+#         return Response(output_data, status=status.HTTP_200_OK)
 
 
-class MoneyRequestView(APIView):
-    permission_classes = [IsAuthenticated]
+# class GetUserBasicInfoByContactNo(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        logged_user = request.user
-        user_type = request.query_params.get('user_type', None)
-        status_name = request.query_params.get('status', None)
+#     def get(self, request):
+#         contact_no = request.query_params.get('contact_no', '').strip()
+#         if not contact_no:
+#             return Response({"error": "Query paramter 'contact_no' cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
         
-        if user_type not in ['payer', 'requester']:
-            return Response({"error": "Invalid user type"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if user_type == "payer":
-            if status_name not in ['ALL', 'REQUESTED', 'PAID', 'FAILED', 'REJECTED']:
-                return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
-        
-            if status_name == "ALL":
-                mone_request_objs = MoneyRequest.objects.filter(payer_user=logged_user).order_by('-time_stamp')
-            else:
-                mone_request_objs = MoneyRequest.objects.filter(
-                    payer_user=logged_user,
-                    current_status__name=status_name
-                ).order_by('-time_stamp')
-            serializer_class = MoneyRequestOutputSerializerForPayer
+#         # normalize number (remove spaces, +, -)
+#         contact_no = ''.join(filter(str.isdigit, contact_no))
 
-        if user_type == "requester":
-            if status_name not in ['ALL', 'REQUESTED', 'PAID', 'FAILED', 'REJECTED', 'CANCELLED']:
-                return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
+#         wallet_member_subquery = WalletMember.objects.filter(
+#             user=OuterRef('pk')
+#         )
+
+#         users = CustomUser.objects.annotate(
+#             has_wallet=Exists(wallet_member_subquery)
+#         ).filter(has_wallet=True)
+
+#         serializer = UserBasicInfoOutputSerializer(users, many=True)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+        
+
+# class MoneyRequestView(APIView):
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         logged_user = request.user
+#         user_type = request.query_params.get('user_type', None)
+#         status_name = request.query_params.get('status', None)
+        
+#         if user_type not in ['payer', 'requester']:
+#             return Response({"error": "Invalid user type"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         if user_type == "payer":
+#             if status_name not in ['ALL', 'REQUESTED', 'PAID', 'FAILED', 'REJECTED']:
+#                 return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#             if status_name == "ALL":
+#                 mone_request_objs = MoneyRequest.objects.filter(payer_user=logged_user).order_by('-time_stamp')
+#             else:
+#                 mone_request_objs = MoneyRequest.objects.filter(
+#                     payer_user=logged_user,
+#                     current_status__name=status_name
+#                 ).order_by('-time_stamp')
+#             serializer_class = MoneyRequestOutputSerializerForPayer
+
+#         if user_type == "requester":
+#             if status_name not in ['ALL', 'REQUESTED', 'PAID', 'FAILED', 'REJECTED', 'CANCELLED']:
+#                 return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
             
-            if status_name == "ALL":
-                mone_request_objs = MoneyRequest.objects.filter(request_user=logged_user).order_by('-time_stamp')
-            else:
-                mone_request_objs = MoneyRequest.objects.filter(
-                    request_user=logged_user,
-                    current_status__name=status_name
-                ).order_by('-time_stamp')
-            serializer_class = MoneyRequestOutputSerializerForRequester
+#             if status_name == "ALL":
+#                 mone_request_objs = MoneyRequest.objects.filter(request_user=logged_user).order_by('-time_stamp')
+#             else:
+#                 mone_request_objs = MoneyRequest.objects.filter(
+#                     request_user=logged_user,
+#                     current_status__name=status_name
+#                 ).order_by('-time_stamp')
+#             serializer_class = MoneyRequestOutputSerializerForRequester
                 
-        output_data = serializer_class(mone_request_objs, many=True).data
-        return Response(output_data, status=status.HTTP_200_OK)
+#         output_data = serializer_class(mone_request_objs, many=True).data
+#         return Response(output_data, status=status.HTTP_200_OK)
     
-    def post(self, request):
-        logged_user = request.user
-        serializer = MoneyRequestInputSerializer(data=request.data, context={"logged_user": logged_user})
-        serializer.is_valid(raise_exception=True)
+#     def post(self, request):
+#         logged_user = request.user
+#         serializer = MoneyRequestInputSerializer(data=request.data, context={"logged_user": logged_user})
+#         serializer.is_valid(raise_exception=True)
         
-        validated_data = serializer.validated_data
+#         validated_data = serializer.validated_data
         
-        request_wallet_member_obj = validated_data.get('request_wallet_member')
-        payer_wallet_member_obj = validated_data.get('payer_wallet_member')
-        amount = validated_data.get('amount')
-        summary = validated_data.get('summary')
+#         request_wallet_member_obj = validated_data.get('request_wallet_member')
+#         payer_user_obj = validated_data.get('payer_user')
+#         amount = validated_data.get('amount')
+#         summary = validated_data.get('summary')
         
-        status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "REQUESTED")
-        money_request_obj = MoneyRequest.objects.create(
-            request_user = logged_user,
-            request_wallet_member = request_wallet_member_obj,
-            payer_wallet_member = payer_wallet_member_obj,
-            payer_user = payer_wallet_member_obj.user,
-            amount = amount,
-            summary = summary,
-            current_status = status_obj
-        )
-        money_request_obj.create_status_log("MoneyRequest", "REQUESTED")
-        return Response({}, status=status.HTTP_200_OK)
+#         wallet_member_obj = WalletMember.objects.filter(user=payer_user_obj)
+#         if not wallet_member_obj.exists():
+#             return Response({"error": "Invalid payer user"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "REQUESTED")
+#         money_request_obj = MoneyRequest.objects.create(
+#             request_user = logged_user,
+#             request_wallet_member = request_wallet_member_obj,
+#             payer_user = payer_user_obj,
+#             amount = amount,
+#             summary = summary,
+#             current_status = status_obj
+#         )
+#         money_request_obj.create_status_log("MoneyRequest", "REQUESTED")
+#         return Response({}, status=status.HTTP_200_OK)
 
 
-class CancelMoneyRequestView(APIView):
-    permission_classes = [IsAuthenticated]
+# class CancelMoneyRequestView(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def post(self, request, request_money_id):
-        summary = request.data.get('summary', None)
-        try:
-            with transaction.atomic():
-                try:
-                    money_request_obj = MoneyRequest.objects.get(id=request_money_id)
-                except MoneyRequest.DoesNotExist:
-                    return Response({"error": "Invalid request."}, status=status.HTTP_404_NOT_FOUND)
+#     def post(self, request, request_money_id):
+#         summary = request.data.get('summary', None)
+#         try:
+#             with transaction.atomic():
+#                 try:
+#                     money_request_obj = MoneyRequest.objects.get(id=request_money_id)
+#                 except MoneyRequest.DoesNotExist:
+#                     return Response({"error": "Invalid request."}, status=status.HTTP_404_NOT_FOUND)
                 
-                if request.user != money_request_obj.request_user:
-                    return Response({"error": "You do not have access to this request money."}, status=status.HTTP_403_FORBIDDEN)
+#                 if request.user != money_request_obj.request_user:
+#                     return Response({"error": "You do not have access to this request money."}, status=status.HTTP_403_FORBIDDEN)
                 
-                status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "CANCELLED")
-                money_request_obj.current_status = status_obj
-                money_request_obj.save()
-                money_request_obj.create_status_log_by_obj(status_obj, summary=summary)
+#                 status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "CANCELLED")
+#                 money_request_obj.current_status = status_obj
+#                 money_request_obj.save()
+#                 money_request_obj.create_status_log_by_obj(status_obj, summary=summary)
                 
-        except Exception as e:
-            return Response({
-                    "error": "Failed to cancel request money.",
-                    "detail": str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({
+#                     "error": "Failed to cancel request money.",
+#                     "detail": str(e)
+#                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response({}, status=status.HTTP_200_OK)
+#         return Response({}, status=status.HTTP_200_OK)
     
 
-class RejectMoneyRequestView(APIView):
-    permission_classes = [IsAuthenticated]
+# class RejectMoneyRequestView(APIView):
+#     permission_classes = [IsAuthenticated]
     
-    def post(self, request, request_money_id):
-        summary = request.data.get('summary', None)
-        try:
-            with transaction.atomic():
-                try:
-                    money_request_obj = MoneyRequest.objects.get(id=request_money_id)
-                except MoneyRequest.DoesNotExist:
-                    return Response({"error": "Invalid request."}, status=status.HTTP_404_NOT_FOUND)
+#     def post(self, request, request_money_id):
+#         summary = request.data.get('summary', None)
+#         try:
+#             with transaction.atomic():
+#                 try:
+#                     money_request_obj = MoneyRequest.objects.get(id=request_money_id)
+#                 except MoneyRequest.DoesNotExist:
+#                     return Response({"error": "Invalid request."}, status=status.HTTP_404_NOT_FOUND)
                 
-                if request.user != money_request_obj.payer_user:
-                    return Response({"error": "You do not have access to this request money."}, status=status.HTTP_403_FORBIDDEN)
+#                 if request.user != money_request_obj.payer_user:
+#                     return Response({"error": "You do not have access to this request money."}, status=status.HTTP_403_FORBIDDEN)
                 
-                status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "REJECTED")
-                money_request_obj.current_status = status_obj
-                money_request_obj.save()
-                money_request_obj.create_status_log_by_obj(status_obj, summary=summary)
+#                 status_obj = Status.get_or_create_status_by_model_name_and_status_name("MoneyRequest", "REJECTED")
+#                 money_request_obj.current_status = status_obj
+#                 money_request_obj.save()
+#                 money_request_obj.create_status_log_by_obj(status_obj, summary=summary)
                 
-        except Exception as e:
-            return Response({
-                    "error": "Failed to reject request money.",
-                    "detail": str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             return Response({
+#                     "error": "Failed to reject request money.",
+#                     "detail": str(e)
+#                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response({}, status=status.HTTP_200_OK)
+#         return Response({}, status=status.HTTP_200_OK)

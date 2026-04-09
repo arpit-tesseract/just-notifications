@@ -3,6 +3,7 @@ from configuration.models import ModelAccess, ModelName, Designation
 from django.db.models import Q, ForeignKey
 from django.utils import timezone
 import re
+import datetime
 
 # def get_two_degit(num):
 #     return str(num).zfill(2)
@@ -193,3 +194,300 @@ def get_designation_obj_by_name(desingation_name):
         return None
     except Exception as e:
         return None
+
+
+def parse_bool(v: str) -> bool:
+    value = (v or "").strip().lower()
+    if value in ["true", "t", "1", "yes", "y"]:
+        return True
+    elif value in ["false", "f", "0", "no", "n"]:
+        return False
+    else:
+        raise ValueError(f"Invalid boolean value: {value}")
+
+
+import datetime
+
+def cast_value_by_type(value, field_type):
+    """
+    Parses the string value from the request into the correct Python type
+    and returns the appropriate Django lookup (e.g., 'exact', 'icontains').
+    """
+    if value is None:
+        return None, "exact"
+        
+    value = str(value).strip()
+    
+    # Empty string handling depends on your needs. 
+    # Usually for filters, empty string might be ignored or treated as None.
+    if value == "":
+        return None, "exact"
+    
+    # 1. Text Fields
+    if field_type in ["char", "text"]:
+        return value, "icontains"  # Use partial match for text
+    
+    # 2. Integers
+    if field_type in ["int", "bigint"]:
+        # Fix: lstrip (not lsstrip)
+        if not value.lstrip('-').isdigit():
+            raise ValueError(f"Value '{value}' must be an integer.")
+        return int(value), "exact"
+    
+    # 3. Positive Integer
+    if field_type == "positive_int":
+        if not value.isdigit():
+            raise ValueError(f"Value '{value}' must be a positive integer.")
+        return int(value), "exact"
+    
+    # 4. Float
+    # Fix: compare to string "float", not list ["float"]
+    if field_type == "float":
+        try:
+            val = float(value)
+        except ValueError:
+            raise ValueError(f"Value '{value}' must be a float.")
+        return val, "exact"
+    
+    # 5. Date
+    if field_type == "date":
+        try:
+            # Validate format, but return string for Django to handle
+            datetime.datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"Value '{value}' must be a YYYY-MM-DD date.")
+        return value, "exact"
+
+    # 6. DateTime
+    if field_type == "datetime":
+        try:
+            # Standard ISO format is safer
+            datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            # Try ISO with T
+            try:
+                datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                raise ValueError(f"Value '{value}' must be a YYYY-MM-DD HH:MM:SS datetime.")
+        return value, "exact"
+    
+    # 7. Boolean
+    if field_type == "boolean":
+        lower_val = value.lower()
+        if lower_val in ["true", "t", "1", "yes", "y", "on"]:
+            return True, "exact"
+        elif lower_val in ["false", "f", "0", "no", "n", "off"]:
+            return False, "exact"
+        else:
+            raise ValueError(f"Invalid boolean value: {value}")
+            
+    # Default fallback
+    return value, "exact"
+
+# def cast_value_by_type(value:str, field_type:str):
+#     value = (value or "").strip()
+#     if value == "":
+#         return None
+    
+#     if field_type in ["char", "text"]:
+#         return value, "icontains"
+    
+#     if field_type in ["int", "bigint"]:
+#         if not value.lsstrip('-').isdigit():
+#             raise ValueError("The value must be an integer.")
+#         return int(value), "exact"
+    
+#     if field_type == "positive_int":
+#         if not value.isdigit():
+#             raise ValueError("The value must be a positive integer.")
+#         val = int(value)
+#         if val < 0:
+#             raise ValueError("The value must be a positive integer.")
+#         return val, "exact"
+    
+#     if field_type == ["float"]:
+#         try:
+#             val = float(value)
+#         except ValueError:
+#             raise ValueError("The value must be a float.")
+        
+#         return val, "exact"
+    
+#     if field_type == "date":
+#         # stored as string "YYYY-MM-DD" usually, but exact still works
+#         try:
+#             datetime.datetime.strptime(value, "%Y-%m-%d")
+#         except ValueError:
+#             raise ValueError("The value must be a date.")
+        
+#         return value, "exact"
+
+    
+#     if field_type == "date_time":
+#         try:
+#             datetime.datetime.strptime(value, "%y-%m_%d %H%M%S")
+#         except ValueError:
+#             raise ValueError("The value must be a datetime.")
+    
+#     if field_type == "boolean":
+#         if value in ["true", "t", "1", "yes", "y"]:
+#             return True, "exact"
+#         elif value in ["false", "f", "0", "no", "n"]:
+#             return False, "exact"
+#         else:
+#             raise ValueError(f"Invalid boolean value: {value}")
+        
+    
+#     return value, "exact"
+
+def parse_boolean_strict(val):
+    """Safely parses Excel strings, numbers, and bools into a strict Python boolean."""
+    if pd.isna(val) or val is None or str(val).strip() == "":
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        # Handle textual booleans from Excel
+        return val.strip().lower() in ['true', '1', 'yes', 'y', 'on']
+    return False
+
+def check_bool_value(val):
+    if isinstance(val, bool):
+        return val
+    
+    if isinstance(val, str):
+        if val.strip().lower() in ['true', '1', 'yes', 'y', 'on']:
+            return True
+        elif val.strip().lower() in ['false', '0', 'no', 'n', 'off']:
+            return False
+    
+    return None
+
+
+def get_type_label(type_val):
+    if type_val == "int":
+        return "Number"
+    elif type_val == "float":
+        return "Decimal"
+    elif type_val == "date":
+        return "Date"
+    elif type_val == "datetime":
+        return "Date Time"
+    elif type_val == "boolean":
+        return "Boolean"
+    else:
+        return "Text"
+    
+
+def validate_value_type(value, field_type, max_len=None):
+        """
+        Helper method to check if 'value' matches 'field_type'
+        """
+        s_value = str(value).strip()
+
+        if s_value in ["", None]:
+            return None
+
+        # 1. Integer Checks
+        if field_type in ['int', 'bigint']:
+            if not s_value.lstrip('-').isdigit():
+                 raise ValueError("The value must be an numeric.")
+            return int(s_value) # <--- RETURN INT
+
+        elif field_type == 'positive_int':
+            if not s_value.isdigit():
+                 raise ValueError
+            val = int(s_value)
+            if val < 0:
+                raise ValueError("The value must be a positive integer.")
+            return val # <--- RETURN INT
+
+        # 2. Float Check
+        elif field_type == 'float':
+            try:
+                val = float(s_value)
+                return val # <--- RETURN FLOAT
+            except ValueError:
+                raise ValueError("The value must be a float.")
+
+        # 3. Boolean Check
+        elif field_type == 'boolean':
+            lower_val = s_value.lower()
+            if lower_val in ['true', '1', 'yes', 'on']:
+                return True # <--- RETURN TRUE (bool)
+            elif lower_val in ['false', '0', 'no', 'off']:
+                return False # <--- RETURN FALSE (bool)
+            else:
+                raise ValueError("The value must be a boolean.")
+
+        # 4. Date Checks (Keep as string for JSON, but ensure format)
+        elif field_type == 'date':
+            try:
+                datetime.datetime.strptime(s_value, '%Y-%m-%d')
+                return s_value # Return sanitized string
+            except ValueError:
+                raise ValidationError("Date must be in YYYY-MM-DD format.")
+
+        elif field_type == 'datetime':
+            try:
+                datetime.datetime.strptime(s_value, '%Y-%m-%d %H:%M:%S')
+                return s_value
+            except ValueError:
+                try:
+                    # Allow T separator
+                    datetime.datetime.strptime(s_value, '%Y-%m-%dT%H:%M:%S')
+                    return s_value
+                except ValueError:
+                    raise ValidationError("DateTime must be in YYYY-MM-DD HH:MM:SS format.")
+
+        # 5. Char / Text Checks
+        elif field_type == 'char':
+            if max_len and len(s_value) > max_len:
+                raise ValidationError(f"Default value cannot exceed {max_len} characters.")
+            return s_value
+        
+        elif field_type == 'text':
+            return s_value
+
+        return s_value
+
+def get_level_ancestors(level):
+    """
+    Returns ancestors in order: Root -> ... -> Parent
+    Based on Level.parent chain (NOT sort_order).
+    """
+    ancestors = []
+    curr = level.parent
+    while curr:
+        ancestors.append(curr)
+        curr = curr.parent
+    return list(reversed(ancestors))
+
+def parse_positive_int(value):
+    if value in ["", None]:
+        return None
+    
+    if isinstance(value, str):
+        if value.isdigit():
+            value = int(value)
+        else:
+            raise ValueError("The value must be a positive integer.")
+    elif not isinstance(value, int):
+        raise ValueError("The value must be a positive integer.")
+
+    if value < 0:
+        raise ValueError("The value must be a positive integer.")
+
+    return value
+
+
+def default_in_bounds(default_val, start_val, end_val):
+    if default_val is None:
+        return False
+    if start_val is not None and default_val < start_val:
+        return False
+    if end_val is not None and default_val > end_val:
+        return False
+    return True

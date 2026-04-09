@@ -3,7 +3,7 @@ from .utils import *
 from rest_framework import serializers
 from .models import *
 from .validators import *  
-from configuration.serializers import *
+from configuration.serializers_old import *
 from django.apps import apps
       
 class LoginEmailPasswordSerializer(serializers.Serializer):
