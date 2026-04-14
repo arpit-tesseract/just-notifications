@@ -60,6 +60,10 @@ class UserResidentialDetails(AuditMixin):
 
     history = HistoricalRecords()
 
+    def __str__(self):
+        return f"{self.id}"
+    
+
 
 class User(AbstractBaseUser, PermissionsMixin, AuditMixin):
     USER_CATEGORY_CHOICES = [
@@ -149,7 +153,7 @@ class DocumentType(AuditMixin):
 
 class UserDocument(AuditMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='documents')
-    document_type = models.ForeignKey(DocumentType, on_delete=models.CASCADE)
+    document_type = models.ForeignKey(DocumentType, on_delete=models.PROTECT)
     document_no = models.CharField(max_length=100, blank=True, null=True)
     document = models.FileField(upload_to='user_documents/', null=True, blank=True)
 
@@ -185,29 +189,7 @@ class FamilyType(AuditMixin):
 
     def __str__(self):
         return self.display_name
-
-
-class Family(AuditMixin):
-    main_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='families')
-    family_type = models.ForeignKey(FamilyType, on_delete=models.PROTECT)
-    residential_details = models.ForeignKey(UserResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
-
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return f"{self.main_user.full_name} - {self.family_type}"
-
-
-class FamilyMember(AuditMixin):
-    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return f"{self.family.main_user.full_name} - {self.family.family_type} - {self.user.full_name}"
     
-
 class RelationType(AuditMixin):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
@@ -217,4 +199,44 @@ class RelationType(AuditMixin):
 
     def __str__(self):
         return self.name
+
+
+class Family(AuditMixin):
+    name = models.CharField(max_length=100, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.id} - {self.name}"
+    
+
+class FamilyMember(AuditMixin):
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='members')
+    self_relation_type = models.ForeignKey(RelationType, on_delete=models.PROTECT)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    is_main_user = models.BooleanField(default=False)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.family.id} - {self.user.full_name}"
+
+
+class FamilyResident(AuditMixin):
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='residents')
+    residential_details = models.ForeignKey(UserResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
+    family_type = models.ForeignKey(FamilyType, on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.family.id} - {self.residential_details}"
+
+
+
+class UserRelations(models.Model):
+    from_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="from_user")
+    relation_type = models.ForeignKey(RelationType, on_delete=models.PROTECT)
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="to_user")
+
+    def __str__(self):
+        return f"{self.from_user.full_name} - {self.relation_type.display_name} - {self.to_user.full_name}"
 

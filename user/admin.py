@@ -3,7 +3,7 @@ from simple_history.admin import SimpleHistoryAdmin
 from .models import (
     UserRole, UserManager, UserResidentialDetails, User, UserProfile,
     DocumentType, UserDocument, UserProfessionalDetails, UserPersonalDetails,
-    FamilyType, Family, FamilyMember, RelationType
+    FamilyType, Family, FamilyMember, RelationType, FamilyResident
 )
 
 @admin.register(UserRole)
@@ -71,16 +71,20 @@ class FamilyTypeAdmin(SimpleHistoryAdmin):
 
 @admin.register(Family)
 class FamilyAdmin(SimpleHistoryAdmin):
-    list_display = ('main_user', 'family_type', 'created_at')
-    search_fields = ('main_user__full_name', 'main_user__contact_no')
-    list_filter = ('family_type',)
+    list_display = ('id', 'name', 'created_at')
 
 
 @admin.register(FamilyMember)
 class FamilyMemberAdmin(SimpleHistoryAdmin):
-    list_display = ('family', 'user', 'created_at')
-    search_fields = ('family__main_user__full_name', 'user__full_name', 'user__contact_no')
-    list_filter = ('family',)
+    list_display = ('family', 'user', 'self_relation_type', 'is_main_user', 'created_at')
+    search_fields = ('user__full_name', 'user__contact_no')
+    list_filter = ('family', 'is_main_user')
+
+
+@admin.register(FamilyResident)
+class FamilyResidentAdmin(SimpleHistoryAdmin):
+    list_display = ('family', 'residential_details', 'family_type', 'created_at')
+    list_filter = ('family', 'family_type')
 
 
 @admin.register(RelationType)

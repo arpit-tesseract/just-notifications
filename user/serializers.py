@@ -1,9 +1,10 @@
 from rest_framework import serializers
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
 from .models import *
 from configuration.models import Dimension, Level, Node
-
+from .utils import get_level_node_mapping
 
 class FamilyTypeListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,41 +47,30 @@ class UserDetailsInputSerializer(serializers.Serializer):
     )
     expired_date = serializers.DateField(required=True, allow_null=True)
     personal_details = serializers.JSONField(required=True, allow_null=True)
-    residential_details = serializers.JSONField(required=True, allow_null=True)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
         gender = attrs.get('gender')
         self_relation = attrs.get('self_relation')
-        user_id = attrs.get('user_id')
+        user_obj = attrs.get('user_id')
         contact_no = attrs.get('contact_no')
         email = attrs.get('email')
 
-        if user_id:
+        if not user_obj:
             try:
-                user_obj = User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                raise serializers.ValidationError({"user_id": "User with this ID does not exist."})
-
-        try:
-            if user_id:
-                user_obj = User.objects.filter(contact_no=contact_no).exclude(id=user_id)
-            else:
-                user_obj = User.objects.filter(contact_no=contact_no)
-
-            if user_obj.exists():
+                User.objects.get(contact_no=contact_no)
                 raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
-        except User.DoesNotExist:
-            pass
+            except User.DoesNotExist:
+                pass
         
         if email:
             try:
-                if user_id:
-                    user_obj = User.objects.filter(email=email).exclude(id=user_id)
+                if user_obj:
+                    user_qs = User.objects.filter(email=email).exclude(id=user_obj.id)
                 else:
-                    user_obj = User.objects.filter(email=email)
+                    user_qs = User.objects.filter(email=email)
 
-                if user_obj.exists():
+                if user_qs.exists():
                     raise serializers.ValidationError({"email": "User with this email already exists."})
             except User.DoesNotExist:
                 pass
@@ -144,13 +134,8 @@ class UserDetailsInputSerializer(serializers.Serializer):
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
         return self._validate_node_json(value, dimension_obj)
-                  
     
-    def validate_residential_details(self, value):
-        dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
-        return self._validate_node_json(value, dimension_obj)
-    
-    
+
 
 class RegistrationInputSerializer(serializers.Serializer):
     registration_user = serializers.PrimaryKeyRelatedField(
@@ -158,15 +143,172 @@ class RegistrationInputSerializer(serializers.Serializer):
         required=True,
         allow_null=True
     )
+
     user_category = serializers.ChoiceField(
         choices=User.USER_CATEGORY_CHOICES
     )
-    # residential_type = serializers.ChoiceField(
-    #     choices=['current', 'owner', 'permanent', 'native', 'inlaws', 'maternal', 'business']
-    # )
+
     family_type = serializers.PrimaryKeyRelatedField(
         queryset=FamilyType.objects.filter(is_active=True)
     )
+
+    residential_details = serializers.JSONField(required=True, allow_null=True)
+
     family_members = UserDetailsInputSerializer(many=True, required=True, allow_null=False)
 
 
+    def validate_residential_details(self, value):
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
+
+        print(value)
+
+        if not value:
+            return value
+            
+        # 2. Ensure it is actually a dictionary {...}, not a list [...]
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(f"must be a JSON object.")
+        
+        valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
+        
+        valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
+
+        # 3. Validate that every Key (Level) and Value (Node) is a valid ID
+        for level_id, node_id in value.items():
+            if not str(level_id).isdigit():
+                raise serializers.ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
+            
+            # Assuming node_id should also be numeric. If it can be a string, remove this check!
+            if not str(node_id).isdigit(): 
+                raise serializers.ValidationError({
+                    level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
+                })
+            
+            # if int(level_id) not in valid_level_ids:
+            #     raise serializers.ValidationError({
+            #         level_id: f"Invalid Level ID '{level_id}'."
+            #     })
+
+            # if int(node_id) not in valid_node_ids:
+            #     raise serializers.ValidationError({
+            #         level_id: f"Invalid Node ID '{node_id}'."
+            #     })
+        return value
+
+
+class RegistrationOutputSerializer(serializers.Serializer):
+    registration_user = serializers.SerializerMethodField()
+    family_type = serializers.SerializerMethodField()
+    user_category = serializers.SerializerMethodField()
+    residential_details = serializers.SerializerMethodField()
+    family_members = serializers.SerializerMethodField()
+
+    def get_registration_user(self, family_obj):
+        context = self.context
+        print(context)
+        return context.get('registration_user').id
+        
+    
+    def get_user_category(self, family_obj):
+        print(type(family_obj))
+        try:
+            main_family_member_obj = family_obj.members.filter(is_main_user=True).first()
+        except FamilyMember.DoesNotExist:
+            raise ValidationError("Something went wrong. Please try again.")
+        except Exception as e:
+            raise ValidationError("Something went wrong. Please try again: ")
+        return main_family_member_obj.user.user_category
+    
+
+    def get_family_type(self, family_obj):
+        context = self.context
+        return context.get('family_type').id
+
+
+    def get_residential_details(self, family_obj):
+        context = self.context
+        residential_details = context.get('residential_details')
+        node_data = residential_details.nodes
+        return get_level_node_mapping(node_data)
+        
+    
+    def get_family_members(self, family_obj):
+        family_members_lst = []
+        try:
+            family_members = family_obj.members.all()
+            for member in family_members:
+                user_obj = member.user
+                user_details = UserDetailsOutputSerializer(
+                    user_obj.profile,
+                    exclude=['residential_details']
+                ).data
+                family_members_lst.append(user_details)
+        except FamilyMember.DoesNotExist:
+            raise ValidationError("Something went wrong. Please try again.")
+        return family_members_lst
+
+
+class UserSuggestionListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'full_name', 'contact_no']
+
+
+class UserDetailsOutputSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id')
+    email = serializers.CharField(source='user.email')
+    contact_no = serializers.CharField(source='user.contact_no')
+    full_name = serializers.CharField(source='user.full_name')
+    is_verified = serializers.BooleanField(source='user.is_verified')
+
+    self_relation = serializers.SerializerMethodField()
+    personal_details = serializers.SerializerMethodField()
+    residential_details = serializers.SerializerMethodField()
+    class Meta:
+        model = UserProfile
+        fields = [
+            'user_id', 'self_relation', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
+            'father_name', 'gender', 'dob', 'blood_group', 'marital_status', 'expired_date', 
+            'personal_details', 'residential_details'
+        ]
+    
+    def __init__(self, *args, **kwargs):
+        exclude = kwargs.pop('exclude', None)
+        super().__init__(*args, **kwargs)
+
+        if exclude:
+            for field in exclude:
+                self.fields.pop(field, None)
+
+    def get_self_relation(self, obj):
+        family_member_obj = FamilyMember.objects.filter(user=obj.user).first()
+        return family_member_obj.self_relation_type.name
+    
+    def get_personal_details(self, obj):
+        try:
+            # nodes_data is {"1": 1, "2": 5, ...} where value is the Node ID
+            nodes_data = obj.user.personal_details.nodes
+            return get_level_node_mapping(nodes_data)
+
+        except Exception:
+            return None
+    
+    def get_residential_details(self, obj):
+        try:
+            # nodes_data is {"1": 1, "2": 5, ...} where value is the Node ID
+            nodes_data = obj.user.current_residential_details.nodes
+            return get_level_node_mapping(nodes_data)
+
+        except Exception:
+            return None
+
+
+class UserListSerializer(serializers.ModelSerializer):
+    profile_pic = serializers.ImageField(source='profile.photo')
+    father_name = serializers.CharField(source='profile.father_name')
+    class Meta:
+        model = User
+        fields = [
+            'id', 'full_name', 'contact_no', 'is_verified', 'user_category', 'father_name',
+            'profile_pic'
+        ]
