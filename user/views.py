@@ -12,10 +12,10 @@ import re
 
 from .serializers import (
     RegistrationInputSerializer, FamilyTypeListSerializer, DocumentTypeListSerializer, UserSuggestionListSerializer,
-    UserDetailsOutputSerializer, RegistrationOutputSerializer, UserListSerializer
+    UserDetailsOutputSerializer, RegistrationOutputSerializer, UserListSerializer, RelationTypeListSerializer
 )
-
 from .models import *
+from .utils import (map_family_internal_relations)
 # Create your views here.
 
 class RegistrationView(APIView):
@@ -52,6 +52,7 @@ class RegistrationView(APIView):
             for member in family_members:
                 personal_details_json = member.pop('personal_details', {})
                 existing_user_obj = member.pop('user_id')
+                relation_obj = member.pop('relation')
 
                 self_relation = member.pop('self_relation')
                 try:
@@ -120,7 +121,7 @@ class RegistrationView(APIView):
                     user_personal_obj.nodes = personal_details_json
                     user_personal_obj.save()
                 except UserPersonalDetails.DoesNotExist:
-                    UserPersonalDetails.objects.create(
+                    user_personal_obj = UserPersonalDetails.objects.create(
                         user = user_obj,
                         nodes = personal_details_json
                     )
@@ -130,7 +131,9 @@ class RegistrationView(APIView):
                 created_users.append(
                     {
                         "user": user_obj,
-                        "self_relation_type": self_relation_type_obj
+                        "self_relation_type": self_relation_type_obj,
+                        "personal_details": user_personal_obj,
+                        "relation": relation_obj
                     }
                 )
                 created_user_ids.append(user_obj.id)
@@ -249,6 +252,8 @@ class RegistrationView(APIView):
                         residential_details = main_user_residential_obj,
                         family_type = family_type
                     )
+            
+            map_family_internal_relations(created_users)
             
         
         return Response({
@@ -647,3 +652,15 @@ class UserListView(APIView):
 
         serializer = UserListSerializer(user_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class RelationTypeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        relation_type_qs = RelationType.objects.filter(is_active=True).exclude(
+            name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+        )
+        serializer = RelationTypeListSerializer(relation_type_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    

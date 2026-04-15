@@ -24,7 +24,7 @@ class UserDetailsInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     self_relation = serializers.ChoiceField(
-        choices=['husband', 'wife', 'son', 'daughter', 'guest', 'workers'],
+        choices=['husband', 'wife', 'son', 'daughter', 'guest', 'worker'],
         required=True, allow_null=False
     )
     email = serializers.EmailField(required=True, allow_null=True)
@@ -47,6 +47,12 @@ class UserDetailsInputSerializer(serializers.Serializer):
     )
     expired_date = serializers.DateField(required=True, allow_null=True)
     personal_details = serializers.JSONField(required=True, allow_null=True)
+    relation = serializers.PrimaryKeyRelatedField(
+        queryset = RelationType.objects.filter(is_active=True).exclude(
+            name__in=['husband', 'wife', 'son', 'daughter', 'guest', 'worker']
+        ), 
+        required=True, allow_null=True
+    )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -154,7 +160,7 @@ class RegistrationInputSerializer(serializers.Serializer):
 
     residential_details = serializers.JSONField(required=True, allow_null=True)
 
-    family_members = UserDetailsInputSerializer(many=True, required=True, allow_null=False)
+    family_members = UserDetailsInputSerializer(many=True, required=True, allow_null=True)
 
 
     def validate_residential_details(self, value):
@@ -312,3 +318,8 @@ class UserListSerializer(serializers.ModelSerializer):
             'id', 'full_name', 'contact_no', 'is_verified', 'user_category', 'father_name',
             'profile_pic'
         ]
+
+class RelationTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RelationType
+        fields = ['id', 'display_name']

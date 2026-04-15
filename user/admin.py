@@ -3,7 +3,7 @@ from simple_history.admin import SimpleHistoryAdmin
 from .models import (
     UserRole, UserManager, UserResidentialDetails, User, UserProfile,
     DocumentType, UserDocument, UserProfessionalDetails, UserPersonalDetails,
-    FamilyType, Family, FamilyMember, RelationType, FamilyResident
+    FamilyType, Family, FamilyMember, RelationType, FamilyResident, UserRelations
 )
 
 @admin.register(UserRole)
@@ -92,3 +92,8 @@ class RelationTypeAdmin(SimpleHistoryAdmin):
     list_display = ('display_name', 'name', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
+
+
+@admin.register(UserRelations)
+class UserRelationsAdmin(SimpleHistoryAdmin):
+    list_display = ('from_user', 'relation_type', 'to_user', 'created_at')
