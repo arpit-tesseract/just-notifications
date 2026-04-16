@@ -546,6 +546,36 @@ class MultiUserDocumentUploadView(APIView):
                         errors.append({err_key: "Invalid document_type"})
                         continue
 
+                    # --- NEW: Check for deletion flag FIRST ---
+                    # form data sends strings, so check for 'true' or '1'
+                    is_deleted_str = str(doc.get("is_deleted", "")).lower()
+                    is_deleted = is_deleted_str in ['true', '1', 'yes']
+
+                    if is_deleted:
+                        if document_type.name == "photo":
+                            try:
+                                user_profile_obj = UserProfile.objects.get(user=user_obj)
+                                # Delete the actual file from storage (optional but recommended)
+                                if user_profile_obj.photo:
+                                    user_profile_obj.photo.delete(save=False) 
+                                user_profile_obj.photo = None
+                                user_profile_obj.save()
+                            except UserProfile.DoesNotExist:
+                                pass
+                        else:
+                            # Delete the record from the database
+                            docs_to_delete = UserDocument.objects.filter(
+                                user=user_obj, 
+                                document_type=document_type
+                            )
+                            # Loop to ensure file signals fire and files are removed from storage
+                            for d in docs_to_delete:
+                                d.soft_delete(user=request.user)
+                        
+                        # Move to the next document, do not process file uploads
+                        continue 
+
+
                     # File required Validation
                     if not file:
                         errors.append({err_key: "File is required"})
@@ -589,13 +619,13 @@ class MultiUserDocumentUploadView(APIView):
 
                     # created_ids.append(obj.id)
 
-        # rollback if any error across ANY user
-        if errors:
-            transaction.set_rollback(True)
-            return Response({
-                "message": "Document Bulk Upload failed",
-                "errors": errors
-            }, status=400)
+            # rollback if any error across ANY user
+            if errors:
+                transaction.set_rollback(True)
+                return Response({
+                    "message": "Document Bulk Upload failed",
+                    "errors": errors
+                }, status=400)
 
         return Response({
             "message": "Documents uploaded successfully",

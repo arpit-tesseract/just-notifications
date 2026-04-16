@@ -2,7 +2,7 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
-from common.models import AuditMixin
+from common.models import AuditMixin, SoftDeleteMixin
 # Create your models here.
 
 class UserRole(AuditMixin):
@@ -151,7 +151,7 @@ class DocumentType(AuditMixin):
     def __str__(self):
         return self.display_name
 
-class UserDocument(AuditMixin):
+class UserDocument(AuditMixin, SoftDeleteMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='documents')
     document_type = models.ForeignKey(DocumentType, on_delete=models.PROTECT)
     document_no = models.CharField(max_length=100, blank=True, null=True)

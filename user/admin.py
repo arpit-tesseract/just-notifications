@@ -45,9 +45,12 @@ class DocumentTypeAdmin(SimpleHistoryAdmin):
 
 @admin.register(UserDocument)
 class UserDocumentAdmin(SimpleHistoryAdmin):
-    list_display = ('user', 'document_type', 'document_no', 'created_at')
+    list_display = ('user', 'document_type', 'document_no', 'is_deleted', 'created_at')
     search_fields = ('user__full_name', 'user__contact_no', 'document_no')
-    list_filter = ('document_type',)
+    list_filter = ('document_type', 'is_deleted')
+
+    def get_queryset(self, request):
+        return self.model.all_objects.all()
 
 
 @admin.register(UserProfessionalDetails)
