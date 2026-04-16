@@ -9,7 +9,7 @@ urlpatterns = [
     path('register/user-suggestions/', views.UserSuggestionsListView.as_view(), name='suggest_users_lst'),
     path('register/user-suggestions/<int:user_id>/', views.UserSuggestionsListView.as_view(), name='suggest_users_lst'),
     
-    path('family-types-lst/', views.FamilyTypeListView.as_view(), name='family_types_lst'),
+    path('residential-types-lst/', views.ResidentialTypeListView.as_view(), name='family_types_lst'),
     path('document-types-lst/', views.DocumentTypeListView.as_view(), name='document_types_lst'),
     path('relation-type-lst/', views.RelationTypeListView.as_view(), name='relation_types_lst'),
 ]

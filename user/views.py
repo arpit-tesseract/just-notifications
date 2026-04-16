@@ -4,18 +4,18 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from django.db.models.expressions import RawSQL
 import re
 
 from .serializers import (
-    RegistrationInputSerializer, FamilyTypeListSerializer, DocumentTypeListSerializer, UserSuggestionListSerializer,
+    RegistrationInputSerializer, ResidentialTypeListSerializer, DocumentTypeListSerializer, UserSuggestionListSerializer,
     UserDetailsOutputSerializer, RegistrationOutputSerializer, UserListSerializer, RelationTypeListSerializer
 )
 from .models import *
-from .utils import (map_family_internal_relations)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user)
 # Create your views here.
 
 class RegistrationView(APIView):
@@ -28,11 +28,11 @@ class RegistrationView(APIView):
         validated_data = input_serializer.validated_data
         registration_user = validated_data.get('registration_user')
         user_category = validated_data.get('user_category')
-        family_type = validated_data.get('family_type')
+        residential_type = validated_data.get('residential_type')
         residential_details_json = validated_data.get('residential_details')
         family_members = validated_data.get('family_members')
 
-        if family_type.name != "current" and not registration_user:
+        if residential_type.name != "current" and not registration_user:
             return Response({
                 "registration_user": "This field is required"
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -42,6 +42,7 @@ class RegistrationView(APIView):
             created_user_ids = []
             main_user_obj = None
             main_user_residential_obj = None
+            husband_user = None
 
             # Residential Details
             user_residential_obj, _ = UserResidentialDetails.objects.get_or_create(
@@ -88,7 +89,7 @@ class RegistrationView(APIView):
                         user_category = user_category,
                     )
                 
-                if family_type.name == "current":
+                if residential_type.name == "current":
                     user_obj.is_verified = True
 
                 user_obj.current_residential_details = user_residential_obj
@@ -126,6 +127,8 @@ class RegistrationView(APIView):
                         nodes = personal_details_json
                     )
 
+                if self_relation == "husband":
+                    husband_user = user_obj
 
                 # Add to created users
                 created_users.append(
@@ -152,10 +155,9 @@ class RegistrationView(APIView):
                     "error": "Main user not found"
                 })
             
-            if family_type.name == "current":
+            if residential_type.name == "current":
                 registration_user = main_user_obj
              
-                print("Current")             
                 main_user_family_member_obj = FamilyMember.objects.filter(
                     user = main_user_obj,
                     is_main_user = True
@@ -180,16 +182,23 @@ class RegistrationView(APIView):
                 
                 family_obj.name = family_name
                 family_obj.save()
+                
+                registration_user_family_obj = family_obj
 
-                family_resident_obj, _ = FamilyResident.objects.get_or_create(
-                    family = family_obj,
-                    residential_details = user_residential_obj,
-                    family_type = family_type
-                )
+                try:
+                    with transaction.atomic():
+                        family_resident_obj, _ = FamilyResident.objects.get_or_create(
+                            family = family_obj,
+                            residential_details = user_residential_obj,
+                            residential_type = residential_type
+                        )
+                except IntegrityError:
+                    raise ValidationError({
+                        "residential_details": "For this residential details a family already exists."
+                    })
 
             else:
-                print("Not Current")
-                current_family_type_obj = FamilyType.objects.get(name="current")
+                current_residential_type_obj = ResidentialType.objects.get(name="current")
 
                 main_user_family_members = FamilyMember.objects.filter(
                     user = main_user_obj,
@@ -216,7 +225,6 @@ class RegistrationView(APIView):
                     main_user_family_obj.name = family_name
                     main_user_family_obj.save()
 
-                print("Registration User", registration_user)
                 registration_user_family_member_obj = FamilyMember.objects.filter(
                     user = registration_user,
                     is_main_user = True
@@ -229,31 +237,70 @@ class RegistrationView(APIView):
                 
                 registration_user_family_obj = registration_user_family_member_obj.family
 
-                try:
-                    family_resident_obj = FamilyResident.objects.get(
-                        family = main_user_family_obj,
-                        family_type = current_family_type_obj
-                    )
-                except FamilyResident.DoesNotExist:
-                    family_resident_obj = FamilyResident.objects.create(
-                        family = main_user_family_obj,
-                        residential_details = main_user_residential_obj,
-                        family_type = current_family_type_obj
-                    )
+                # try:
+                #     family_resident_obj = FamilyResident.objects.get(
+                #         family = main_user_family_obj,
+                #         residential_type = current_residential_type_obj
+                #     )
+                # except FamilyResident.DoesNotExist:
+                #     family_resident_obj = FamilyResident.objects.create(
+                #         family = main_user_family_obj,
+                #         residential_details = main_user_residential_obj,
+                #         residential_type = current_residential_type_obj
+                #     )
                 
+                # try:
+                #     family_resident_obj = FamilyResident.objects.get(
+                #         family = registration_user_family_obj,
+                #         residential_type = residential_type
+                #     )
+                # except FamilyResident.DoesNotExist:
+                #     family_resident_obj = FamilyResident.objects.create(
+                #         family = registration_user_family_obj,
+                #         residential_details = main_user_residential_obj,
+                #         residential_type = residential_type
+                #     )
+
+                # 1. Check for Main User Family Resident
+                # if FamilyResident.objects.filter(
+                #     residential_details=main_user_residential_obj, 
+                #     residential_type=current_residential_type_obj
+                # ).exists():
+                #     raise ValidationError({
+                #         "residential_details": "A family resident with these residential details and this family type already exists."
+                #     })
+
+                # 1. Check for Main User Family Resident
                 try:
-                    family_resident_obj = FamilyResident.objects.get(
-                        family = registration_user_family_obj,
-                        family_type = family_type
-                    )
-                except FamilyResident.DoesNotExist:
-                    family_resident_obj = FamilyResident.objects.create(
-                        family = registration_user_family_obj,
-                        residential_details = main_user_residential_obj,
-                        family_type = family_type
-                    )
+                    with transaction.atomic():
+                        family_resident_obj, created = FamilyResident.objects.get_or_create(
+                            family=main_user_family_obj,
+                            residential_type=current_residential_type_obj,
+                            defaults={'residential_details': main_user_residential_obj}
+                        )
+                except IntegrityError:
+                    raise ValidationError({
+                        "residential_details": "For this residential details a family already exists."
+                    })
+
+                # 2. Check for Registration User Family Resident
+                try:
+                    with transaction.atomic():
+                        registration_resident_obj, created = FamilyResident.objects.get_or_create(
+                            family=registration_user_family_obj,
+                            residential_type=residential_type,
+                            defaults={'residential_details': main_user_residential_obj}
+                        )
+                except IntegrityError:
+                    raise ValidationError({
+                        "residential_details": "For this residential details a family already exists."
+                    })
             
+            # Map family internal relations
             map_family_internal_relations(created_users)
+
+            # Map relations, native, inlaws, maternal
+            map_relations_with_husband_user(registration_user_family_obj, created_users)
             
         
         return Response({
@@ -266,7 +313,7 @@ class RegistrationView(APIView):
 
     def get(self, request):
         user_id = request.query_params.get("user_id", "").strip()
-        family_type = request.query_params.get("family_type", "current").strip()
+        residential_type = request.query_params.get("residential_type", "current").strip()
         registration_user = request.query_params.get("registration_user", "").strip()
 
         # user_id param validation
@@ -296,19 +343,19 @@ class RegistrationView(APIView):
         else:
             registration_user_obj = None
         
-        # family_type param validation
+        # residential_type param validation
         try: 
-            family_type_obj = FamilyType.objects.get(name=family_type)
-        except FamilyType.DoesNotExist:
+            residential_type_obj = ResidentialType.objects.get(name=residential_type)
+        except ResidentialType.DoesNotExist:
             return Response({
                 "error": "Something went wrong. Please try again.",
-                "details": "Invalid family_type"
+                "details": "Invalid residential_type"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if family_type != "current" and not registration_user_obj:
+        if residential_type != "current" and not registration_user_obj:
             return Response({
                 "error": "Something went wrong. Please try again.",
-                "details": "registration_user is required when family_type is not 'current'"
+                "details": "registration_user is required when residential_type is not 'current'"
             }, status=status.HTTP_400_BAD_REQUEST)
         
         if registration_user_obj:
@@ -317,7 +364,7 @@ class RegistrationView(APIView):
                 family_obj = family_member_obj.family
 
                 try:
-                    residential_obj = FamilyResident.objects.get(family=family_obj, family_type=family_type_obj).residential_details
+                    residential_obj = FamilyResident.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
                 except FamilyResident.DoesNotExist:
                     return Response({
                         "error": "Something went wrong. Please try again.",
@@ -330,9 +377,7 @@ class RegistrationView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 try:
-                    print("Residential obj", residential_obj)
-                    print("Family type obj", family_type_obj)
-                    family_obj = FamilyResident.objects.get(residential_details=residential_obj, family_type__name="current").family
+                    family_obj = FamilyResident.objects.get(residential_details=residential_obj, residential_type__name="current").family
                 except FamilyResident.DoesNotExist:
                     return Response({
                         "error": "Something went wrong. Please try again.",
@@ -353,7 +398,7 @@ class RegistrationView(APIView):
             serializer = RegistrationOutputSerializer(
                 family_obj,
                 context = {
-                    "family_type": family_type_obj,
+                    "residential_type": residential_type_obj,
                     "registration_user": registration_user_obj,
                     "residential_details": residential_obj
                 }
@@ -385,7 +430,7 @@ class RegistrationView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            residential_obj = FamilyResident.objects.get(family=family_obj, family_type=family_type_obj).residential_details
+            residential_obj = FamilyResident.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
         except FamilyResident.DoesNotExist:
             return Response({
                 "error": "Something went wrong. Please try again.",
@@ -398,7 +443,7 @@ class RegistrationView(APIView):
         serializer = RegistrationOutputSerializer(
             family_obj,
             context = {
-                "family_type": family_type_obj,
+                "residential_type": residential_type_obj,
                 "registration_user": registration_user_obj,
                 "residential_details": residential_obj
             }
@@ -407,12 +452,12 @@ class RegistrationView(APIView):
 
 
 
-class FamilyTypeListView(APIView):
+class ResidentialTypeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        family_type_qs = FamilyType.objects.filter(is_active=True)
-        serializer = FamilyTypeListSerializer(family_type_qs, many=True)
+        residential_type_qs = ResidentialType.objects.filter(is_active=True)
+        serializer = ResidentialTypeListSerializer(residential_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -569,10 +614,8 @@ class UserSuggestionsListView(APIView):
             filters = Q()
 
             if full_name:
-                print("full_name", full_name)
                 filters |= Q(full_name__icontains=full_name)
             if contact_no:
-                print("contact_no", contact_no)
                 filters |= Q(contact_no__icontains=contact_no)
             
             if not filters:

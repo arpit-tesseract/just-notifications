@@ -208,3 +208,16 @@ def map_family_internal_relations(users):
                         relation_type=relation_type_obj,
                         to_user=worker.get("user")
                     )
+
+
+def map_relations_with_husband_user(registration_family_obj, users):
+    registration_husband_user = registration_family_obj.members.filter(self_relation_type__name="husband").first().user
+    for user in users:
+        relation_type_objs = user.get("relation")
+        if relation_type_objs:
+            for relation in relation_type_objs:
+                UserRelations.objects.get_or_create(
+                    from_user=user.get("user"),
+                    relation_type=relation,
+                    to_user=registration_husband_user
+                )

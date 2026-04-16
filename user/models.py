@@ -176,7 +176,7 @@ class UserPersonalDetails(AuditMixin):
     history = HistoricalRecords()
 
 
-class FamilyType(AuditMixin):
+class ResidentialType(AuditMixin):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
     order = models.PositiveIntegerField()
@@ -223,12 +223,23 @@ class FamilyMember(AuditMixin):
 class FamilyResident(AuditMixin):
     family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='residents')
     residential_details = models.ForeignKey(UserResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
-    family_type = models.ForeignKey(FamilyType, on_delete=models.PROTECT)
+    residential_type = models.ForeignKey(ResidentialType, on_delete=models.PROTECT)
 
     history = HistoricalRecords()
 
+    class Meta:
+        # Enforce that a residential user can only have one record of a specific family type
+        constraints = [
+            models.UniqueConstraint(
+                fields=['residential_details', 'residential_type'], 
+                name='unique_resident_residential_type',
+                violation_error_message="A record with this residential details and family type already exists."
+            )
+        ]
+
     def __str__(self):
         return f"{self.family.id} - {self.residential_details}"
+    
 
 
 
