@@ -33,6 +33,7 @@ class LevelSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'display_name',
             'dimension',
             'parent',
             'child',
@@ -152,7 +153,8 @@ class LevelSerializer(serializers.ModelSerializer):
             level_logger.info(f"Try to updating level {instance.name} to {validated_data.get('name')}")
             instance.code_digits = validated_data.get('code_digits', instance.code_digits)
             instance.name = validated_data.get('name', instance.name)
-            instance.save(update_fields=['name', 'code_digits'])
+            instance.display_name = validated_data.get('display_name', instance.display_name)
+            instance.save(update_fields=['display_name', 'name', 'code_digits'])
         except Exception as e:
             level_logger.exception("Failed to update level:", e)
             raise serializers.ValidationError({"error": "Failed to update level."})
@@ -282,19 +284,24 @@ class LevelSerializer(serializers.ModelSerializer):
 
 class LevelIdNameSerializerWithCustomColumn(serializers.ModelSerializer):
     parent_name = serializers.SerializerMethodField()
+    parent_display_name = serializers.SerializerMethodField()
     class Meta:
         model = Level
-        fields = ['id', 'name', 'single_mode',  'parent_name', 'code_digits', 'extra_fields_schema']
+        fields = ['id', 'name', 'display_name', 'single_mode',  'parent_name', 'parent_display_name', 'code_digits', 'extra_fields_schema']
     
     def get_parent_name(self, obj):
         if obj.parent:
             return obj.parent.name
+    
+    def get_parent_display_name(self, obj):
+        if obj.parent:
+            return obj.parent.display_name
         
 class LevelIdNameSerializer(serializers.ModelSerializer):
     parent_name = serializers.SerializerMethodField()
     class Meta:
         model = Level
-        fields = ['id', 'name', 'parent_name', 'single_mode']
+        fields = ['id', 'name', 'display_name', 'parent_name', 'single_mode']
     
     def get_parent_name(self, obj):
         if obj.parent:
@@ -305,7 +312,7 @@ class LevelDetailSerializer(serializers.ModelSerializer):
     dimension = DimensionIdNameSerializer()
     class Meta:
         model = Level
-        fields = ['id', 'name', 'parent', 'dimension', 'sort_order']
+        fields = ['id', 'name', 'display_name', 'parent', 'dimension', 'sort_order']
 
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -470,6 +477,7 @@ class NodeOutputSerializer(serializers.ModelSerializer):
     attributes = serializers.SerializerMethodField()
     code = serializers.SerializerMethodField()
     alias = serializers.SerializerMethodField()
+    relationships = serializers.SerializerMethodField()
     class Meta:
         model = Node
         fields = [
@@ -483,6 +491,7 @@ class NodeOutputSerializer(serializers.ModelSerializer):
             'updated_at',
             'attributes',
             'alias', 
+            'relationships'
         ]
     
     def get_code(self, obj):
@@ -544,11 +553,33 @@ class NodeOutputSerializer(serializers.ModelSerializer):
             })
 
         return attribute_list
+    
+    def get_relationships(self, instance):
+        node_relationships = NodeRelationship.objects.filter(territory=instance)
+        output = []
+        for relationship in node_relationships:
+            data = NodeRelationshipOutputSerializer(relationship).data
+            output.append(data)
+        return output
 
 
 
 class NodeSerializer(serializers.ModelSerializer):
     alias = NodeAliasSerializer(many=True, required=False, allow_null=True)
+    parent_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        write_only=True,
+        help_text="Provide multiple parent IDs to create parallel nodes across branches."
+    )
+
+    # NEW: Accept relationships in the same payload
+    relationships = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        write_only=True,
+        help_text="List of relationship objects to create/update/delete along with the node."
+    )
     class Meta:
         model = Node
         exclude = ['created_at', 'updated_at']
@@ -562,6 +593,7 @@ class NodeSerializer(serializers.ModelSerializer):
         dimension = attrs.get('dimension') if 'dimension' in attrs else (instance.dimension if instance else None)
         level = attrs.get('level') if 'level' in attrs else (instance.level if instance else None)
         parent = attrs.get('parent') if 'parent' in attrs else (instance.parent if instance else None)
+        parent_ids = attrs.get('parent_ids', [])
         code = attrs.get('code') if 'code' in attrs else (instance.code if instance else None)
 
         code_digits = level.code_digits if level else 2
@@ -575,59 +607,58 @@ class NodeSerializer(serializers.ModelSerializer):
             attributes = instance.attributes or {}
 
         # ---------------------------------------------------------
-        # 2. NEW LOGIC: Conditional Unique Code Check
+        # 2. Build the list of parents to validate
         # ---------------------------------------------------------
-        if code is not None:
-            # Start with all nodes
-            qs = Node.objects.all()
-            
-            # If updating, exclude ourselves
-            if instance:
-                qs = qs.exclude(pk=instance.pk)
-            
-            # CASE A: Child Node (Parent is NOT NULL)
-            if parent is not None:
-                if qs.filter(parent=parent, level=level, code=code).exists():
-                    raise serializers.ValidationError({
-                        "code": f"Code '{code}' is already used by another node under parent '{parent.name}'."
-                    })
-            
-            # CASE B: Top/Global Node (Parent IS NULL)
-            else:
-                if qs.filter(parent__isnull=True, dimension=dimension, level=level, code=code).exists():
-                    raise serializers.ValidationError({
-                        "code": f"Code '{code}' is already used."
-                    })
-
-        # ---------------------------------------------------------
-        # 3. EXISTING LOGIC: Parent Consistency Checks
-        # ---------------------------------------------------------
-        if parent:
-            # We use the resolved 'dimension' variable we created at step 1
-            if parent.dimension != dimension:
-                raise serializers.ValidationError({"parent": "Parent must be in the same dimension."})
-            
-            if instance and parent.id == instance.id:
-                raise serializers.ValidationError({"parent": "Parent cannot be self."})
+        parents_to_check = []
+        if not instance and parent_ids:
+            parents_to_check = list(Node.objects.filter(id__in=parent_ids))
+            if len(parents_to_check) != len(set(parent_ids)):
+                raise serializers.ValidationError({"parent_ids": "One or more parent IDs are invalid."})
+        elif parent:
+            parents_to_check = [parent]
         else:
-            if level.parent:
-                raise serializers.ValidationError({"parent": "Parent is required."})
+            parents_to_check = [None] # Top-level/Global Node
 
+        # ---------------------------------------------------------
+        # 3. Validation Logic (Uniqueness & Consistency)
+        # ---------------------------------------------------------
+        for p in parents_to_check:
+            # A. Parent Consistency
+            if p:
+                if p.dimension != dimension:
+                    raise serializers.ValidationError({"parent": f"Parent '{p.name}' must be in the same dimension."})
+                if instance and p.id == instance.id:
+                    raise serializers.ValidationError({"parent": "Parent cannot be self."})
+
+            # B. Conditional Unique Code Check (Looping through all parents)
+            if code is not None:
+                qs = Node.objects.all()
+                if instance:
+                    qs = qs.exclude(pk=instance.pk)
+
+                if p is not None:
+                    if qs.filter(parent=p, level=level, code=code).exists():
+                        raise serializers.ValidationError({
+                            "code": f"Code '{code}' is already used under '{p.name}'."
+                        })
+                else:
+                    if qs.filter(parent__isnull=True, dimension=dimension, level=level, code=code).exists():
+                        raise serializers.ValidationError({
+                            "code": f"Code '{code}' is already used at the Top Level."
+                        })
+
+        # C. Check if Parent is strictly required
+        if not parents_to_check[0] and level and level.parent:
+            raise serializers.ValidationError({"parent": "This field is required."})
         
         # ---------------------------------------------------------
-        # 4. EXISTING LOGIC: Schema Validation (Attributes)
+        # 4. Schema Validation (Attributes)
         # ---------------------------------------------------------
         if level:
-            # A. Get allowed keys from Level Schema
             schema = level.extra_fields_schema or []
-            
             if attributes:
                 allowed_keys = {col.get('name') for col in schema}
-                
-                # B. Get incoming keys
                 incoming_keys = set(attributes.keys())
-                
-                # C. Find 'Junk' keys (Incoming - Allowed)
                 unknown_keys = incoming_keys - allowed_keys
                 
                 if unknown_keys:
@@ -635,48 +666,70 @@ class NodeSerializer(serializers.ModelSerializer):
                         "attributes": f"Invalid custom columns detected: {list(unknown_keys)}. Allowed columns: {list(allowed_keys)}"
                     })
             
-            # D. Strict Type Validation via Model Method
-            # Create temp node to reuse the model's clean logic
             temp_node = Node(level=level, attributes=attributes)
             try:
                 temp_node.validate_attributes()
             except DjangoValidationError as e:
-                # Convert Django Error to DRF Error
                 if hasattr(e, 'messages'):
                      raise serializers.ValidationError({"attributes": e.messages})
                 raise serializers.ValidationError({"attributes": str(e)})
         
-        # Pass the processed attributes back to attrs
         attrs['attributes'] = attributes
+        attrs['validated_parents'] = parents_to_check # Pass these to create()
         return attrs
 
     def create(self, validated_data):
         alias_data = validated_data.pop('alias', [])
+        validated_data.pop('parent_ids', None) # Remove it so super() doesn't break
+        parents_to_create = validated_data.pop('validated_parents', [None])
+
+        # NEW: Extract relationships data
+        relationships_data = validated_data.pop('relationships', [])
+
+        created_nodes = []
+
         try:
             with transaction.atomic():
-                node = super().create(validated_data)
-                
-                # create alias
-                if alias_data:
-                    alias_names = []
-                    for alias in alias_data:
-                        NodeAlias.objects.create(node=node, **alias)
-                        alias_names.append(alias.get('name'))
+                for p in parents_to_create:
+                    node_data = validated_data.copy()
+                    node_data['parent'] = p
                     
-                    # # 3. Update the reason on that exact history record
-                    # update_change_reason(node, f"Created with aliases: {', '.join(alias_names)}")
-                    # Store creation aliases as a hidden JSON string
-                    alias_diff = {"before": [], "after": alias_names}
-                    update_change_reason(node, f"aliases:{json.dumps(alias_diff)}")
+                    # Create the individual node
+                    node = super().create(node_data)
                     
+                    # Apply Aliases
+                    if alias_data:
+                        alias_names = []
+                        for alias in alias_data:
+                            NodeAlias.objects.create(node=node, **alias)
+                            alias_names.append(alias.get('name'))
+                        
+                        alias_diff = {"before": [], "after": alias_names}
+                        update_change_reason(node, f"aliases:{json.dumps(alias_diff)}")
+
+                    # NEW: Process Relationships
+                    if relationships_data:
+                        self._process_relationships(node, relationships_data)
+                        
+                    created_nodes.append(node)
+        except serializers.ValidationError as e:
+            raise e # Re-raise validation errors so they format properly
         except Exception as e:
-            raise ValidationError({"error": "Error creating node."})
-                
-        return node
+            raise serializers.ValidationError({"error": "Error creating node(s)."})
+            
+        # DRF expects a single instance back. We return the first one, 
+        # but attach the full list so our ViewSet can grab it.
+        first_node = created_nodes[0]
+        first_node._created_nodes_list = created_nodes
+        return first_node
 
     def update(self, instance, validated_data):
         has_alias_field = 'alias' in validated_data
-        alias_data = validated_data.pop('alias')
+        alias_data = validated_data.pop('alias',[])
+
+        # NEW: Extract relationships data
+        relationships_data = validated_data.pop('relationships', None)
+
         if alias_data is None:
             alias_data = []
             
@@ -705,6 +758,10 @@ class NodeSerializer(serializers.ModelSerializer):
                     "after": list(incoming_names_set)
                 }
                 reason_parts.append(f"aliases:{json.dumps(alias_diff)}")
+
+        # NEW: Process Relationships during update
+        if relationships_data is not None:
+            self._process_relationships(instance, relationships_data)
         
         # 2. Inject the change reason into the instance 
         if reason_parts:
@@ -722,6 +779,73 @@ class NodeSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
             
         return instance
+    
+
+    # NEW: Helper method to handle the heavy lifting
+    def _process_relationships(self, node, relationships_data):
+        """
+        Mimics the bulk_manage logic, but auto-injects the current Node's ID.
+        """
+        # Grab the request user for soft-delete history logging
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        for index, item_data in enumerate(relationships_data):
+            
+            # --- AUTO-INJECT NODE ID ---
+            # If the frontend passes 'controller' but no 'territory', assume the new Node IS the territory!
+            # if 'territory' not in item_data and 'controller' in item_data:
+            #     item_data['territory'] = node.id
+            # elif 'controller' not in item_data and 'territory' in item_data:
+            #     item_data['controller'] = node.id
+            # elif 'territory' not in item_data and 'controller' not in item_data:
+            #      raise serializers.ValidationError({"relationships": f"Row {index}: Must specify at least one side of the relationship ('territory' or 'controller')."})
+
+            item_data['territory'] = node.id
+
+            item_id = item_data.get('id')
+            is_deleted_flag = item_data.get('delete', False)
+
+            # --- SCENARIO 1: DELETE ---
+            if item_id and is_deleted_flag:
+                try:
+                    rel = NodeRelationship.objects.get(id=item_id)
+                    rel.soft_delete(user=user)
+                    update_change_reason(rel, f"Deleted via Node '{node.name}' update")
+                except NodeRelationship.DoesNotExist:
+                    raise serializers.ValidationError({"relationships": f"Row {index}: ID {item_id} not found for deletion."})
+                continue
+
+            # --- SCENARIO 2: UPDATE ---
+            if item_id and not is_deleted_flag:
+                try:
+                    rel = NodeRelationship.objects.get(id=item_id)
+                    rel_serializer = NodeRelationshipInputSerializer(rel, data=item_data, partial=True)
+                    if rel_serializer.is_valid():
+                        try:
+                            with transaction.atomic():
+                                updated_rel = rel_serializer.save()
+                                update_change_reason(updated_rel, f"Updated via Node '{node.name}' update")
+                        except IntegrityError:
+                            raise serializers.ValidationError({"relationships": f"Row {index}: This relationship already exists."})
+                    else:
+                        raise serializers.ValidationError({"relationships": rel_serializer.errors})
+                except NodeRelationship.DoesNotExist:
+                    raise serializers.ValidationError({"relationships": f"Row {index}: ID {item_id} not found for update."})
+                continue
+
+            # --- SCENARIO 3: CREATE ---
+            if not item_id:
+                rel_serializer = NodeRelationshipInputSerializer(data=item_data)
+                if rel_serializer.is_valid():
+                    try:
+                        with transaction.atomic():
+                            new_rel = rel_serializer.save()
+                            update_change_reason(new_rel, f"Created via Node '{node.name}'")
+                    except IntegrityError:
+                        raise serializers.ValidationError({"relationships": f"Row {index}: This relationship already exists."})
+                else:
+                    raise serializers.ValidationError({"relationships": rel_serializer.errors})
 
 
 class SplitNodeSerializer(serializers.Serializer):
@@ -765,6 +889,87 @@ class SplitNodeInputSerializer(serializers.Serializer):
             })
 
         return attrs
+    
+
+class NodeRelationshipInputSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NodeRelationship
+        fields = [
+            'territory',
+            'controller',
+            'relationship_type',
+            'start_date',
+            'end_date',
+            'notes'
+        ]
+    
+    def validate(self, attrs):
+        # 1. Get the incoming data (or fallback to the existing instance if updating)
+        rel_type = attrs.get('relationship_type', getattr(self.instance, 'relationship_type', None))
+        start_date = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end_date = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+
+        errors = {}
+
+        # 2. General Date Logic: Start Date cannot be after End Date
+        if start_date and end_date and start_date > end_date:
+            errors['start_date'] = "Start date cannot be after the end date."
+
+        # 3. specific rules based on relationship_type
+        if rel_type == 'leased_to':
+            if not start_date:
+                errors['start_date'] = "Start date is required for leased territories."
+            if not end_date:
+                errors['end_date'] = "End date is required for leased territories."
+
+        elif rel_type == 'historical':
+            if not end_date:
+                errors['end_date'] = "End date is required for historical relationships."
+
+        elif rel_type in ['administered_by', 'claimed_by']:
+            if end_date:
+                # Force end_date to None, or throw an error. Throwing an error is safer so the user knows.
+                errors['end_date'] = f"An active '{rel_type}' relationship cannot have an end date."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
+
+
+class NodeRelationshipOutputSerializer(serializers.ModelSerializer):
+    territory = serializers.SerializerMethodField()
+    controller = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NodeRelationship
+        fields = [
+            'id',
+            'territory',
+            'controller',
+            'relationship_type',
+            'start_date',
+            'end_date',
+            'notes'
+        ]
+
+    def get_territory(self, obj):
+        return {
+            "id": obj.territory.id,
+            "name": obj.territory.name
+        }
+
+    def get_controller(self, obj):
+        return {
+            "id": obj.controller.id,
+            "name": obj.controller.name
+        }
+
+
+class HistoricalNodeRelationshipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NodeRelationship.history.model
+        fields = '__all__'
 
 class RemoveTimestampMixin:
     """
@@ -2921,14 +3126,14 @@ class NodeMergeCreateSerializer(serializers.Serializer):
             if parent is not None:
                 if qs.filter(parent=parent, level=target_level, code=code).exists():
                     raise serializers.ValidationError({
-                        "code": f"Code '{code}' is already used by another node under parent '{parent.name}'."
+                        "code": f"Code '{code}' is already used under '{parent.name}'."
                     })
             
             # CASE B: Top/Global Node (Parent IS NULL)
             else:
                 if qs.filter(parent__isnull=True, dimension=target_dimension, level=target_level, code=code).exists():
                     raise serializers.ValidationError({
-                        "code": f"Code '{code}' is already used at the Top Level for this Dimension/Level."
+                        "code": f"Code '{code}' is already used."
                     })
         
         if parent and parent.id in source_ids:

@@ -33,6 +33,13 @@ class NodeClosureAdmin(admin.ModelAdmin):
     list_display = ['ancestor', 'descendant', 'depth']
     list_filter = ['ancestor__level', 'ancestor__level__dimension__name']
 
+
+@admin.register(NodeRelationship)
+class NodeRelationshipAdmin(SimpleHistoryAdmin):
+    list_display = ['territory', 'relationship_type', 'controller', 'is_deleted']
+    def get_queryset(self, request):
+        return self.model.all_objects.all()
+
 # admin.site.register(SampleFile)
 # admin.site.register(Glob)
 # admin.site.register(Continent)

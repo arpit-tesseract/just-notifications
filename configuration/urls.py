@@ -5,6 +5,7 @@ from .views import *
 router = DefaultRouter()
 router.register(r'levels', LevelViewSet)
 router.register(r'nodes', NodeViewSet)
+router.register(r'nodes-relationships', NodeRelationshipViewset)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -16,6 +17,7 @@ urlpatterns = [
 
     path('nodes/<int:id>/history/', NodeHistoryDiffView.as_view()),
     path('levels/<int:id>/history/', LevelHistoryDiffView.as_view()),
+    path('nodes-relationships/<int:id>/history/', NodeRelationshipHistoryDiffView.as_view()),
 ]
 
 

@@ -239,7 +239,56 @@ class ResidentialDetail(models.Model):
 #         # Then, chain the filter to it.
 #         return super().get_queryset().filter(is_archive=False)
 
-class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
+# class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
+#     email = models.EmailField(unique=True)
+#     contact_no = models.CharField(max_length=20, unique=True)
+#     user_role = models.ManyToManyField(UserRole)
+#     is_super_admin = models.BooleanField(default=False)
+#     is_verified = models.BooleanField(default=False)
+#     is_staff = models.BooleanField(default=False)
+    
+#     full_name = models.CharField( max_length=50)
+#     pet_name = models.CharField(max_length=50, null=True, blank=True)
+#     father_name = models.CharField(max_length=50)
+#     photo = models.ImageField(upload_to='users/photo/', blank=True, null=True)
+#     gender = models.CharField(choices=[('male','Male'), ('female','Female'), ('other','Other')], max_length=20)
+#     date_of_birth = models.DateField()
+#     blood_group = models.CharField(max_length=4, null=True, blank=True)
+#     marital_status = models.CharField(choices=[('single','Single'), ('married','Married')], max_length=20)
+#     expired_date = models.DateField(null=True, blank=True)
+#     current_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='current_residential_details')
+#     owner_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='owner_residential_details')
+#     permanent_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='permanent_residential_details')
+#     native_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='native_residential_details')
+#     inlaws_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='inlaws_residential_details')
+#     maternal_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='maternal_residential_details')
+#     business_residential_details = models.ForeignKey(ResidentialDetail, on_delete=models.SET_NULL, null=True, blank=True, related_name='business_residential_details')
+    
+#     allocated_rooms = models.ManyToManyField(configm.Room, related_name='allocated_rooms', null=True, blank=True)
+#     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
+#     # allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
+    
+#     USERNAME_FIELD = 'email'
+#     REQUIRED_FIELDS = []
+
+#     objects = CustomUserManager()
+#     # all_objects = models.Manager()
+
+#     def __str__(self):
+#         return self.email
+
+#     def check_is_system_admin(self):
+#         # Check user role (case-insensitive match)
+#         return self.user_role.filter(name__iexact="system_admin").exists()
+    
+#     def check_is_super_admin(self):
+#         # Check boolean field
+#         if self.is_super_admin and self.user_role.filter(name__iexact="system_admin").exists():
+#             return True
+#         # Check user role (case-insensitive match)
+#         return False
+
+class CustomUser(ArchiveMixin):
     email = models.EmailField(unique=True)
     contact_no = models.CharField(max_length=20, unique=True)
     user_role = models.ManyToManyField(UserRole)
@@ -268,10 +317,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, ArchiveMixin):
     category_of_user = models.CharField(choices=[('owner','Owner'), ('tenant','Tenant'), ('grp_tenant','Group Tenant')], max_length=20, null=True, blank=True)
     # allocated_rooms = models.JSONField(null=True, blank=True, help_text="Allocated rooms of current residential details") # For current residential details
     
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = []
-
-    objects = CustomUserManager()
     # all_objects = models.Manager()
 
     def __str__(self):

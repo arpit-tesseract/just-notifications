@@ -30,7 +30,7 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 # This is cors header setup for ngrok to solve cors header error...
-'''
+
 CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
@@ -46,7 +46,6 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
     "ngrok-skip-browser-warning",
 ]
-'''
 
 # Application definition
 
@@ -57,11 +56,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'user',
     'user_management',
     'configuration',
     'common',
     'wallet',
-    
+
+    'channels',
     'simple_history',
     'corsheaders',
     'rest_framework',
@@ -83,7 +84,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'shashan.urls'
 CORS_ALLOW_ALL_ORIGINS = True
-AUTH_USER_MODEL = 'user_management.CustomUser'
+AUTH_USER_MODEL = 'user.User'
 
 TEMPLATES = [
     {
@@ -225,7 +226,7 @@ LOGGING = {
         'django': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         },
         'django.request': {
             'handlers': ['file'],
@@ -246,4 +247,27 @@ LOGGING = {
     },
 }
 
+# Celery Configuration Options
+# Command: celery -A shashan worker -l info --pool=solo
+CELERY_BROKER_URL = 'redis://localhost:6379/0' # Points to your Redis server
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Stores the results of tasks
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE # Uses the timezone already set in Django
 
+
+
+# Tell Django to use ASGI instead of WSGI for web sockets
+# runserver command for AGSI: daphne -b 0.0.0.0 -p 8000 shashan.asgi:application
+ASGI_APPLICATION = 'shashan.asgi.application'
+
+# Configure Redis as the middleman for WebSockets
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)], # Same port as your Celery Redis!
+        },
+    },
+}
