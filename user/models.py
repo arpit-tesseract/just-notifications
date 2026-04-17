@@ -1,6 +1,7 @@
 from django.db import models
 from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.utils import timezone
 
 from common.models import AuditMixin, SoftDeleteMixin
 # Create your models here.
@@ -18,6 +19,15 @@ class UserRole(AuditMixin):
 
 
 class UserManager(BaseUserManager):
+
+    def get_queryset(self):
+        # By default, hide deleted items across the entire User model
+        return super().get_queryset().filter(is_deleted=False)
+
+    def all_with_deleted(self):
+        # Custom method if you actually need to see everything (e.g. for admins)
+        return super().get_queryset()
+
     def create_user(self, contact_no, password=None, **extra_fields):
         if not contact_no:
             raise ValueError("Contact number must be provided")
@@ -65,7 +75,7 @@ class UserResidentialDetails(AuditMixin):
     
 
 
-class User(AbstractBaseUser, PermissionsMixin, AuditMixin):
+class User(AbstractBaseUser, PermissionsMixin, AuditMixin, SoftDeleteMixin):
     USER_CATEGORY_CHOICES = [
         ('owner', 'Owner'),
         ('tenant', 'Tenant'),
@@ -73,7 +83,7 @@ class User(AbstractBaseUser, PermissionsMixin, AuditMixin):
     ]
     full_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True, null=True, blank=True)
-    contact_no = models.CharField(max_length=20, unique=True)
+    contact_no = models.CharField(max_length=50, unique=True)
     roles = models.ManyToManyField(UserRole)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
@@ -91,8 +101,25 @@ class User(AbstractBaseUser, PermissionsMixin, AuditMixin):
     REQUIRED_FIELDS = []
 
     objects = UserManager()
+    all_objects = models.Manager()
 
     history = HistoricalRecords()
+
+    def soft_delete(self, user=None):
+        timestamp = int(timezone.now().timestamp())
+        post_fix = f"_del_{timestamp}"
+
+        if not self.contact_no.endswith(post_fix):
+            self.contact_no = f"{self.contact_no}{post_fix}"
+        
+        if getattr(self, 'email', None) and not self.email.endswith(post_fix):
+            parts = self.email.split('@')
+            if len(parts) == 2:
+                self.email = f"{parts[0]}{post_fix}@{parts[1]}"
+            else:
+                self.email = f"{self.email}{post_fix}"
+
+        return super().soft_delete(user)
 
     def __str__(self):
         return f"{self.full_name} - {self.contact_no}"

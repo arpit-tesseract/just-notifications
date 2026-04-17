@@ -255,9 +255,10 @@ class RegistrationOutputSerializer(serializers.Serializer):
         main_user_obj = family_obj.members.filter(is_main_user=True).first().user
         family_members_lst = []
         try:
-            family_members = family_obj.members.all()
+            family_members = family_obj.members.filter(user__is_deleted=False)
             for member in family_members:
                 user_obj = member.user
+                print(user_obj)
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details']

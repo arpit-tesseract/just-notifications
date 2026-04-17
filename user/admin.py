@@ -21,12 +21,15 @@ class UserResidentialDetailsAdmin(SimpleHistoryAdmin):
 
 @admin.register(User)
 class UserAdmin(SimpleHistoryAdmin):
-    list_display = ('full_name', 'contact_no', 'is_staff', 'is_superuser', 'is_verified', 'created_at')
+    list_display = ('full_name', 'contact_no', 'is_deleted', 'is_verified', 'created_at')
     search_fields = ('full_name', 'contact_no', 'email')
-    list_filter = ('is_staff', 'is_superuser', 'is_verified', 'roles')
+    list_filter = ('is_deleted', 'is_verified', 'roles')
     
     # CRITICAL: Prevents admins from accidentally overwriting hashed passwords with plain text
     readonly_fields = ('password', 'last_login')
+
+    def get_queryset(self, request):
+        return self.model.all_objects.all()
 
 
 @admin.register(UserProfile)

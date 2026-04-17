@@ -12,4 +12,6 @@ urlpatterns = [
     path('residential-types-lst/', views.ResidentialTypeListView.as_view(), name='family_types_lst'),
     path('document-types-lst/', views.DocumentTypeListView.as_view(), name='document_types_lst'),
     path('relation-type-lst/', views.RelationTypeListView.as_view(), name='relation_types_lst'),
+
+    path('delete/', views.DeleteUserView.as_view(), name='delete_user'),
 ]

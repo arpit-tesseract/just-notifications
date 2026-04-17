@@ -198,6 +198,7 @@ class RegistrationView(APIView):
                     })
 
             else:
+                print("created users", created_users)
                 current_residential_type_obj = ResidentialType.objects.get(name="current")
 
                 main_user_family_members = FamilyMember.objects.filter(
@@ -211,17 +212,18 @@ class RegistrationView(APIView):
                     main_user_family_obj = Family.objects.create(
                     )
 
-                    family_name = ""
-                    for user in created_users:
-                        user_obj = user.get("user")
-                        FamilyMember.objects.get_or_create(
-                            family = main_user_family_obj,
-                            user = user_obj,
-                            self_relation_type = user.get("self_relation_type"),
-                            is_main_user = user_obj.id == main_user_obj.id
-                        )
-                        family_name += user_obj.full_name[0].upper()
-
+                family_name = ""
+                for user in created_users:
+                    user_obj = user.get("user")
+                    member = FamilyMember.objects.get_or_create(
+                        family = main_user_family_obj,
+                        user = user_obj,
+                        self_relation_type = user.get("self_relation_type"),
+                        is_main_user = user_obj.id == main_user_obj.id
+                    )
+                    family_name += user_obj.full_name[0].upper()
+                    
+                    print("member", member)
                     main_user_family_obj.name = family_name
                     main_user_family_obj.save()
 
@@ -339,7 +341,16 @@ class RegistrationView(APIView):
                 return Response({
                     "registration_user": "Invalid registration_user id format"
                 }, status=status.HTTP_400_BAD_REQUEST)
-            registration_user_obj = get_object_or_404(User, id=registration_user)
+            
+            try:
+                registration_user_obj = User.objects.get(id=registration_user)
+            except User.DoesNotExist:
+                return Response({
+                    "registration_user": "Invalid registration_user id"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # registration_user_obj = get_object_or_404(User, id=registration_user)
+            print("registration_user_obj:", registration_user_obj)
         else:
             registration_user_obj = None
         
@@ -736,4 +747,95 @@ class RelationTypeListView(APIView):
         )
         serializer = RelationTypeListSerializer(relation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+from django.utils import timezone    
+
+class DeleteUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        print(int(timezone.now().timestamp()))
+        user_id = request.data.get("user_id")
+        want_continue = request.data.get("want_to_continue", False)
+
+        if not user_id:
+            return Response({"user_id": "User ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not isinstance(user_id, int):
+            return Response({"user_id": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if want_continue and not isinstance(want_continue, bool):
+            return Response({"want_continue": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_obj = get_object_or_404(User, id=user_id)
+
+        # Safety Check: Prevent the user from deleting themselves
+        if user_obj.id == request.user.id:
+            return Response({"error": "You cannot delete yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            existing_main_member_obj = FamilyMember.objects.get(user=user_obj, is_main_user=True)
+            if existing_main_member_obj:
+                family_obj = existing_main_member_obj.family
+                member_count = family_obj.members.filter(user__is_deleted=False).count()
+
+                warning_relation = None
+                if existing_main_member_obj.self_relation_type.name == "husband":
+                    warning_relation = "Wife"
+                    # Look for a valid spouse (Fetch directly excluding deleted users)
+                    future_main_member_obj = FamilyMember.objects.filter(
+                        family=family_obj, 
+                        self_relation_type__name="wife",
+                        user__is_deleted=False
+                    ).first()
+                else:
+                    warning_relation = "Husband"
+                    # Look for a valid spouse (Fetch directly excluding deleted users)
+                    future_main_member_obj = FamilyMember.objects.filter(
+                        family=family_obj, 
+                        self_relation_type__name="husband",
+                        user__is_deleted=False
+                    ).first()
+
+                print("future_main_member_obj:", future_main_member_obj)
+                if future_main_member_obj is None:
+                    if not want_continue and member_count > 1:
+                        return Response({"warning": f"{warning_relation} is not found for this user family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+                    for member in family_obj.members.all():
+                        member.user.soft_delete(user=request.user)
+                    return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
     
+
+                if future_main_member_obj.user.profile.expired_date:
+                    if not want_continue:
+                        return Response({"warning": f"{future_main_member_obj.self_relation_type.display_name}-{future_main_member_obj.user.full_name} is expired of this family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+                    for member in family_obj.members.all():
+                        member.user.soft_delete(user=request.user)
+                    return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
+                    
+
+                if not want_continue:
+                    return Response({"warning": f"After delete {existing_main_member_obj.user.full_name} {warning_relation}: '{future_main_member_obj.user.full_name}' will be main user."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                existing_main_member_obj.is_main_user = False
+                existing_main_member_obj.save()
+
+                future_main_member_obj.is_main_user = True
+                future_main_member_obj.save()
+
+        except FamilyMember.DoesNotExist:
+            pass
+        except Exception as e:
+            print(e)
+            return Response({"error": "Something went wrong. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        # Call custom Soft Delete method to preserve the Audit Trail
+        user_obj.soft_delete(user=request.user)
+
+    
+        return Response({
+            "message": f"Successfully deleted.",
+        }, status=status.HTTP_200_OK)
