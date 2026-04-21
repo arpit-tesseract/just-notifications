@@ -372,3 +372,27 @@ class RelationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = RelationType
         fields = ['id', 'display_name']
+
+
+# Family Tree Serializers
+
+class FamilyTreeNodeSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    gender = serializers.CharField(allow_null=True)
+    relation = serializers.CharField()
+    pidhi = serializers.IntegerField(allow_null=True)
+    is_main_user = serializers.BooleanField()
+    photo = serializers.CharField(allow_null=True)
+
+
+class FamilyTreeEdgeSerializer(serializers.Serializer):
+    from_user = serializers.IntegerField()
+    to_user = serializers.IntegerField()
+    relation = serializers.CharField()
+
+
+class FamilyTreeResponseSerializer(serializers.Serializer):
+    family_id = serializers.IntegerField()
+    nodes = FamilyTreeNodeSerializer(many=True)
+    edges = FamilyTreeEdgeSerializer(many=True)

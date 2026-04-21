@@ -15,7 +15,7 @@ from .serializers import (
     UserDetailsOutputSerializer, RegistrationOutputSerializer, UserListSerializer, RelationTypeListSerializer
 )
 from .models import *
-from .utils import (map_family_internal_relations, map_relations_with_husband_user)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi)
 # Create your views here.
 
 class RegistrationView(APIView):
@@ -839,3 +839,55 @@ class DeleteUserView(APIView):
         return Response({
             "message": f"Successfully deleted.",
         }, status=status.HTTP_200_OK)
+
+
+class FamilyTreeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        data = build_family_tree(user)
+
+        return Response(data)   
+
+
+
+
+class FamilyTreeByPidhiView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        """
+        GET /api/family-tree-by-pidhi/<user_id>/
+        """
+
+        main_member = FamilyMember.objects.filter(
+            user=user_id,
+            is_main_user=True
+        ).first()
+
+        if main_member:
+            member = main_member
+        else:
+            member = FamilyMember.objects.filter(
+                user=user_id
+            ).first()
+
+
+        if not member:
+            return Response(
+                {"error": "Family not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        family_id = member.family_id
+
+        data = build_family_tree_by_pidhi(family_id)
+
+        return Response(data, status=200)
+    
+

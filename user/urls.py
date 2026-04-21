@@ -14,4 +14,7 @@ urlpatterns = [
     path('relation-type-lst/', views.RelationTypeListView.as_view(), name='relation_types_lst'),
 
     path('delete/', views.DeleteUserView.as_view(), name='delete_user'),
+
+    path("family-tree/<int:user_id>/", views.FamilyTreeView.as_view(), name="family_tree"),
+    path("family-tree-by-pidhi/<int:user_id>/", views.FamilyTreeByPidhiView.as_view(), name="family_tree_by_pidhi"),
 ]
