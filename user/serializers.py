@@ -16,6 +16,23 @@ class DocumentTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentType
         fields = ['id', 'display_name', 'is_required']
+
+
+class UserProfessionalDetailsInputSerializer(serializers.Serializer):
+    id = serializers.IntegerField(required=True, allow_null=True)
+    nodes = serializers.JSONField(required=True, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
+
+    def validate_id(self, value):
+        if value:
+            try:
+                professional_details = UserProfessionalDetails.objects.get(id=value)
+            except UserProfessionalDetails.DoesNotExist:
+                raise serializers.ValidationError("Professional details not found.")
+            except Exception as e:
+                raise serializers.ValidationError(str(e))
+
+        return value
         
 
 class UserDetailsInputSerializer(serializers.Serializer):
@@ -46,13 +63,23 @@ class UserDetailsInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     expired_date = serializers.DateField(required=True, allow_null=True)
-    personal_details = serializers.JSONField(required=True, allow_null=True)
     relation = serializers.PrimaryKeyRelatedField(
         queryset = RelationType.objects.filter(is_active=True).exclude(
             name__in=['husband', 'wife', 'son', 'daughter', 'guest', 'worker']
         ), 
         many=True, required=True, allow_null=True
     )
+    personal_details = serializers.JSONField(required=True, allow_null=True)
+    professional_details = UserProfessionalDetailsInputSerializer(
+        many=True,
+        required=True,
+        allow_null=True
+    )
+    # professional_details = serializers.ListField(
+    #     child=serializers.JSONField(),
+    #     required=False,
+    #     allow_null=True
+    # )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -139,6 +166,30 @@ class UserDetailsInputSerializer(serializers.Serializer):
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
         return self._validate_node_json(value, dimension_obj)
+    
+    def validate_professional_details(self, value):
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
+
+        if not value:
+            return value
+
+        ids = []
+
+        for index, item in enumerate(value):
+
+            nodes = item.get("nodes")
+            row_id = item.get("id")
+
+            self._validate_node_json(nodes, dimension_obj)
+
+            if row_id:
+                if row_id in ids:
+                    raise serializers.ValidationError({
+                        index: "Duplicate profession id."
+                    })
+                ids.append(row_id)
+
+        return value
     
 
 
@@ -314,6 +365,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     self_relation = serializers.SerializerMethodField()
     personal_details = serializers.SerializerMethodField()
     residential_details = serializers.SerializerMethodField()
+    professional_details = serializers.SerializerMethodField()
     documents = UserDocumentOutputSerializer(
         source='user.documents',
         many=True
@@ -324,7 +376,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         fields = [
             'user_id', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
             'father_name', 'gender', 'dob', 'blood_group', 'marital_status', 'expired_date', 
-            'personal_details', 'residential_details', 'documents'
+            'personal_details', 'residential_details', 'professional_details', 'documents'
         ]
     
     def __init__(self, *args, **kwargs):
@@ -354,6 +406,26 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
             nodes_data = obj.user.current_residential_details.nodes
             return get_level_node_mapping(nodes_data)
 
+        except Exception:
+            return None
+    
+    def get_professional_details(self, obj):
+        try:
+            professional_details = obj.user.professional_details.all()
+            result = []
+            for detail in professional_details:
+                id = detail.id
+                node_mapping = get_level_node_mapping(detail.nodes)
+                is_active = detail.is_active
+                result.append(
+                    {
+                        "id": id,
+                        "nodes": node_mapping,
+                        "is_active": is_active
+                    }
+                )
+            return result
+        
         except Exception:
             return None
 

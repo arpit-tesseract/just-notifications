@@ -192,6 +192,7 @@ class UserDocument(AuditMixin, SoftDeleteMixin):
 class UserProfessionalDetails(AuditMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='professional_details')
     nodes = models.JSONField(default=dict, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
 

@@ -52,6 +52,7 @@ class RegistrationView(APIView):
 
             for member in family_members:
                 personal_details_json = member.pop('personal_details', {})
+                professional_details_lst = member.pop('professional_details', [])
                 existing_user_obj = member.pop('user_id')
                 relation_obj = member.pop('relation')
 
@@ -126,6 +127,33 @@ class RegistrationView(APIView):
                         user = user_obj,
                         nodes = personal_details_json
                     )
+                
+                print("professional_details_lst", professional_details_lst)
+                for professional_details in professional_details_lst:
+                    nodes = professional_details.pop('nodes')
+                    profession_id = professional_details.pop('id', None)
+                    is_active = professional_details.pop('is_active', True)
+                    
+                    if profession_id:
+                        try:
+                            professional_details_obj = UserProfessionalDetails.objects.get(
+                                id=profession_id,
+                                user=user_obj
+                            )
+                            professional_details_obj.nodes = nodes
+                            professional_details_obj.is_active = is_active
+                            professional_details_obj.save()
+                        except UserProfessionalDetails.DoesNotExist:
+                            raise ValidationError({
+                                "error": "Professional details not found"
+                            })
+
+                    else:
+                        UserProfessionalDetails.objects.create(
+                            user=user_obj,
+                            nodes=nodes,
+                            is_active=is_active
+                        )
 
                 if self_relation == "husband":
                     husband_user = user_obj
