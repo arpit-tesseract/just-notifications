@@ -405,8 +405,9 @@ def build_family_tree_by_pidhi(family_id):
 
         relations = UserRelations.objects.filter(
             Q(from_user_id=current_id) |
-            Q(to_user_id=current_id)
-        )
+            Q(to_user_id=current_id),
+            relation_type__category="general"
+        ).select_related("relation_type")
 
         for rel in relations:
             neighbour_ids = [rel.from_user_id, rel.to_user_id]
@@ -474,7 +475,8 @@ def build_family_tree_by_pidhi(family_id):
     # -------------------------------------------------
     relations = UserRelations.objects.filter(
         from_user_id__in=all_user_ids,
-        to_user_id__in=all_user_ids
+        to_user_id__in=all_user_ids,
+        relation_type__category="general"
     ).select_related("relation_type")
 
     edges = []

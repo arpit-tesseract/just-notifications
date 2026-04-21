@@ -218,9 +218,15 @@ class ResidentialType(AuditMixin):
         return self.display_name
     
 class RelationType(AuditMixin):
+    CATEGORY_CHOICES = [
+        ('general', 'General'),
+        ('in_laws', 'In Laws'),
+        ('maternal', 'Maternal'),
+    ]
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
 
     history = HistoricalRecords()
 

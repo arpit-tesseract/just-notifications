@@ -742,7 +742,9 @@ class RelationTypeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        relation_type_qs = RelationType.objects.filter(is_active=True).exclude(
+        category_param = request.query_params.get("category", "general").strip()
+
+        relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param).exclude(
             name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
         )
         serializer = RelationTypeListSerializer(relation_type_qs, many=True)
