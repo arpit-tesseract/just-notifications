@@ -130,9 +130,15 @@ class RegistrationView(APIView):
                 
                 print("professional_details_lst", professional_details_lst)
                 for professional_details in professional_details_lst:
-                    nodes = professional_details.pop('nodes')
-                    profession_id = professional_details.pop('id', None)
-                    is_active = professional_details.pop('is_active', True)
+                    residential_nodes = professional_details.get('residential_details', {})
+                    bussiness_residential_obj, _ = UserResidentialDetails.objects.get_or_create(
+                        nodes=residential_nodes
+                    )
+                    
+                    personal_nodes = professional_details.get('personal_details', {})
+                    professional_nodes = professional_details.get('professional_details', {})
+                    profession_id = professional_details.get('id', None)
+                    is_active = professional_details.get('is_active', True)
                     
                     if profession_id:
                         try:
@@ -140,7 +146,9 @@ class RegistrationView(APIView):
                                 id=profession_id,
                                 user=user_obj
                             )
-                            professional_details_obj.nodes = nodes
+                            professional_details_obj.residential_details = bussiness_residential_obj
+                            professional_details_obj.personal_nodes = personal_nodes
+                            professional_details_obj.professional_nodes = professional_nodes
                             professional_details_obj.is_active = is_active
                             professional_details_obj.save()
                         except UserProfessionalDetails.DoesNotExist:
@@ -151,7 +159,9 @@ class RegistrationView(APIView):
                     else:
                         UserProfessionalDetails.objects.create(
                             user=user_obj,
-                            nodes=nodes,
+                            residential_details=bussiness_residential_obj,
+                            personal_nodes=personal_nodes,
+                            professional_nodes=professional_nodes,
                             is_active=is_active
                         )
 

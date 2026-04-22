@@ -20,7 +20,9 @@ class DocumentTypeListSerializer(serializers.ModelSerializer):
 
 class UserProfessionalDetailsInputSerializer(serializers.Serializer):
     id = serializers.IntegerField(required=True, allow_null=True)
-    nodes = serializers.JSONField(required=True, allow_null=True)
+    residential_details = serializers.JSONField(required=True, allow_null=True)
+    personal_details = serializers.JSONField(required=True, allow_null=True)
+    professional_details = serializers.JSONField(required=True, allow_null=True)
     is_active = serializers.BooleanField(required=False)
 
     def validate_id(self, value):
@@ -168,7 +170,9 @@ class UserDetailsInputSerializer(serializers.Serializer):
         return self._validate_node_json(value, dimension_obj)
     
     def validate_professional_details(self, value):
-        dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
+        personal_dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
+        residential_dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
+        professional_dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
 
         if not value:
             return value
@@ -177,10 +181,14 @@ class UserDetailsInputSerializer(serializers.Serializer):
 
         for index, item in enumerate(value):
 
-            nodes = item.get("nodes")
+            residential_nodes = item.get("residential_details")
+            personal_nodes = item.get("personal_details")
+            professional_nodes = item.get("professional_details")
             row_id = item.get("id")
 
-            self._validate_node_json(nodes, dimension_obj)
+            self._validate_node_json(residential_nodes, residential_dimension_obj)
+            self._validate_node_json(personal_nodes, personal_dimension_obj)
+            self._validate_node_json(professional_nodes, professional_dimension_obj)
 
             if row_id:
                 if row_id in ids:
@@ -415,18 +423,27 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
             result = []
             for detail in professional_details:
                 id = detail.id
-                node_mapping = get_level_node_mapping(detail.nodes)
+                if detail.residential_details:
+                    residential_node_mapping = get_level_node_mapping(detail.residential_details.nodes)
+                else:
+                    residential_node_mapping = None
+                    
+                personal_node_mapping = get_level_node_mapping(detail.personal_nodes)
+                professional_node_mapping = get_level_node_mapping(detail.professional_nodes)
                 is_active = detail.is_active
                 result.append(
                     {
                         "id": id,
-                        "nodes": node_mapping,
+                        "residential_details": residential_node_mapping,
+                        "personal_details": personal_node_mapping,
+                        "professional_details": professional_node_mapping,
                         "is_active": is_active
                     }
                 )
             return result
         
-        except Exception:
+        except Exception as e:
+            print(e)
             return None
 
 
