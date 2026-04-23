@@ -1,9 +1,10 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 from .models import (
-    UserRole, UserManager, UserResidentialDetails, User, UserProfile,
+    UserRole, UserManager, ResidentialDetails, User, UserProfile,
     DocumentType, UserDocument, UserProfessionalDetails, UserPersonalDetails,
-    ResidentialType, Family, FamilyMember, RelationType, FamilyResident, UserRelations
+    ResidentialType, Family, FamilyMember, RelationType, ResidentMapping, UserRelations,
+    BusinessFamily, BusinessFamilyMember, DesignationType
 )
 
 @admin.register(UserRole)
@@ -13,8 +14,8 @@ class UserRoleAdmin(SimpleHistoryAdmin):
     list_filter = ('is_active',)
 
 
-@admin.register(UserResidentialDetails)
-class UserResidentialDetailsAdmin(SimpleHistoryAdmin):
+@admin.register(ResidentialDetails)
+class ResidentialDetailsAdmin(SimpleHistoryAdmin):
     # JSON fields are hard to list, so we display the ID and audit fields
     list_display = ('id', 'created_at', 'updated_at') 
 
@@ -79,7 +80,6 @@ class ResidentialTypeAdmin(SimpleHistoryAdmin):
 class FamilyAdmin(SimpleHistoryAdmin):
     list_display = ('id', 'name', 'created_at')
 
-
 @admin.register(FamilyMember)
 class FamilyMemberAdmin(SimpleHistoryAdmin):
     list_display = ('family', 'user', 'self_relation_type', 'is_main_user', 'created_at')
@@ -87,14 +87,32 @@ class FamilyMemberAdmin(SimpleHistoryAdmin):
     list_filter = ('family', 'is_main_user')
 
 
-@admin.register(FamilyResident)
-class FamilyResidentAdmin(SimpleHistoryAdmin):
-    list_display = ('family', 'residential_details', 'residential_type', 'created_at')
+@admin.register(BusinessFamily)
+class BusinessFamilyAdmin(SimpleHistoryAdmin):
+    list_display = ('id', 'name', 'created_at')
+
+@admin.register(BusinessFamilyMember)
+class BusinessFamilyMemberAdmin(SimpleHistoryAdmin):
+    list_display = ('business_family', 'user', 'self_designation_type', 'created_at')
+    search_fields = ('user__full_name', 'user__contact_no')
+    list_filter = ('business_family', )
+
+
+@admin.register(ResidentMapping)
+class ResidentMappingAdmin(SimpleHistoryAdmin):
+    list_display = ('family', 'business_family', 'residential_details', 'residential_type', 'created_at')
     list_filter = ('family', 'residential_type')
 
 
 @admin.register(RelationType)
 class RelationTypeAdmin(SimpleHistoryAdmin):
+    list_display = ('display_name', 'name', 'is_active')
+    search_fields = ('name', 'display_name')
+    list_filter = ('is_active',)
+
+
+@admin.register(DesignationType)
+class DesignationTypeAdmin(SimpleHistoryAdmin):
     list_display = ('display_name', 'name', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)

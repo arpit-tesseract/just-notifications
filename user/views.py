@@ -9,14 +9,105 @@ from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from django.db.models.expressions import RawSQL
 import re
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+
+
 
 from .serializers import (
-    RegistrationInputSerializer, ResidentialTypeListSerializer, DocumentTypeListSerializer, UserSuggestionListSerializer,
-    UserDetailsOutputSerializer, RegistrationOutputSerializer, UserListSerializer, RelationTypeListSerializer
+    LoginEmailPasswordSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
+    ResidentialTypeListSerializer, DocumentTypeListSerializer, RelationTypeListSerializer, DesignationTypeListSerializer,
+    BusinessFamilyListSerializer, BussinessFamilyDetailsOutputSerializer,
+    UserSuggestionListSerializer, UserDetailsOutputSerializer,
+    RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, 
 )
 from .models import *
 from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi)
 # Create your views here.
+
+
+class LoginWithEmailPasswordView(APIView):
+    def post(self, request):
+        serializer = LoginEmailPasswordSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        validated_data = serializer.validated_data
+        email = validated_data.get('email').strip().lower()
+        password = validated_data.get('password').strip()
+            
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Email does not exist"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if user.is_verified == False:
+            return Response(
+                {
+                    "error": "Your account is not verified"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not user.check_password(password):
+            return Response(
+                {"error": "Incorrect password"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        refresh = RefreshToken.for_user(user)
+        serializer = UserBasicDetailsOutputSerializer(user)
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": serializer.data
+            },
+            status=status.HTTP_200_OK)
+        
+        
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = LogoutInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        refresh_token = serializer.validated_data.get('refresh')
+
+        # Attempt to blacklist the refresh token
+        try:
+            token = RefreshToken(refresh_token)
+        except (TokenError, InvalidToken):
+            # Invalid or malformed token
+            return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify token belongs to requesting user
+        user_id = int(token.payload.get('user_id'))
+        if user_id != request.user.id:
+            return Response(
+                {"error": "You are not authorized to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            token.blacklist()
+            # if blacklist is successful then return success response
+            return Response(
+                {
+                    "message": "Successfully logged out."
+                }, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            # Token already blacklisted or invalid
+            Response(
+                {"error": "Something went wrong", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class RegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -26,10 +117,13 @@ class RegistrationView(APIView):
         input_serializer.is_valid(raise_exception=True)
 
         validated_data = input_serializer.validated_data
+
+        registration_type = validated_data.get('registration_type')
         registration_user = validated_data.get('registration_user')
         user_category = validated_data.get('user_category')
         residential_type = validated_data.get('residential_type')
         residential_details_json = validated_data.get('residential_details')
+        company_name = validated_data.get("company")
         family_members = validated_data.get('family_members')
 
         if residential_type.name != "current" and not registration_user:
@@ -37,17 +131,17 @@ class RegistrationView(APIView):
                 "registration_user": "This field is required"
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Residential Details
+        residential_obj, _ = ResidentialDetails.objects.get_or_create(
+            nodes=residential_details_json
+        )
+
         with transaction.atomic():
             created_users = []
             created_user_ids = []
             main_user_obj = None
             main_user_residential_obj = None
-            husband_user = None
-
-            # Residential Details
-            user_residential_obj, _ = UserResidentialDetails.objects.get_or_create(
-                nodes=residential_details_json
-            )
+            husband_user = None            
 
 
             for member in family_members:
@@ -56,13 +150,16 @@ class RegistrationView(APIView):
                 existing_user_obj = member.pop('user_id')
                 relation_obj = member.pop('relation')
 
-                self_relation = member.pop('self_relation')
-                try:
-                    self_relation_type_obj = RelationType.objects.get(name=self_relation)
-                except RelationType.DoesNotExist:
-                    raise ValidationError({
-                        "self_relation": "Invalid self relation."
-                    })
+                self_relation = member.pop('self_relation', None)
+                self_designation = member.pop('self_designation', None)
+
+                if self_relation:
+                    try:
+                        self_relation_type_obj = RelationType.objects.get(name=self_relation)
+                    except RelationType.DoesNotExist:
+                        raise ValidationError({
+                            "self_relation": "Invalid self relation."
+                        })
 
                 # User details
                 full_name = member.pop('full_name')
@@ -90,10 +187,10 @@ class RegistrationView(APIView):
                         user_category = user_category,
                     )
                 
-                if residential_type.name == "current":
+                if residential_type.name == "current" and registration_type == "resident":
                     user_obj.is_verified = True
 
-                user_obj.current_residential_details = user_residential_obj
+                user_obj.current_residential_details = residential_obj
                 
                 user_obj.save()
 
@@ -130,11 +227,33 @@ class RegistrationView(APIView):
                 
                 print("professional_details_lst", professional_details_lst)
                 for professional_details in professional_details_lst:
+                    company_name = professional_details.get('company')
                     residential_nodes = professional_details.get('residential_details', {})
-                    bussiness_residential_obj, _ = UserResidentialDetails.objects.get_or_create(
+
+                    bussiness_residential_obj, _ = ResidentialDetails.objects.get_or_create(
                         nodes=residential_nodes
                     )
+
+                    try:
+                        temp_resident_mapping_obj = ResidentMapping.objects.get(
+                            residential_details=bussiness_residential_obj,
+                            residential_type__name="business",
+                            business_family__name__iexact=company_name
+                        )
+                        business_family_obj = temp_resident_mapping_obj.business_family
+                    except ResidentMapping.DoesNotExist:
+                        business_family_obj = BusinessFamily.objects.create(name=company_name)
+                        business_residential_type_obj = ResidentialType.objects.get(name="business")
+
+                        ResidentMapping.objects.create(
+                            residential_details=bussiness_residential_obj,
+                            residential_type=business_residential_type_obj,
+                            business_family=business_family_obj
+                        )
                     
+
+
+                    designation_obj = professional_details.get('designation')
                     personal_nodes = professional_details.get('personal_details', {})
                     professional_nodes = professional_details.get('professional_details', {})
                     profession_id = professional_details.get('id', None)
@@ -146,9 +265,11 @@ class RegistrationView(APIView):
                                 id=profession_id,
                                 user=user_obj
                             )
+                            professional_details_obj.business_family = business_family_obj
                             professional_details_obj.residential_details = bussiness_residential_obj
                             professional_details_obj.personal_nodes = personal_nodes
                             professional_details_obj.professional_nodes = professional_nodes
+                            professional_details_obj.designation = designation_obj
                             professional_details_obj.is_active = is_active
                             professional_details_obj.save()
                         except UserProfessionalDetails.DoesNotExist:
@@ -159,11 +280,20 @@ class RegistrationView(APIView):
                     else:
                         UserProfessionalDetails.objects.create(
                             user=user_obj,
+                            business_family = business_family_obj,
                             residential_details=bussiness_residential_obj,
                             personal_nodes=personal_nodes,
                             professional_nodes=professional_nodes,
+                            designation=designation_obj,
                             is_active=is_active
                         )
+                    
+                    # Create members for this bussiness 
+                    business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
+                        business_family = business_family_obj,
+                        user = user_obj,
+                        self_designation_type = designation_obj
+                    )
 
                 if self_relation == "husband":
                     husband_user = user_obj
@@ -172,7 +302,8 @@ class RegistrationView(APIView):
                 created_users.append(
                     {
                         "user": user_obj,
-                        "self_relation_type": self_relation_type_obj,
+                        "self_relation_type": self_relation_type_obj if self_relation else None,
+                        "self_designation_type": self_designation,
                         "personal_details": user_personal_obj,
                         "relation": relation_obj
                     }
@@ -181,14 +312,14 @@ class RegistrationView(APIView):
 
                 if main_user_obj is None and self_relation == 'husband' and member.get('expired_date') is None:
                     main_user_obj = user_obj
-                    main_user_residential_obj = user_residential_obj
+                    main_user_residential_obj = residential_obj
 
                 elif main_user_obj is None and self_relation == 'wife' and member.get('expired_date') is None:
                     main_user_obj = user_obj
-                    main_user_residential_obj = user_residential_obj
+                    main_user_residential_obj = residential_obj
 
 
-            if not main_user_obj:
+            if not main_user_obj and residential_type.name != "business":
                 raise ValidationError({
                     "error": "Main user not found"
                 })
@@ -225,16 +356,49 @@ class RegistrationView(APIView):
 
                 try:
                     with transaction.atomic():
-                        family_resident_obj, _ = FamilyResident.objects.get_or_create(
+                        family_resident_obj, _ = ResidentMapping.objects.get_or_create(
                             family = family_obj,
-                            residential_details = user_residential_obj,
+                            residential_details = residential_obj,
                             residential_type = residential_type
                         )
                 except IntegrityError:
                     raise ValidationError({
                         "residential_details": "For this residential details a family already exists."
                     })
+                
+            elif residential_type.name == "business":
+                for user in created_users:
+                    user_obj = user.get("user")
+                    self_designation_type = user.get("self_designation_type")
 
+                    try:
+                        temp_resident_mapping_obj = ResidentMapping.objects.get(
+                            residential_details=residential_obj,
+                            residential_type=residential_type,
+                            business_family__name__iexact=company_name
+                        )
+                        business_family_obj = temp_resident_mapping_obj.business_family
+                        business_family_obj.is_verified = registration_type == "corporate"
+                        business_family_obj.save()
+
+                    except ResidentMapping.DoesNotExist:
+                        business_family_obj = BusinessFamily.objects.create(
+                            name = company_name, 
+                            is_verified = registration_type == "corporate"
+                        )
+
+                        ResidentMapping.objects.create(
+                            residential_details=residential_obj,
+                            residential_type=residential_type,
+                            business_family=business_family_obj
+                        )
+
+                    business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
+                        business_family = business_family_obj,
+                        user = user_obj,
+                        self_designation_type = self_designation_type
+                    )
+                    
             else:
                 print("created users", created_users)
                 current_residential_type_obj = ResidentialType.objects.get(name="current")
@@ -277,43 +441,11 @@ class RegistrationView(APIView):
                 
                 registration_user_family_obj = registration_user_family_member_obj.family
 
-                # try:
-                #     family_resident_obj = FamilyResident.objects.get(
-                #         family = main_user_family_obj,
-                #         residential_type = current_residential_type_obj
-                #     )
-                # except FamilyResident.DoesNotExist:
-                #     family_resident_obj = FamilyResident.objects.create(
-                #         family = main_user_family_obj,
-                #         residential_details = main_user_residential_obj,
-                #         residential_type = current_residential_type_obj
-                #     )
-                
-                # try:
-                #     family_resident_obj = FamilyResident.objects.get(
-                #         family = registration_user_family_obj,
-                #         residential_type = residential_type
-                #     )
-                # except FamilyResident.DoesNotExist:
-                #     family_resident_obj = FamilyResident.objects.create(
-                #         family = registration_user_family_obj,
-                #         residential_details = main_user_residential_obj,
-                #         residential_type = residential_type
-                #     )
-
-                # 1. Check for Main User Family Resident
-                # if FamilyResident.objects.filter(
-                #     residential_details=main_user_residential_obj, 
-                #     residential_type=current_residential_type_obj
-                # ).exists():
-                #     raise ValidationError({
-                #         "residential_details": "A family resident with these residential details and this family type already exists."
-                #     })
 
                 # 1. Check for Main User Family Resident
                 try:
                     with transaction.atomic():
-                        family_resident_obj, created = FamilyResident.objects.get_or_create(
+                        family_resident_obj, created = ResidentMapping.objects.get_or_create(
                             family=main_user_family_obj,
                             residential_type=current_residential_type_obj,
                             defaults={'residential_details': main_user_residential_obj}
@@ -326,7 +458,7 @@ class RegistrationView(APIView):
                 # 2. Check for Registration User Family Resident
                 try:
                     with transaction.atomic():
-                        registration_resident_obj, created = FamilyResident.objects.get_or_create(
+                        registration_resident_obj, created = ResidentMapping.objects.get_or_create(
                             family=registration_user_family_obj,
                             residential_type=residential_type,
                             defaults={'residential_details': main_user_residential_obj}
@@ -337,16 +469,17 @@ class RegistrationView(APIView):
                     })
             
             # Map family internal relations
-            map_family_internal_relations(created_users)
+            if residential_type.name != "business":
+                map_family_internal_relations(created_users)
 
-            # Map relations, native, inlaws, maternal
-            map_relations_with_husband_user(registration_user_family_obj, created_users)
+                # Map relations, native, inlaws, maternal
+                map_relations_with_husband_user(registration_user_family_obj, created_users)
             
         
         return Response({
             "message": "User created successfully",
             "registration_user": registration_user.id if registration_user else None,
-            "main_user": main_user_obj.id,
+            "main_user": main_user_obj.id if main_user_obj else None,
             "user_ids": created_user_ids
         }, status=status.HTTP_201_CREATED)
     
@@ -407,14 +540,14 @@ class RegistrationView(APIView):
                 "details": "registration_user is required when residential_type is not 'current'"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if registration_user_obj:
+        if registration_user_obj and residential_type != "business":
             try:
                 family_member_obj = FamilyMember.objects.get(user=registration_user_obj, is_main_user=True)
                 family_obj = family_member_obj.family
 
                 try:
-                    residential_obj = FamilyResident.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
-                except FamilyResident.DoesNotExist:
+                    residential_obj = ResidentMapping.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
+                except ResidentMapping.DoesNotExist:
                     return Response({
                         "error": "Something went wrong. Please try again.",
                         "details": "Residential details not found"
@@ -426,8 +559,8 @@ class RegistrationView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 try:
-                    family_obj = FamilyResident.objects.get(residential_details=residential_obj, residential_type__name="current").family
-                except FamilyResident.DoesNotExist:
+                    family_obj = ResidentMapping.objects.get(residential_details=residential_obj, residential_type__name="current").family
+                except ResidentMapping.DoesNotExist:
                     return Response({
                         "error": "Something went wrong. Please try again.",
                         "details": "Family not found"
@@ -455,6 +588,53 @@ class RegistrationView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         
 
+        if registration_user_obj and residential_type == "business":
+            try:
+                family_member_obj = BusinessFamilyMember.objects.get(
+                    business_family__is_verified=True,
+                    user=registration_user_obj, 
+                    is_active=True
+                )
+            except BusinessFamilyMember.DoesNotExist:
+                try:
+                    family_member_obj = BusinessFamilyMember.objects.get(
+                    user=registration_user_obj, 
+                    is_active=True
+                )
+                except BusinessFamilyMember.DoesNotExist:
+                    return Response({
+                        "error": "Something went wrong. Please try again.",
+                        "details": "Family member not found"
+                })
+
+                business_family_obj = family_member_obj.business_family
+                try:
+                    business_residential_obj = ResidentMapping.objects.get(business_family=business_family_obj, residential_type=residential_type_obj).residential_details
+                except ResidentMapping.DoesNotExist:
+                    return Response({
+                        "error": "Something went wrong. Please try again.",
+                        "details": "Residential details not found"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    return Response({
+                        "error": "Something went wrong. Please try again.",
+                        "details": str(e)
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+
+            serializer = RegistrationOutputSerializer(
+                business_family_obj,
+                context = {
+                    "residential_type": residential_type_obj,
+                    "registration_user": registration_user_obj,
+                    "residential_details": business_residential_obj
+                }
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+                
+
+        
+
         # Get all family members whis has user == user_id
         family_member_qs = FamilyMember.objects.filter(user=user_obj)
         if not family_member_qs.exists():
@@ -479,8 +659,8 @@ class RegistrationView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            residential_obj = FamilyResident.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
-        except FamilyResident.DoesNotExist:
+            residential_obj = ResidentMapping.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
+        except ResidentMapping.DoesNotExist:
             return Response({
                 "error": "Something went wrong. Please try again.",
                 "details": "Residential details not found"
@@ -787,6 +967,41 @@ class RelationTypeListView(APIView):
         )
         serializer = RelationTypeListSerializer(relation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DesignationTypeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        designation_type_qs = DesignationType.objects.filter(is_active=True)
+        serializer = DesignationTypeListSerializer(designation_type_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BusinessFamilyListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id=None):
+        if id:
+            try:
+                business_family_obj = BusinessFamily.objects.get(id=id, is_verified=True)
+            except BusinessFamily.DoesNotExist:
+                return Response({"error": "Business family not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            serializer = BussinessFamilyDetailsOutputSerializer(business_family_obj)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        business_family_qs = BusinessFamily.objects.filter(is_verified=True)
+
+        search_name = request.query_params.get("search", "").strip()
+        if search_name:
+            business_family_qs = business_family_qs.filter(name__icontains=search_name)
+
+        serializer = BusinessFamilyListSerializer(business_family_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+    
 
 from django.utils import timezone    
 

@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.utils import timezone
 
 from common.models import AuditMixin, SoftDeleteMixin
+from configuration.models import Level, Node
 # Create your models here.
 
 class UserRole(AuditMixin):
@@ -65,7 +66,7 @@ class UserManager(BaseUserManager):
         return self.create_user(contact_no, password, **extra_fields)
 
 
-class UserResidentialDetails(AuditMixin):
+class ResidentialDetails(AuditMixin):
     nodes = models.JSONField(default=dict, null=True, blank=True)
 
     history = HistoricalRecords()
@@ -90,7 +91,7 @@ class User(AbstractBaseUser, PermissionsMixin, AuditMixin, SoftDeleteMixin):
     user_category = models.CharField(choices=USER_CATEGORY_CHOICES, max_length=20, null=True, blank=True)
 
     current_residential_details = models.ForeignKey(
-        UserResidentialDetails, 
+        ResidentialDetails, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
@@ -189,11 +190,23 @@ class UserDocument(AuditMixin, SoftDeleteMixin):
     def __str__(self):
         return f"{self.user.full_name} - {self.document_type.display_name}"
 
+
+class BusinessFamily(AuditMixin):
+    name = models.CharField(max_length=100)
+    is_verified = models.BooleanField(default=False)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.id} - {self.name}"
+
 class UserProfessionalDetails(AuditMixin):
+    business_family = models.ForeignKey(BusinessFamily, on_delete=models.SET_NULL, null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='professional_details')
-    residential_details = models.ForeignKey(UserResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
+    residential_details = models.ForeignKey(ResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
     personal_nodes = models.JSONField(default=dict, null=True, blank=True)
     professional_nodes = models.JSONField(default=dict, null=True, blank=True)
+    designation = models.ForeignKey('DesignationType', on_delete=models.SET_NULL, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
@@ -237,6 +250,18 @@ class RelationType(AuditMixin):
         return self.name
 
 
+class DesignationType(AuditMixin):
+    name = models.CharField(max_length=100, unique=True)
+    display_name = models.CharField(max_length=100)
+    order = models.PositiveIntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.display_name
+
+
 class Family(AuditMixin):
     name = models.CharField(max_length=100, null=True, blank=True)
 
@@ -256,9 +281,23 @@ class FamilyMember(AuditMixin):
         return f"{self.family.id} - {self.user.full_name}"
 
 
-class FamilyResident(AuditMixin):
-    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='residents')
-    residential_details = models.ForeignKey(UserResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
+
+class BusinessFamilyMember(AuditMixin):
+    business_family = models.ForeignKey(BusinessFamily, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    self_designation_type = models.ForeignKey(DesignationType, on_delete=models.PROTECT)
+    is_active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.business_family.id} - {self.user.full_name}"
+    
+
+class ResidentMapping(AuditMixin):
+    family = models.ForeignKey(Family, on_delete=models.SET_NULL, null=True, blank=True, related_name='residents')
+    business_family = models.ForeignKey(BusinessFamily, on_delete=models.SET_NULL, null=True, blank=True, related_name='residents')
+    residential_details = models.ForeignKey(ResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
     residential_type = models.ForeignKey(ResidentialType, on_delete=models.PROTECT)
 
     history = HistoricalRecords()
@@ -274,7 +313,7 @@ class FamilyResident(AuditMixin):
         ]
 
     def __str__(self):
-        return f"{self.family.id} - {self.residential_details}"
+        return f"{self.residential_details}"
     
 
 

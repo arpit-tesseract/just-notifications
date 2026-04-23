@@ -11,9 +11,9 @@ urlpatterns = [
     # path('', views.UserDetailView.as_view(), name='user_details'),
     # path('<int:user_id>/', views.UserDetailView.as_view(), name='user_details'),
     
-    path('login/', views.LoginWithEmailPasswordView.as_view(), name='login'),
-    path('logout/', views.LogoutView.as_view(), name='logout'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'), # used for refresh token
+    # path('login/', views.LoginWithEmailPasswordView.as_view(), name='login'),
+    # path('logout/', views.LogoutView.as_view(), name='logout'),
+    # path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'), # used for refresh token
     # path('token/verify/', TokenVerifyView.as_view(), name='token_verify'), # used for verify token
     
     # path('', views.RegisterationView.as_view(), name='register'),

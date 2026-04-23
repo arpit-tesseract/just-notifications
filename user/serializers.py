@@ -6,6 +6,37 @@ from .models import *
 from configuration.models import Dimension, Level, Node
 from .utils import get_level_node_mapping
 
+
+class LoginEmailPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
+class UserRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserRole
+        fields = ['id', 'name','display_name']
+        read_only_fields = ['id', 'name', 'display_name']
+
+# This Serializer Use after loggin success
+class UserBasicDetailsOutputSerializer(serializers.ModelSerializer):
+    roles = UserRoleSerializer(many=True)
+    # designation = DesignationSerializer(many=False)
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'email',
+            'contact_no',
+            'full_name',
+            'roles',
+        ]
+
+class LogoutInputSerializer(serializers.Serializer):
+    # access = serializers.CharField(write_only=True)
+    refresh = serializers.CharField(write_only=True)
+
+
 class ResidentialTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResidentialType
@@ -20,9 +51,13 @@ class DocumentTypeListSerializer(serializers.ModelSerializer):
 
 class UserProfessionalDetailsInputSerializer(serializers.Serializer):
     id = serializers.IntegerField(required=True, allow_null=True)
+    company = serializers.CharField(required=True, allow_null=False)
     residential_details = serializers.JSONField(required=True, allow_null=True)
     personal_details = serializers.JSONField(required=True, allow_null=True)
     professional_details = serializers.JSONField(required=True, allow_null=True)
+    designation = serializers.PrimaryKeyRelatedField(
+        queryset = DesignationType.objects.filter(is_active=True), 
+    )
     is_active = serializers.BooleanField(required=False)
 
     def validate_id(self, value):
@@ -35,6 +70,16 @@ class UserProfessionalDetailsInputSerializer(serializers.Serializer):
                 raise serializers.ValidationError(str(e))
 
         return value
+    
+    # def validate_company(self, value):
+    #     try:
+    #         value = BusinessFamily.objects.get(name=value, is_verified=True)
+    #     except BusinessFamily.DoesNotExist:
+    #         value = BusinessFamily.objects.create(name=value)
+
+    #     print(value)
+    #     return value
+
         
 
 class UserDetailsInputSerializer(serializers.Serializer):
@@ -44,7 +89,11 @@ class UserDetailsInputSerializer(serializers.Serializer):
     )
     self_relation = serializers.ChoiceField(
         choices=['husband', 'wife', 'son', 'daughter', 'guest', 'worker'],
-        required=True, allow_null=False
+        required=False
+    )
+    self_designation = serializers.PrimaryKeyRelatedField(
+        queryset = DesignationType.objects.filter(is_active=True), 
+        required=False
     )
     email = serializers.EmailField(required=True, allow_null=True)
     contact_no = serializers.CharField(required=True, allow_null=False)
@@ -110,12 +159,12 @@ class UserDetailsInputSerializer(serializers.Serializer):
             except User.DoesNotExist:
                 pass
 
+        if self_relation:
+            if gender == 'male' and self_relation not in ['husband', 'guest', 'workers', 'son']:
+                raise serializers.ValidationError({"gender": "Invalid gender."})
 
-        if gender == 'male' and self_relation not in ['husband', 'guest', 'workers', 'son']:
-            raise serializers.ValidationError({"gender": "Invalid gender."})
-
-        if gender == 'female' and self_relation not in ['wife', 'guest', 'workers', 'daughter']:
-            raise serializers.ValidationError({"gender": "Invalid gender."})
+            if gender == 'female' and self_relation not in ['wife', 'guest', 'workers', 'daughter']:
+                raise serializers.ValidationError({"gender": "Invalid gender."})
         
         return attrs
     
@@ -202,6 +251,10 @@ class UserDetailsInputSerializer(serializers.Serializer):
 
 
 class RegistrationInputSerializer(serializers.Serializer):
+    registration_type = serializers.ChoiceField(
+        choices=['resident', 'corporate'],
+    )
+
     registration_user = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         required=True,
@@ -218,8 +271,61 @@ class RegistrationInputSerializer(serializers.Serializer):
 
     residential_details = serializers.JSONField(required=True, allow_null=True)
 
+    company = serializers.CharField(required=False, allow_null=True)
+
     family_members = UserDetailsInputSerializer(many=True, required=True, allow_null=True)
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        company = attrs.get("company")
+        residential_type = attrs.get("residential_type")
+        family_members = attrs.get("family_members", [])
+        
+
+        if not company and residential_type.name == "business":
+            raise serializers.ValidationError({
+                "company": "Company name is required."
+            })
+
+        if residential_type.name != "business":
+            husband_count = sum(1 for member in family_members if member.get('self_relation') == "husband")
+            
+            # Check the count and raise appropriate errors
+            if husband_count == 0:
+                raise serializers.ValidationError({"family_members": "Husband is required."})
+            elif husband_count > 1:
+                raise serializers.ValidationError({"family_members": "Only one husband is allowed."})
+
+        # require self_designation for each member
+        errors = {}
+
+        for index, member in enumerate(family_members):
+            if not member.get("self_designation") and residential_type.name == "business":
+                errors[index] = {
+                    "self_designation": "This field is required."
+                }
+            if not member.get("self_relation") and residential_type.name != "business":
+                errors[index] = {
+                    "self_relation": "This field is required."
+                }
+
+        if errors:
+            raise serializers.ValidationError({
+                "family_members": errors
+            })
+            
+
+        return attrs
+
+    # def validate_company(self, value):
+    #     try:
+    #         value = BusinessFamily.objects.get(name=value, is_verified=True)
+    #     except BusinessFamily.DoesNotExist:
+    #         value = BusinessFamily.objects.create(name=value)
+
+    #     print(value)
+    #     return value
 
     def validate_residential_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
@@ -258,18 +364,18 @@ class RegistrationInputSerializer(serializers.Serializer):
         return value
 
 
-    def validate_family_members(self, value):
-        if value:
-            # Count how many members have the relation "husband"
-            husband_count = sum(1 for member in value if member.get('self_relation') == "husband")
+    # def validate_family_members(self, value):
+    #     if value:
+    #         # Count how many members have the relation "husband"
+    #         husband_count = sum(1 for member in value if member.get('self_relation') == "husband")
             
-            # Check the count and raise appropriate errors
-            if husband_count == 0:
-                raise serializers.ValidationError({"family_members": "Husband is required."})
-            elif husband_count > 1:
-                raise serializers.ValidationError({"family_members": "Only one husband is allowed."})
+    #         # Check the count and raise appropriate errors
+    #         if husband_count == 0:
+    #             raise serializers.ValidationError({"family_members": "Husband is required."})
+    #         elif husband_count > 1:
+    #             raise serializers.ValidationError({"family_members": "Only one husband is allowed."})
                 
-        return value
+    #     return value
 
 
 class RegistrationOutputSerializer(serializers.Serializer):
@@ -285,13 +391,16 @@ class RegistrationOutputSerializer(serializers.Serializer):
         
     
     def get_user_category(self, family_obj):
-        try:
-            main_family_member_obj = family_obj.members.filter(is_main_user=True).first()
-        except FamilyMember.DoesNotExist:
-            raise ValidationError("Something went wrong. Please try again.")
-        except Exception as e:
-            raise ValidationError("Something went wrong. Please try again: ")
-        return main_family_member_obj.user.user_category
+        context = self.context
+        registration_user_obj = context.get('registration_user')
+        return registration_user_obj.user_category
+        # try:
+        #     main_family_member_obj = family_obj.members.filter(is_main_user=True).first()
+        # except FamilyMember.DoesNotExist:
+        #     raise ValidationError("Something went wrong. Please try again.")
+        # except Exception as e:
+        #     raise ValidationError("Something went wrong. Please try again: ")
+        # return main_family_member_obj.user.user_category
     
 
     def get_residential_type(self, family_obj):
@@ -309,7 +418,23 @@ class RegistrationOutputSerializer(serializers.Serializer):
     def get_family_members(self, family_obj):
         context = self.context
         registration_user_obj = context.get('registration_user')
-        # residential_type_obj = context.get('residential_type')
+        residential_type_obj = context.get('residential_type')
+
+        if residential_type_obj.name == "business":
+            family_members = family_obj.members.filter(user__is_deleted=False)
+            family_members_lst = []
+
+            for member in family_members:
+                user_obj = member.user
+                print(user_obj)
+                user_details = UserDetailsOutputSerializer(
+                    user_obj.profile,
+                    exclude=['residential_details'],
+                    context={'self_designation': member.self_designation_type}
+                ).data   
+                family_members_lst.append(user_details)
+
+            return family_members_lst
 
         main_user_obj = family_obj.members.filter(is_main_user=True).first().user
         family_members_lst = []
@@ -320,7 +445,8 @@ class RegistrationOutputSerializer(serializers.Serializer):
                 print(user_obj)
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
-                    exclude=['residential_details']
+                    exclude=['residential_details'],
+                    context = {'self_relation': member.self_relation_type}
                 ).data
                 
                 if main_user_obj != registration_user_obj:
@@ -371,6 +497,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     is_verified = serializers.BooleanField(source='user.is_verified')
 
     self_relation = serializers.SerializerMethodField()
+    self_designation = serializers.SerializerMethodField()
     personal_details = serializers.SerializerMethodField()
     residential_details = serializers.SerializerMethodField()
     professional_details = serializers.SerializerMethodField()
@@ -384,7 +511,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         fields = [
             'user_id', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
             'father_name', 'gender', 'dob', 'blood_group', 'marital_status', 'expired_date', 
-            'personal_details', 'residential_details', 'professional_details', 'documents'
+            'personal_details', 'residential_details', 'professional_details', 'documents', 'self_designation'
         ]
     
     def __init__(self, *args, **kwargs):
@@ -396,8 +523,23 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
                 self.fields.pop(field, None)
 
     def get_self_relation(self, obj):
-        family_member_obj = FamilyMember.objects.filter(user=obj.user).first()
-        return family_member_obj.self_relation_type.name
+        context = self.context
+        self_relation = context.get('self_relation')
+        if self_relation:
+            return self_relation.name
+        return None
+
+    def get_self_designation(self, obj):
+        context = self.context
+        self_designation = context.get('self_designation')
+        if self_designation:
+            return {
+                "id": self_designation.id,
+                "name": self_designation.display_name
+            }
+        return None
+    
+
     
     def get_personal_details(self, obj):
         try:
@@ -427,13 +569,18 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
                     residential_node_mapping = get_level_node_mapping(detail.residential_details.nodes)
                 else:
                     residential_node_mapping = None
-                    
+
                 personal_node_mapping = get_level_node_mapping(detail.personal_nodes)
                 professional_node_mapping = get_level_node_mapping(detail.professional_nodes)
                 is_active = detail.is_active
                 result.append(
                     {
                         "id": id,
+                        "company": detail.business_family.name if detail.business_family else None,
+                        "designation": {
+                            "id": detail.designation.id,
+                            "name": detail.designation.display_name
+                        },
                         "residential_details": residential_node_mapping,
                         "personal_details": personal_node_mapping,
                         "professional_details": professional_node_mapping,
@@ -462,6 +609,55 @@ class RelationTypeListSerializer(serializers.ModelSerializer):
         model = RelationType
         fields = ['id', 'display_name']
 
+class DesignationTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DesignationType
+        fields = ['id', 'display_name']
+
+
+class BusinessFamilyListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessFamily
+        fields = ['id', 'name']
+
+
+class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
+    residential_details = serializers.SerializerMethodField()
+    family_members = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BusinessFamily
+        fields = ['name', 'residential_details', 'family_members']
+
+    def get_residential_details(self, obj):
+        try:
+            resident_mapping = ResidentMapping.objects.get(business_family=obj)
+            nodes_data = resident_mapping.residential_details.nodes
+       
+            return get_level_node_mapping(nodes_data)
+        except ResidentMapping.DoesNotExist:
+            return None
+        except Exception:
+            return ValidationError("Something went wrong. Please try again.")
+    
+    def get_family_members(self, obj):
+        try:
+            family_members = obj.members.filter(user__is_deleted=False)
+            family_members_lst = []
+
+            for member in family_members:
+                user_obj = member.user
+                print(user_obj)
+                user_details = UserDetailsOutputSerializer(
+                    user_obj.profile,
+                    exclude=['residential_details'],
+                    context = {'self_designation': member.self_designation_type}
+                ).data   
+                family_members_lst.append(user_details)
+        except Exception as e:
+            raise ValidationError("Something went wrong. Please try again.")
+        
+        return family_members_lst
 
 # Family Tree Serializers
 
