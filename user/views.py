@@ -142,7 +142,7 @@ class RegistrationView(APIView):
             main_user_obj = None
             main_user_residential_obj = None
             husband_user = None            
-
+            business_family_obj = None
 
             for member in family_members:
                 personal_details_json = member.pop('personal_details', {})
@@ -476,12 +476,40 @@ class RegistrationView(APIView):
                 map_relations_with_husband_user(registration_user_family_obj, created_users)
             
         
-        return Response({
+        # return Response({
+        #     "message": "User created successfully",
+        #     "registration_user": registration_user.id if registration_user else None,
+        #     "main_user": main_user_obj.id if main_user_obj else None,
+        #     "user_ids": created_user_ids
+        # }, status=status.HTTP_201_CREATED)
+
+        # --- NEW: Serialize and return the created data ---
+        if residential_type.name == "business":
+            target_instance = business_family_obj
+        else:
+            target_instance = registration_user_family_obj
+
+        # Use the exact same serializer and context as your GET request
+        serializer = RegistrationOutputSerializer(
+            target_instance,
+            context={
+                "residential_type": residential_type,
+                "registration_user": registration_user,
+                "residential_details": residential_obj
+            }
+        )
+
+        # Optional: You can wrap the serialized data with your success message and user_ids
+        # so the frontend still gets everything it expects.
+        response_data = {
             "message": "User created successfully",
             "registration_user": registration_user.id if registration_user else None,
             "main_user": main_user_obj.id if main_user_obj else None,
-            "user_ids": created_user_ids
-        }, status=status.HTTP_201_CREATED)
+            "user_ids": created_user_ids,
+            "data": serializer.data  # <--- The full GET response is now embedded here
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
     
 
     def get(self, request):
