@@ -1057,56 +1057,66 @@ class DeleteUserView(APIView):
             return Response({"error": "You cannot delete yourself."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            existing_main_member_obj = FamilyMember.objects.get(user=user_obj, is_main_user=True)
-            if existing_main_member_obj:
-                family_obj = existing_main_member_obj.family
-                member_count = family_obj.members.filter(user__is_deleted=False).count()
+            existing_main_member_obj = FamilyMember.objects.select_related(
+                "family",
+                "user",
+                "self_relation_type"
+            ).get(user=user_obj, is_main_user=True)
 
-                warning_relation = None
-                if existing_main_member_obj.self_relation_type.name == "husband":
-                    warning_relation = "Wife"
-                    # Look for a valid spouse (Fetch directly excluding deleted users)
-                    future_main_member_obj = FamilyMember.objects.filter(
-                        family=family_obj, 
-                        self_relation_type__name="wife",
-                        user__is_deleted=False
-                    ).first()
-                else:
-                    warning_relation = "Husband"
-                    # Look for a valid spouse (Fetch directly excluding deleted users)
-                    future_main_member_obj = FamilyMember.objects.filter(
-                        family=family_obj, 
-                        self_relation_type__name="husband",
-                        user__is_deleted=False
-                    ).first()
+            family_obj = existing_main_member_obj.family
+            member_count = family_obj.members.filter(user__is_deleted=False).count()
 
-                print("future_main_member_obj:", future_main_member_obj)
-                if future_main_member_obj is None:
-                    if not want_continue and member_count > 1:
-                        return Response({"warning": f"{warning_relation} is not found for this user family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+            warning_relation = None
+            if existing_main_member_obj.self_relation_type.name == "husband":
+                warning_relation = "Wife"
+                # Look for a valid spouse (Fetch directly excluding deleted users)
+                future_main_member_obj = FamilyMember.objects.filter(
+                    family=family_obj, 
+                    self_relation_type__name="wife",
+                    user__is_deleted=False
+                ).select_related(
+                    "user__profile",
+                    "self_relation_type"
+                ).first()
+            else:
+                warning_relation = "Husband"
+                # Look for a valid spouse (Fetch directly excluding deleted users)
+                future_main_member_obj = FamilyMember.objects.filter(
+                    family=family_obj, 
+                    self_relation_type__name="husband",
+                    user__is_deleted=False
+                ).select_related(
+                    "user__profile",
+                    "self_relation_type"
+                ).first()
 
-                    for member in family_obj.members.all():
-                        member.user.soft_delete(user=request.user)
-                    return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
-    
+            print("future_main_member_obj:", future_main_member_obj)
+            if future_main_member_obj is None:
+                if not want_continue and member_count > 1:
+                    return Response({"warning": f"{warning_relation} is not found for this user family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
 
-                if future_main_member_obj.user.profile.expired_date:
-                    if not want_continue:
-                        return Response({"warning": f"{future_main_member_obj.self_relation_type.display_name}-{future_main_member_obj.user.full_name} is expired of this family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+                for member in family_obj.members.all():
+                    member.user.soft_delete(user=request.user)
+                return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
 
-                    for member in family_obj.members.all():
-                        member.user.soft_delete(user=request.user)
-                    return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
-                    
 
+            if future_main_member_obj.user.profile.expired_date:
                 if not want_continue:
-                    return Response({"warning": f"After delete {existing_main_member_obj.user.full_name} {warning_relation}: '{future_main_member_obj.user.full_name}' will be main user."}, status=status.HTTP_400_BAD_REQUEST)
-                
-                existing_main_member_obj.is_main_user = False
-                existing_main_member_obj.save()
+                    return Response({"warning": f"{future_main_member_obj.self_relation_type.display_name}-{future_main_member_obj.user.full_name} is expired of this family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
 
-                future_main_member_obj.is_main_user = True
-                future_main_member_obj.save()
+                for member in family_obj.members.all():
+                    member.user.soft_delete(user=request.user)
+                return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
+                
+
+            if not want_continue:
+                return Response({"warning": f"After delete {existing_main_member_obj.user.full_name} {warning_relation}: '{future_main_member_obj.user.full_name}' will be main user."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            existing_main_member_obj.is_main_user = False
+            existing_main_member_obj.save()
+
+            future_main_member_obj.is_main_user = True
+            future_main_member_obj.save()
 
         except FamilyMember.DoesNotExist:
             pass
