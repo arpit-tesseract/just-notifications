@@ -51,12 +51,13 @@ class DocumentTypeListSerializer(serializers.ModelSerializer):
 
 class UserProfessionalDetailsInputSerializer(serializers.Serializer):
     id = serializers.IntegerField(required=True, allow_null=True)
-    company = serializers.CharField(required=True, allow_null=False)
+    company = serializers.CharField(required=True, allow_null=True)
     residential_details = serializers.JSONField(required=True, allow_null=True)
     personal_details = serializers.JSONField(required=True, allow_null=True)
     professional_details = serializers.JSONField(required=True, allow_null=True)
     designation = serializers.PrimaryKeyRelatedField(
-        queryset = DesignationType.objects.filter(is_active=True), 
+        queryset = DesignationType.objects.filter(is_active=True),
+        required=True, allow_null=True 
     )
     is_active = serializers.BooleanField(required=False)
 
@@ -70,15 +71,6 @@ class UserProfessionalDetailsInputSerializer(serializers.Serializer):
                 raise serializers.ValidationError(str(e))
 
         return value
-    
-    # def validate_company(self, value):
-    #     try:
-    #         value = BusinessFamily.objects.get(name=value, is_verified=True)
-    #     except BusinessFamily.DoesNotExist:
-    #         value = BusinessFamily.objects.create(name=value)
-
-    #     print(value)
-    #     return value
 
         
 
@@ -279,6 +271,7 @@ class RegistrationInputSerializer(serializers.Serializer):
         attrs = super().validate(attrs)
 
         company = attrs.get("company")
+        residential_details = attrs.get("residential_details")
         residential_type = attrs.get("residential_type")
         family_members = attrs.get("family_members", [])
         
@@ -301,31 +294,58 @@ class RegistrationInputSerializer(serializers.Serializer):
         errors = {}
 
         for index, member in enumerate(family_members):
+            member_errors = {}
+
             if not member.get("self_designation") and residential_type.name == "business":
                 errors[index] = {
                     "self_designation": "This field is required."
                 }
+
             if not member.get("self_relation") and residential_type.name != "business":
                 errors[index] = {
                     "self_relation": "This field is required."
                 }
+            
+            professional_details_lst = member.get("professional_details", [])
+
+            # ENFORCE designation requirement if NOT business tab
+            if residential_type.name != "business":
+                prof_errors = {}
+                for p_index, prof_details in enumerate(professional_details_lst):
+                    if not prof_details.get("designation"):
+                        prof_errors[p_index] = {"designation": "This field is required."}
+                    
+                    if not prof_details.get("company"):
+                        prof_errors[p_index] = {"company": "This field is required."}
+                
+                if prof_errors:
+                    member_errors["professional_details"] = prof_errors
+
+            # MAP details if it IS business and there are no errors yet
+            elif residential_type.name == "business" and not member_errors:
+                self_designation = member.get("self_designation")
+                personal_details = member.get("personal_details")
+
+                for prof_details in professional_details_lst:
+                    prof_details['company'] = company
+                    prof_details['residential_details'] = residential_details
+                    prof_details['personal_details'] = personal_details
+                    prof_details['designation'] = self_designation
+
+                # Re-assign back to the member dictionary
+                member['professional_details'] = professional_details_lst
+            
+            # If this specific member had any errors, add it to the main error dictionary
+            if member_errors:
+                errors[index] = member_errors                
 
         if errors:
             raise serializers.ValidationError({
                 "family_members": errors
             })
-            
 
         return attrs
-
-    # def validate_company(self, value):
-    #     try:
-    #         value = BusinessFamily.objects.get(name=value, is_verified=True)
-    #     except BusinessFamily.DoesNotExist:
-    #         value = BusinessFamily.objects.create(name=value)
-
-    #     print(value)
-    #     return value
+    
 
     def validate_residential_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
