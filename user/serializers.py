@@ -261,7 +261,7 @@ class RegistrationInputSerializer(serializers.Serializer):
         queryset=ResidentialType.objects.filter(is_active=True)
     )
 
-    residential_details = serializers.JSONField(required=True, allow_null=True)
+    residential_details = serializers.JSONField()
 
     company = serializers.CharField(required=False, allow_null=True)
 
@@ -450,7 +450,7 @@ class RegistrationOutputSerializer(serializers.Serializer):
     def get_residential_details(self, family_obj):
         context = self.context
         residential_details = context.get('residential_details')
-        node_data = residential_details.nodes
+        node_data = residential_details.nodes if residential_details else {}
         return get_level_node_mapping(node_data)
         
     
