@@ -312,10 +312,10 @@ from .utils import get_pidhi_node_from_personal_details
 # ---------------------------------------------------------
 def extract_pidhi(value):
     if not value:
-        return 9999
+        return None
 
     match = re.search(r"(\d+)", str(value))
-    return int(match.group(1)) if match else 9999
+    return int(match.group(1)) if match else None
 
 
 # ---------------------------------------------------------
@@ -327,7 +327,7 @@ def get_user_pidhi(user):
     pidhi_node = get_pidhi_node_from_personal_details(personal)
 
     if not pidhi_node:
-        return 9999
+        return None
 
     return extract_pidhi(pidhi_node.name)
 
@@ -449,15 +449,16 @@ def build_family_tree_by_pidhi(family_id):
     for user in users:
         pidhi = get_user_pidhi(user)
 
-        node = {
-            "id": user.id,
-            "name": user.full_name,
-            "gender": user.profile.gender,
-            "pidhi": pidhi,
-            "is_main_user": user.id == main_user_id
-        }
+        if pidhi:
+            node = {
+                "id": user.id,
+                "name": user.full_name,
+                "gender": user.profile.gender,
+                "pidhi": pidhi,
+                "is_main_user": user.id == main_user_id
+            }
 
-        generations[str(pidhi)].append(node)
+            generations[str(pidhi)].append(node)
 
     # sort users inside pidhi
     for key in generations:

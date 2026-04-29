@@ -132,11 +132,15 @@ class RegistrationView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Residential Details
-        residential_obj = None
-        if residential_details_json:
-            residential_obj, _ = ResidentialDetails.objects.get_or_create(
-                nodes=residential_details_json
-            )
+        # residential_obj = None
+        # if residential_details_json:
+        #     residential_obj, _ = ResidentialDetails.objects.get_or_create(
+        #         nodes=residential_details_json
+        #     )
+        
+        residential_obj, _ = ResidentialDetails.objects.get_or_create(
+            nodes=residential_details_json
+        )
 
         with transaction.atomic():
             created_users = []
