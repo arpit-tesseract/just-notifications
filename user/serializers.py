@@ -293,9 +293,28 @@ class RegistrationInputSerializer(serializers.Serializer):
         # require self_designation for each member
         errors = {}
 
+        seen_contact_numbers = set()
+        seen_emails = set()
         for index, member in enumerate(family_members):
             member_errors = {}
 
+            # --- NEW: Duplicate Contact Number Check ---
+            contact_no = member.get("contact_no")
+            if contact_no:
+                if contact_no in seen_contact_numbers:
+                    member_errors["contact_no"] = "This contact number is already used by another family member in this request."
+                else:
+                    seen_contact_numbers.add(contact_no)
+                
+            # --- NEW: Duplicate Email Check ---
+            email = member.get("email")
+            if email:
+                if email in seen_emails:
+                    member_errors["email"] = "This email is already used by another family member in this request."
+                else:
+                    seen_emails.add(email)
+
+            # ENFORCE self_designation requirement
             if not member.get("self_designation") and residential_type.name == "business":
                 errors[index] = {
                     "self_designation": "This field is required."
