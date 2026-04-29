@@ -40,7 +40,7 @@ class LogoutInputSerializer(serializers.Serializer):
 class ResidentialTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResidentialType
-        fields = ['id', 'display_name']
+        fields = ['id', 'name', 'display_name']
 
 
 class DocumentTypeListSerializer(serializers.ModelSerializer):
@@ -646,12 +646,12 @@ class UserListSerializer(serializers.ModelSerializer):
 class RelationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = RelationType
-        fields = ['id', 'display_name']
+        fields = ['id', 'name', 'display_name']
 
 class DesignationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = DesignationType
-        fields = ['id', 'display_name']
+        fields = ['id', 'name', 'display_name']
 
 
 class BusinessFamilyListSerializer(serializers.ModelSerializer):
