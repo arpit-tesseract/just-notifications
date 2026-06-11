@@ -31,21 +31,22 @@ ALLOWED_HOSTS = ["*"]
 
 # This is cors header setup for ngrok to solve cors header error...
 
-CORS_ALLOW_ALL_ORIGINS = False
-
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
-CORS_ALLOW_CREDENTIALS = True
 
 from corsheaders.defaults import default_headers
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = False
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
     "ngrok-skip-browser-warning",
 ]
+
 
 # Application definition
 
@@ -83,7 +84,6 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'shashan.urls'
-CORS_ALLOW_ALL_ORIGINS = True
 AUTH_USER_MODEL = 'user.User'
 
 TEMPLATES = [
