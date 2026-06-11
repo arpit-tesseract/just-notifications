@@ -47,6 +47,9 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "ngrok-skip-browser-warning",
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://shashanapi.tesseracttechnolabs.com",
+]
 
 # Application definition
 
@@ -249,6 +252,7 @@ LOGGING = {
 
 # Celery Configuration Options
 # Command: celery -A shashan worker -l info --pool=solo
+# python -m daphne -b 0.0.0.0 -p 8000 shashan.asgi:application
 CELERY_BROKER_URL = 'redis://localhost:6379/0' # Points to your Redis server
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Stores the results of tasks
 CELERY_ACCEPT_CONTENT = ['application/json']
