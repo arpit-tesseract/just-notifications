@@ -296,6 +296,12 @@ class Node(SoftDeleteMixin):
                      # Try strictly ISO format first, fallback if needed
                     datetime.datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
 
+                # 7. Dropdown
+                elif field_type == 'dropdown':
+                    options = field_def.get('options', [])
+                    if str(value) not in options:
+                        raise ValidationError(f"'{name}' must be one of the following options: {', '.join(options)}")
+
             except (ValueError, TypeError):
                 type_label = get_type_label(field_type)
                 raise ValidationError(f"The value '{value}' for '{name}' is invalid. Expected type: {type_label}.")

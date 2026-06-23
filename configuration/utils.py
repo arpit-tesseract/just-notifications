@@ -281,6 +281,10 @@ def cast_value_by_type(value, field_type):
         else:
             raise ValueError(f"Invalid boolean value: {value}")
             
+    # 8. Dropdown
+    if field_type == "dropdown":
+        return value, "exact"
+
     # Default fallback
     return value, "exact"
 
@@ -377,11 +381,13 @@ def get_type_label(type_val):
         return "Date Time"
     elif type_val == "boolean":
         return "Boolean"
+    elif type_val == "dropdown":
+        return "Dropdown"
     else:
         return "Text"
     
 
-def validate_value_type(value, field_type, max_len=None):
+def validate_value_type(value, field_type, max_len=None, options=None):
         """
         Helper method to check if 'value' matches 'field_type'
         """
@@ -446,6 +452,12 @@ def validate_value_type(value, field_type, max_len=None):
         elif field_type == 'char':
             if max_len and len(s_value) > max_len:
                 raise ValidationError(f"Default value cannot exceed {max_len} characters.")
+            return s_value
+        
+        # 6. Dropdown Check
+        elif field_type == 'dropdown':
+            if options is not None and s_value not in options:
+                raise ValidationError(f"Value '{s_value}' is not a valid option.")
             return s_value
         
         elif field_type == 'text':

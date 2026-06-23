@@ -329,6 +329,7 @@ class ColumnDefinitionSerializer(serializers.Serializer):
         ('boolean', 'Boolean (Checkbox)'),
         ('date', 'Date'),
         ('datetime', 'Date & Time'),
+        ('dropdown', 'Dropdown'),
     ]
 
     name = serializers.CharField(
@@ -352,6 +353,13 @@ class ColumnDefinitionSerializer(serializers.Serializer):
         required=False, 
         min_value=1,
         help_text="Only applicable for 'char' type"
+    )
+    
+    options = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text="Required for 'dropdown' type. List of valid options."
     )
     
     def check_name_regex(self, value):
@@ -400,9 +408,14 @@ class ColumnDefinitionSerializer(serializers.Serializer):
                 default_val = "false"
                 data['default_value'] = "false"
 
+        if field_type == 'dropdown':
+            options = data.get('options', [])
+            if not options:
+                raise serializers.ValidationError({"options": "Dropdown options cannot be empty."})
+
         if default_val is not None and default_val != "":
             try:
-                data['default_value'] = validate_value_type(default_val, field_type, max_len)
+                data['default_value'] = validate_value_type(default_val, field_type, max_len, options=data.get('options'))
             except ValueError:
                 raise serializers.ValidationError({
                     "default_value": f"The value '{default_val}' is not a valid {field_type}."
@@ -427,6 +440,13 @@ class CustomDefinationUpdateSerializer(serializers.Serializer):
     
     # Metadata Updates
     required = serializers.BooleanField(default=False)
+    
+    options = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text="Updated options for 'dropdown' type."
+    )
     
     default_value = serializers.CharField(
         required=False, 

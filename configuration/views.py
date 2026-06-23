@@ -11,7 +11,7 @@ from django.utils.dateparse import parse_date
 from .models import *
 from .serializers import *
 from rest_framework.decorators import action
-from django.db.models import Count, Window, F
+from django.db.models import Count, Window, F, Q
 from .pagination import ConfigurationPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
 from django.core.exceptions import ValidationError
@@ -348,8 +348,17 @@ class NodeViewSet(viewsets.ModelViewSet):
         level_obj = Level.objects.filter(id=level).first()
         defined_schema = level_obj.extra_fields_schema if level_obj else []
         
+        import json
+        if isinstance(defined_schema, str):
+            try:
+                defined_schema = json.loads(defined_schema)
+            except:
+                defined_schema = []
+        if not isinstance(defined_schema, list):
+            defined_schema = []
+            
         # Map schema for easy lookup: {'isgenz': {'type': 'boolean', ...}}
-        schema_map = {col['name']: col for col in defined_schema} 
+        schema_map = {col['name']: col for col in defined_schema if isinstance(col, dict) and 'name' in col}
 
         # B. Loop through request parameters
         # We explicitly exclude standard params to avoid collisions
@@ -2124,7 +2133,7 @@ class CustomColumnView(APIView):
     
     def post(self, request, pk):
         level = get_object_or_404(Level, pk=pk)
-        input_serializer = ColumnDefinitionSerializer(data=request.data, context={"level": level})
+        input_serializer = ColumnDefinitionSerializer(data=request.data, context={"level_obj": level})
         input_serializer.is_valid(raise_exception=True)
         
         new_col = input_serializer.validated_data
@@ -2227,20 +2236,45 @@ class CustomColumnView(APIView):
             new_max_length = validated_data.get('max_length', existing_max)
             print("new_max_length", new_max_length)
             
-        # if new_required and not existing_required:
-        #     if new_default_value in [None, ""]:
-        #         return Response(
-        #             {"default_value": "Required columns must have a default value"},
-        #             status=status.HTTP_400_BAD_REQUEST
-        #         )
+        if new_required:
+            node_count = Node.objects.filter(level=level).count()
+            if node_count > 0 and new_default_value in [None, ""]:
+                return Response(
+                    {"default_value": "You cannot mark a column as 'Required' without a 'Default Value' because data already exists."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
         # 5. Validate Consistency
         try:
-            new_default_value = validate_value_type(new_default_value, existing_type, new_max_length)
+            options = validated_data.get('options', existing_col.get('options'))
+            
+            # Check if any removed dropdown options are currently in use
+            if existing_type == 'dropdown' and 'options' in validated_data:
+                existing_options = set(existing_col.get('options', []))
+                new_options = set(validated_data['options'])
+                removed_options = existing_options - new_options
+                
+                if removed_options:
+                    query = Q()
+                    for opt in removed_options:
+                        query |= Q(**{f"attributes__{current_name}": opt})
+                    
+                    if Node.objects.filter(level=level).filter(query).exists():
+                        return Response(
+                            {"options": f"Cannot remove options {list(removed_options)} because they are currently used by one or more nodes."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+            new_default_value = validate_value_type(new_default_value, existing_type, new_max_length, options=options)
             print(f"New Default Value: {new_default_value}, Type: {type(new_default_value)}")
-        except (ValidationError, ValueError) as e: # FIX: Catch both error types
+        except (ValidationError, ValueError, DRFValidationError) as e: 
             # Unwrap the error message safely
-            msg = e.detail[0] if isinstance(e, ValidationError) and isinstance(e.detail, list) else str(e)
+            if hasattr(e, 'detail'):
+                msg = e.detail[0] if isinstance(e.detail, list) else str(e.detail)
+            elif hasattr(e, 'messages'):
+                msg = e.messages[0] if isinstance(e.messages, list) else str(e.messages)
+            else:
+                msg = str(e)
             return Response({"default_value": msg}, status=status.HTTP_400_BAD_REQUEST)
         
         # 6. Apply Updates
@@ -2248,6 +2282,8 @@ class CustomColumnView(APIView):
         existing_col['default_value'] = new_default_value
         existing_col['max_length'] = new_max_length
         existing_col['required'] = new_required
+        if existing_type == 'dropdown':
+            existing_col['options'] = options
         
         # 7. Save
         level.extra_fields_schema[target_index] = existing_col
