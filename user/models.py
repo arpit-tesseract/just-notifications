@@ -243,6 +243,8 @@ class RelationType(AuditMixin):
     display_name = models.CharField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
+    post_no = models.PositiveBigIntegerField(null=True, blank=True)
+    role = models.ForeignKey(UserRole, on_delete=models.SET_NULL, null=True, blank=True)
 
     history = HistoricalRecords()
 

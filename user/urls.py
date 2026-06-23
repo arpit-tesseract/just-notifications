@@ -16,7 +16,7 @@ urlpatterns = [
     
     path('residential-types-lst/', views.ResidentialTypeListView.as_view(), name='family_types_lst'),
     path('document-types-lst/', views.DocumentTypeListView.as_view(), name='document_types_lst'),
-    path('relation-type-lst/', views.RelationTypeListView.as_view(), name='relation_types_lst'),
+    path('relation-types/', views.RelationTypeView.as_view(), name='relation_types_lst'),
     path('designation-type-lst/', views.DesignationTypeListView.as_view(), name='designation_types_lst'),
     path('business-family-lst/', views.BusinessFamilyListView.as_view(), name='business_family_lst'),
     path('business-family-lst/<int:id>/', views.BusinessFamilyListView.as_view(), name='business_family_lst'),

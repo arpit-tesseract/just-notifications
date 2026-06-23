@@ -106,7 +106,7 @@ class ResidentMappingAdmin(SimpleHistoryAdmin):
 
 @admin.register(RelationType)
 class RelationTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'is_active')
+    list_display = ('display_name', 'name', 'is_active','post_no', 'role')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 

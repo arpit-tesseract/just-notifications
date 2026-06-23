@@ -990,15 +990,26 @@ class UserListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class RelationTypeListView(APIView):
+class RelationTypeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        category_param = request.query_params.get("category", "general").strip()
 
-        relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param).exclude(
-            name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
-        )
+        category_param = request.query_params.get('category', '').strip()
+        role_param = request.query_params.get('role', 'user').strip()
+        
+        if category_param:
+            relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param, role__name=role_param).exclude(
+                name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+            )
+        else:
+            relation_type_qs = RelationType.objects.filter(
+                is_active=True, 
+                category='general', 
+                role__name=role_param,
+                name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+            )
+
         serializer = RelationTypeListSerializer(relation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

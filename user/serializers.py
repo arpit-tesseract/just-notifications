@@ -646,7 +646,7 @@ class UserListSerializer(serializers.ModelSerializer):
 class RelationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = RelationType
-        fields = ['id', 'name', 'display_name']
+        fields = ['id', 'name', 'display_name', 'post_no']
 
 class DesignationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
