@@ -171,6 +171,7 @@ class RegistrationView(APIView):
                 full_name = member.pop('full_name')
                 email = member.pop('email', None)
                 contact_no = member.pop('contact_no')
+                post_no = member.pop('post_no', None)
 
                 user_defaults = {
                     "full_name": full_name,
@@ -311,7 +312,8 @@ class RegistrationView(APIView):
                         "self_relation_type": self_relation_type_obj if self_relation else None,
                         "self_designation_type": self_designation,
                         "personal_details": user_personal_obj,
-                        "relation": relation_obj
+                        "relation": relation_obj,
+                        "post_no": post_no,
                     }
                 )
                 created_user_ids.append(user_obj.id)
@@ -351,6 +353,7 @@ class RegistrationView(APIView):
                         family = family_obj,
                         user = user_obj,
                         self_relation_type = user.get("self_relation_type"),
+                        post_no = user.get("post_no"),
                         is_main_user = user_obj.id == main_user_obj.id
                     )
                     family_name += user_obj.full_name[0].upper()
@@ -997,7 +1000,7 @@ class RelationTypeView(APIView):
 
         category_param = request.query_params.get('category', '').strip()
         role_param = request.query_params.get('role', 'user').strip()
-        
+
         if category_param:
             relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param, role__name=role_param).exclude(
                 name__in=["husband", "wife", "son", "daughter", "guest", "worker"]

@@ -96,6 +96,7 @@ class UserDetailsInputSerializer(serializers.Serializer):
         choices=UserProfile.GENDER_CHOICES,
         required=True, allow_null=True
     )
+    post_no = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=True)
     dob = serializers.DateField(required=True, allow_null=True)
     birth_time = serializers.TimeField(required=True, allow_null=True)
     birth_place = serializers.CharField(required=True, allow_null=True)
@@ -474,7 +475,10 @@ class RegistrationOutputSerializer(serializers.Serializer):
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details'],
-                    context={'self_designation': member.self_designation_type}
+                    context = {
+                        'self_designation': member.self_designation_type,
+                        'post_no': member.post_no
+                    }
                 ).data   
                 family_members_lst.append(user_details)
 
@@ -490,7 +494,10 @@ class RegistrationOutputSerializer(serializers.Serializer):
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details'],
-                    context = {'self_relation': member.self_relation_type}
+                    context = {
+                        'self_relation': member.self_relation_type,
+                        'post_no': member.post_no
+                    }
                 ).data
                 
                 if main_user_obj != registration_user_obj:
@@ -540,6 +547,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.full_name')
     is_verified = serializers.BooleanField(source='user.is_verified')
 
+    post_no = serializers.SerializerMethodField()
     self_relation = serializers.SerializerMethodField()
     self_designation = serializers.SerializerMethodField()
     personal_details = serializers.SerializerMethodField()
@@ -553,7 +561,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'user_id', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
+            'user_id', 'post_no', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
             'father_name', 'gender', 'dob', 'birth_time', 'birth_place', 'blood_group', 'marital_status', 
             'expired_date',  'expired_time', 'expired_place', 'cremation_place',
             'personal_details', 'residential_details', 'professional_details', 'documents', 'self_designation'
@@ -566,6 +574,10 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         if exclude:
             for field in exclude:
                 self.fields.pop(field, None)
+    
+    def get_post_no(self, obj):
+        context = self.context
+        return context.get('post_no')
 
     def get_self_relation(self, obj):
         context = self.context
@@ -696,7 +708,10 @@ class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details'],
-                    context = {'self_designation': member.self_designation_type}
+                    context = {
+                        'self_designation': member.self_designation_type,
+                        'post_no': member.post_no,
+                    }
                 ).data   
                 family_members_lst.append(user_details)
         except Exception as e:

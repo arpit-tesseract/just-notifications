@@ -280,6 +280,7 @@ class FamilyMember(AuditMixin):
     family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='members')
     self_relation_type = models.ForeignKey(RelationType, on_delete=models.PROTECT)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    post_no = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     is_main_user = models.BooleanField(default=False)
 
     history = HistoricalRecords()
@@ -291,8 +292,9 @@ class FamilyMember(AuditMixin):
 
 class BusinessFamilyMember(AuditMixin):
     business_family = models.ForeignKey(BusinessFamily, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
     self_designation_type = models.ForeignKey(DesignationType, on_delete=models.PROTECT)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    post_no = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
