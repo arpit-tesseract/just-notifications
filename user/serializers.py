@@ -97,6 +97,8 @@ class UserDetailsInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     dob = serializers.DateField(required=True, allow_null=True)
+    birth_time = serializers.TimeField(required=True, allow_null=True)
+    birth_place = serializers.CharField(required=True, allow_null=True)
     blood_group = serializers.ChoiceField(
         choices=UserProfile.BLOOD_GROUP_CHOICES,
         required=True, allow_null=True
@@ -106,6 +108,9 @@ class UserDetailsInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     expired_date = serializers.DateField(required=True, allow_null=True)
+    expired_time = serializers.TimeField(required=True, allow_null=True)
+    expired_place = serializers.CharField(required=True, allow_null=True)
+    cremation_place = serializers.CharField(required=True, allow_null=True)
     relation = serializers.PrimaryKeyRelatedField(
         queryset = RelationType.objects.filter(is_active=True).exclude(
             name__in=['husband', 'wife', 'son', 'daughter', 'guest', 'worker']
@@ -549,7 +554,8 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             'user_id', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
-            'father_name', 'gender', 'dob', 'blood_group', 'marital_status', 'expired_date', 
+            'father_name', 'gender', 'dob', 'birth_time', 'birth_place', 'blood_group', 'marital_status', 
+            'expired_date',  'expired_time', 'expired_place', 'cremation_place',
             'personal_details', 'residential_details', 'professional_details', 'documents', 'self_designation'
         ]
     

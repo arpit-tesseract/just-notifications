@@ -154,9 +154,14 @@ class UserProfile(models.Model):
     photo = models.ImageField(upload_to='user_photos/', blank=True, null=True)
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True, null=True)
     dob = models.DateField(blank=True, null=True)
+    birth_time = models.TimeField(blank=True, null=True)
+    birth_place = models.CharField(max_length=100, blank=True, null=True)
     blood_group = models.CharField(max_length=10, choices=BLOOD_GROUP_CHOICES, blank=True, null=True)
     marital_status = models.CharField(max_length=50, choices=MARITAL_STATUS_CHOICES, blank=True, null=True)
     expired_date = models.DateField(blank=True, null=True)
+    expired_time = models.TimeField(blank=True, null=True)
+    expired_place = models.CharField(max_length=100, blank=True, null=True)
+    cremation_place = models.CharField(max_length=100, blank=True, null=True)
 
     history = HistoricalRecords()
 
