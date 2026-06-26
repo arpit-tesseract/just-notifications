@@ -8,6 +8,7 @@ __pycache__/
 
 # SQLite DB
 db.sqlite3
+*.sqlite3
 
 # Django migrations
 **/migrations/
@@ -35,3 +36,7 @@ Thumbs.db
 /media/
 */media/
 **/media/
+
+# TDS file
+generate_tds_docx.py
+Shashan_Technical_Design_Specification.docx

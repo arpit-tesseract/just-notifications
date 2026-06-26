@@ -17,7 +17,7 @@ class UserRoleAdmin(SimpleHistoryAdmin):
 @admin.register(ResidentialDetails)
 class ResidentialDetailsAdmin(SimpleHistoryAdmin):
     # JSON fields are hard to list, so we display the ID and audit fields
-    list_display = ('id', 'created_at', 'updated_at') 
+    list_display = ('id', 'residential_code', 'created_at') 
 
 
 @admin.register(User)

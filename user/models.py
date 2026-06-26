@@ -5,7 +5,33 @@ from django.utils import timezone
 
 from common.models import AuditMixin, SoftDeleteMixin
 from configuration.models import Level, Node
-# Create your models here.
+
+
+# ---------------------------------------------------------------------------
+# Helper: build a dash-separated code string from a {level_id: node_id} JSON.
+#
+# Dict insertion order is PRESERVED — the caller controls the segment order.
+# Example: {"1": 2, "3": 11, "5": 32} → "01-05-08" (each segment zero-padded
+#          to the level's configured code_digits).
+# Returns None if nodes_json is empty or every entry is invalid.
+# ---------------------------------------------------------------------------
+def _generate_code_from_nodes(nodes_json):
+    if not nodes_json or not isinstance(nodes_json, dict):
+        return None
+    codes = []
+    for level_id, node_id in nodes_json.items():
+        try:
+            node = Node.objects.select_related('level').get(
+                id=int(node_id),
+                level_id=int(level_id)
+            )
+            digits = node.level.code_digits if node.level.code_digits else 2
+            codes.append(str(node.code).zfill(digits))
+        except (Node.DoesNotExist, ValueError, TypeError):
+            # Skip invalid / missing node references silently
+            pass
+    return "-".join(codes) if codes else None
+
 
 class UserRole(AuditMixin):
     name = models.CharField(max_length=100, unique=True)
@@ -70,6 +96,11 @@ class ResidentialDetails(AuditMixin):
     nodes = models.JSONField(default=dict, null=True, blank=True)
 
     history = HistoricalRecords()
+
+    @property
+    def residential_code(self):
+        """Dash-separated code built from nodes dict in insertion order."""
+        return _generate_code_from_nodes(self.nodes)
 
     def __str__(self):
         return f"{self.id}"
@@ -147,6 +178,16 @@ class UserProfile(models.Model):
         ('married', 'Married'),
         ('divorced', 'Divorced'),
     ]
+    EDUCATION_CHOICES = [
+        ('below_10th', 'Below 10th'),
+        ('10th', '10th Pass'),
+        ('12th', '12th Pass'),
+        ('diploma', 'Diploma'),
+        ('graduate', 'Graduate'),
+        ('post_graduate', 'Post Graduate'),
+        ('doctorate', 'Doctorate'),
+        ('other', 'Other'),
+    ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     pet_name = models.CharField(max_length=100, blank=True, null=True)
@@ -158,6 +199,19 @@ class UserProfile(models.Model):
     birth_place = models.CharField(max_length=100, blank=True, null=True)
     blood_group = models.CharField(max_length=10, choices=BLOOD_GROUP_CHOICES, blank=True, null=True)
     marital_status = models.CharField(max_length=50, choices=MARITAL_STATUS_CHOICES, blank=True, null=True)
+    # Marriage date — relevant only when marital_status == 'married'
+    marriage_date = models.DateField(blank=True, null=True)
+    # Education
+    education = models.CharField(max_length=50, choices=EDUCATION_CHOICES, blank=True, null=True)
+    education_detail = models.CharField(
+        max_length=200, blank=True, null=True,
+        help_text="Free-text detail, e.g. 'B.Tech - Computer Science from XYZ University'"
+    )
+    # National ID (stored plain; serializer is responsible for masking on read)
+    national_id_no = models.CharField(
+        max_length=50, blank=True, null=True,
+        help_text="Aadhar / Passport / SSN or equivalent national identifier"
+    )
     expired_date = models.DateField(blank=True, null=True)
     expired_time = models.TimeField(blank=True, null=True)
     expired_place = models.CharField(max_length=100, blank=True, null=True)
@@ -212,16 +266,41 @@ class UserProfessionalDetails(AuditMixin):
     personal_nodes = models.JSONField(default=dict, null=True, blank=True)
     professional_nodes = models.JSONField(default=dict, null=True, blank=True)
     designation = models.ForeignKey('DesignationType', on_delete=models.SET_NULL, null=True, blank=True)
+    # Duration of employment / engagement
+    joined_date = models.DateField(blank=True, null=True, help_text="Date the person joined this role")
+    left_date = models.DateField(blank=True, null=True, help_text="Date the person left (null = currently active)")
+    experience = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Human-readable experience summary, e.g. '3 years 2 months'"
+    )
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
+
+    @property
+    def professional_code(self):
+        """Dash-separated code built from professional_nodes dict in insertion order."""
+        return _generate_code_from_nodes(self.professional_nodes)
+
+    def __str__(self):
+        company = self.business_family.name if self.business_family else "—"
+        return f"{self.user.full_name} @ {company}"
 
 
 class UserPersonalDetails(AuditMixin):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='personal_details')
     nodes = models.JSONField(default=dict, null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
 
     history = HistoricalRecords()
+
+    @property
+    def personal_code(self):
+        """Dash-separated code built from nodes dict in insertion order."""
+        return _generate_code_from_nodes(self.nodes)
+
+    def __str__(self):
+        return f"PersonalDetails({self.user.full_name})"
 
 
 class ResidentialType(AuditMixin):
@@ -308,21 +387,35 @@ class ResidentMapping(AuditMixin):
     business_family = models.ForeignKey(BusinessFamily, on_delete=models.SET_NULL, null=True, blank=True, related_name='residents')
     residential_details = models.ForeignKey(ResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
     residential_type = models.ForeignKey(ResidentialType, on_delete=models.PROTECT)
+    # Duration of stay at this address
+    stay_from = models.DateField(
+        blank=True, null=True,
+        help_text="Date the family moved in / association started"
+    )
+    stay_to = models.DateField(
+        blank=True, null=True,
+        help_text="Date the family moved out (null = currently residing)"
+    )
+    is_current = models.BooleanField(
+        default=True,
+        help_text="True when this is the active / ongoing address for this type"
+    )
 
     history = HistoricalRecords()
 
     class Meta:
-        # Enforce that a residential user can only have one record of a specific family type
+        # Enforce that a family can only have one record per residential type
         constraints = [
             models.UniqueConstraint(
-                fields=['residential_details', 'residential_type'], 
+                fields=['residential_details', 'residential_type'],
                 name='unique_resident_residential_type',
                 violation_error_message="A record with this residential details and family type already exists."
             )
         ]
 
     def __str__(self):
-        return f"{self.residential_details}"
+        stay = f" ({self.stay_from} → {self.stay_to or 'present'})" if self.stay_from else ""
+        return f"{self.residential_details}{stay}"
     
 
 

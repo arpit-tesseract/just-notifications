@@ -123,6 +123,8 @@ class RegistrationView(APIView):
         user_category = validated_data.get('user_category')
         residential_type = validated_data.get('residential_type')
         residential_details_json = validated_data.get('residential_details')
+        stay_from = validated_data.get('stay_from')
+        stay_to = validated_data.get('stay_to')
         company_name = validated_data.get("company")
         family_members = validated_data.get('family_members')
 
@@ -368,7 +370,11 @@ class RegistrationView(APIView):
                         family_resident_obj, _ = ResidentMapping.objects.get_or_create(
                             family = family_obj,
                             residential_details = residential_obj,
-                            residential_type = residential_type
+                            residential_type = residential_type,
+                            defaults={
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
                 except IntegrityError:
                     raise ValidationError({
@@ -399,7 +405,9 @@ class RegistrationView(APIView):
                         ResidentMapping.objects.create(
                             residential_details=residential_obj,
                             residential_type=residential_type,
-                            business_family=business_family_obj
+                            business_family=business_family_obj,
+                            stay_from=stay_from,
+                            stay_to=stay_to
                         )
 
                     business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
@@ -457,7 +465,11 @@ class RegistrationView(APIView):
                         family_resident_obj, created = ResidentMapping.objects.get_or_create(
                             family=main_user_family_obj,
                             residential_type=current_residential_type_obj,
-                            defaults={'residential_details': main_user_residential_obj}
+                            defaults={
+                                'residential_details': main_user_residential_obj,
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
                 except IntegrityError:
                     raise ValidationError({
@@ -470,7 +482,11 @@ class RegistrationView(APIView):
                         registration_resident_obj, created = ResidentMapping.objects.get_or_create(
                             family=registration_user_family_obj,
                             residential_type=residential_type,
-                            defaults={'residential_details': main_user_residential_obj}
+                            defaults={
+                                'residential_details': main_user_residential_obj,
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
                 except IntegrityError:
                     raise ValidationError({
