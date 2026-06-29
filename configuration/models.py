@@ -54,6 +54,7 @@ class Level(SoftDeleteMixin):
     display_name = models.CharField(max_length=100)
     name = models.CharField(max_length=100, validators=[level_name_validator])
     single_mode = models.BooleanField(default=False)
+    is_mandatory = models.BooleanField(default=False, help_text="If True, users must provide a node for this level when saving data in this dimension.")
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     sort_order = models.PositiveIntegerField(default=1)
     code_digits = models.PositiveIntegerField(default=2)

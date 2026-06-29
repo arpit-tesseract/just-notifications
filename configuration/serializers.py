@@ -39,6 +39,7 @@ class LevelSerializer(serializers.ModelSerializer):
             'child',
             'sort_order',
             'single_mode',
+            'is_mandatory',
             'code_digits',
         ]
         extra_kwargs = {
@@ -287,7 +288,7 @@ class LevelIdNameSerializerWithCustomColumn(serializers.ModelSerializer):
     parent_display_name = serializers.SerializerMethodField()
     class Meta:
         model = Level
-        fields = ['id', 'name', 'display_name', 'single_mode',  'parent_name', 'parent_display_name', 'code_digits', 'extra_fields_schema']
+        fields = ['id', 'name', 'display_name', 'is_mandatory', 'single_mode',  'parent_name', 'parent_display_name', 'code_digits', 'extra_fields_schema']
     
     def get_parent_name(self, obj):
         if obj.parent:
@@ -312,7 +313,7 @@ class LevelDetailSerializer(serializers.ModelSerializer):
     dimension = DimensionIdNameSerializer()
     class Meta:
         model = Level
-        fields = ['id', 'name', 'display_name', 'parent', 'dimension', 'sort_order']
+        fields = ['id', 'name', 'display_name', 'parent', 'dimension', 'sort_order', 'is_mandatory']
 
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError

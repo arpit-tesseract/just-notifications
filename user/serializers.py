@@ -232,6 +232,25 @@ class UserDetailsInputSerializer(serializers.Serializer):
             #     raise serializers.ValidationError({
             #         level_id: f"Invalid Node ID '{node_id}'."
             #     })
+
+        # 4. Enforce Mandatory Levels (GAP-05)
+        mandatory_levels = Level.objects.filter(
+            dimension=dimension_obj, 
+            is_mandatory=True, 
+            is_deleted=False
+        )
+        
+        missing_mandatory = []
+        for level in mandatory_levels:
+            if str(level.id) not in value:
+                missing_mandatory.append(level.name)
+                
+        if missing_mandatory:
+            missing_names = ", ".join(missing_mandatory)
+            raise serializers.ValidationError(
+                f"Missing required node(s) for the following level(s): {missing_names}"
+            )
+
         return value
 
 

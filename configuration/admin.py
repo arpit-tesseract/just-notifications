@@ -9,8 +9,8 @@ class DimensionAdmin(SimpleHistoryAdmin):
     
 @admin.register(Level)
 class LevelAdmin(SimpleHistoryAdmin):
-    list_display = ['dimension', 'name', 'parent', 'single_mode', 'sort_order', 'is_deleted', 'created_at', 'updated_at']
-    list_filter = ['is_deleted', 'dimension', 'parent']
+    list_display = ['dimension', 'name', 'parent', 'single_mode', 'is_mandatory', 'sort_order', 'is_deleted', 'created_at', 'updated_at']
+    list_filter = ['is_deleted', 'is_mandatory', 'dimension', 'parent']
     sortable_by = ['sort_order']
     
     def get_queryset(self, request):
