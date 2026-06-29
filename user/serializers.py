@@ -496,7 +496,7 @@ class RegistrationOutputSerializer(serializers.Serializer):
             return None
         return {
             "residential_code": residential_details.residential_code,
-            "nodes": get_level_node_mapping(residential_details.nodes),
+            "nodes": get_level_node_mapping(residential_details.node_mappings.all()),
         }
 
     def get_stay_from(self, family_obj):
@@ -664,11 +664,10 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     def get_personal_details(self, obj):
         try:
             personal_details_obj = obj.user.personal_details
-            nodes_data = personal_details_obj.nodes
             return {
                 "personal_code": personal_details_obj.personal_code,
                 "is_verified": personal_details_obj.is_verified,
-                "nodes": get_level_node_mapping(nodes_data),
+                "nodes": get_level_node_mapping(personal_details_obj.node_mappings.all()),
             }
         except Exception:
             return None
@@ -676,10 +675,9 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     def get_residential_details(self, obj):
         try:
             residential_obj = obj.user.current_residential_details
-            nodes_data = residential_obj.nodes
             return {
                 "residential_code": residential_obj.residential_code,
-                "nodes": get_level_node_mapping(nodes_data),
+                "nodes": get_level_node_mapping(residential_obj.node_mappings.all()),
             }
         except Exception:
             return None
@@ -692,7 +690,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
                 if detail.residential_details:
                     residential_node_mapping = {
                         "residential_code": detail.residential_details.residential_code,
-                        "nodes": get_level_node_mapping(detail.residential_details.nodes),
+                        "nodes": get_level_node_mapping(detail.residential_details.node_mappings.all()),
                     }
                 else:
                     residential_node_mapping = None
@@ -710,10 +708,10 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
                     "experience": detail.experience,
                     "residential_details": residential_node_mapping,
                     "personal_details": {
-                        "nodes": get_level_node_mapping(detail.personal_nodes)
+                        "nodes": get_level_node_mapping(detail.personal_node_mappings.all())
                     },
                     "professional_details": {
-                        "nodes": get_level_node_mapping(detail.professional_nodes)
+                        "nodes": get_level_node_mapping(detail.professional_node_mappings.all())
                     },
                     "is_active": detail.is_active,
                 })
@@ -766,7 +764,7 @@ class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
             resident_mapping = ResidentMapping.objects.get(business_family=obj)
             return {
                 "residential_code": resident_mapping.residential_details.residential_code,
-                "nodes": get_level_node_mapping(resident_mapping.residential_details.nodes)
+                "nodes": get_level_node_mapping(resident_mapping.residential_details.node_mappings.all())
             }
         except ResidentMapping.DoesNotExist:
             return None

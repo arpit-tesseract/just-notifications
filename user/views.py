@@ -22,7 +22,7 @@ from .serializers import (
     RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, 
 )
 from .models import *
-from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details)
 # Create your views here.
 
 
@@ -140,9 +140,7 @@ class RegistrationView(APIView):
         #         nodes=residential_details_json
         #     )
         
-        residential_obj, _ = ResidentialDetails.objects.get_or_create(
-            nodes=residential_details_json
-        )
+        residential_obj, _ = get_or_create_residential_details(residential_details_json)
 
         with transaction.atomic():
             created_users = []
@@ -226,22 +224,30 @@ class RegistrationView(APIView):
 
                 try:
                     user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
-                    user_personal_obj.nodes = personal_details_json
-                    user_personal_obj.save()
                 except UserPersonalDetails.DoesNotExist:
                     user_personal_obj = UserPersonalDetails.objects.create(
-                        user = user_obj,
-                        nodes = personal_details_json
+                        user = user_obj
                     )
+                
+                # Bulk create mapping for personal details
+                user_personal_obj.node_mappings.all().delete()
+                personal_mappings_to_create = []
+                for level_id, node_id in personal_details_json.items():
+                    if level_id and node_id:
+                        personal_mappings_to_create.append(
+                            PersonalNodeMapping(
+                                personal_detail=user_personal_obj, level_id=int(level_id), node_id=int(node_id)
+                            )
+                        )
+                if personal_mappings_to_create:
+                    PersonalNodeMapping.objects.bulk_create(personal_mappings_to_create)
                 
                 print("professional_details_lst", professional_details_lst)
                 for professional_details in professional_details_lst:
                     company_name = professional_details.get('company')
                     residential_nodes = professional_details.get('residential_details', {})
 
-                    bussiness_residential_obj, _ = ResidentialDetails.objects.get_or_create(
-                        nodes=residential_nodes
-                    )
+                    bussiness_residential_obj, _ = get_or_create_residential_details(residential_nodes)
 
                     try:
                         temp_resident_mapping_obj = ResidentMapping.objects.get(
@@ -276,8 +282,6 @@ class RegistrationView(APIView):
                             )
                             professional_details_obj.business_family = business_family_obj
                             professional_details_obj.residential_details = bussiness_residential_obj
-                            professional_details_obj.personal_nodes = personal_nodes
-                            professional_details_obj.professional_nodes = professional_nodes
                             professional_details_obj.designation = designation_obj
                             professional_details_obj.is_active = is_active
                             professional_details_obj.save()
@@ -287,15 +291,35 @@ class RegistrationView(APIView):
                             })
 
                     else:
-                        UserProfessionalDetails.objects.create(
+                        professional_details_obj = UserProfessionalDetails.objects.create(
                             user=user_obj,
                             business_family = business_family_obj,
                             residential_details=bussiness_residential_obj,
-                            personal_nodes=personal_nodes,
-                            professional_nodes=professional_nodes,
                             designation=designation_obj,
                             is_active=is_active
                         )
+                        
+                    # Delete and recreate professional mappings
+                    professional_details_obj.professional_node_mappings.all().delete()
+                    prof_mappings_to_create = []
+                    for level_id, node_id in professional_nodes.items():
+                        if level_id and node_id:
+                            prof_mappings_to_create.append(ProfessionalNodeMapping(
+                                professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                            ))
+                    if prof_mappings_to_create:
+                        ProfessionalNodeMapping.objects.bulk_create(prof_mappings_to_create)
+
+                    # Delete and recreate professional personal mappings
+                    professional_details_obj.personal_node_mappings.all().delete()
+                    prof_pers_mappings_to_create = []
+                    for level_id, node_id in personal_nodes.items():
+                        if level_id and node_id:
+                            prof_pers_mappings_to_create.append(ProfessionalPersonalNodeMapping(
+                                professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                            ))
+                    if prof_pers_mappings_to_create:
+                        ProfessionalPersonalNodeMapping.objects.bulk_create(prof_pers_mappings_to_create)
                     
                     # Create members for this bussiness 
                     business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
@@ -992,24 +1016,19 @@ class UserListView(APIView):
             if key.startswith("res_"):
                 json_key = key.replace("res_", "")
 
-                user_qs = user_qs.annotate(
-                    res_json_val=RawSQL(
-                        f"JSON_EXTRACT(user_userresidentialdetails.nodes, '$.\"{json_key}\"')",
-                        []
-                    )
-                ).filter(res_json_val=parsed_value)
+                user_qs = user_qs.filter(
+                    current_residential_details__node_mappings__level_id=int(json_key),
+                    current_residential_details__node_mappings__node_id=parsed_value
+                )
             
             # 3. Apply to Personal Filters
             elif key.startswith("per_"):
                 json_key = key.replace("per_", "")
                 
-                # Assuming your app name is 'user', the table name is 'user_userpersonaldetails'
-                user_qs = user_qs.annotate(
-                    per_json_val=RawSQL(
-                        f"JSON_EXTRACT(user_userpersonaldetails.nodes, '$.\"{json_key}\"')",
-                        []
-                    )
-                ).filter(per_json_val=parsed_value)
+                user_qs = user_qs.filter(
+                    personal_details__node_mappings__level_id=int(json_key),
+                    personal_details__node_mappings__node_id=parsed_value
+                )
 
         serializer = UserListSerializer(user_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

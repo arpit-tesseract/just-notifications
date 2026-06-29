@@ -40,3 +40,6 @@ Thumbs.db
 # TDS file
 generate_tds_docx.py
 Shashan_Technical_Design_Specification.docx
+
+# SRS file
+**.pdf
