@@ -14,7 +14,7 @@ from rest_framework.decorators import action
 from django.db.models import Count, Window, F, Q
 from .pagination import ConfigurationPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
-from .services import reassign_user_node_references
+from .services import reassign_user_node_references, count_user_node_references
 
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -160,11 +160,13 @@ class NodeViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # 1. Check for Dependencies (Only count active, non-deleted items)
         child_nodes_count = Node.objects.filter(parent=instance, is_deleted=False).count()
+        user_nodes_count = count_user_node_references(instance.id)
 
         dependencies = []
         if child_nodes_count > 0:
-            dependencies.append(f"{child_nodes_count} child rows(s)")
-
+            dependencies.append(f"{child_nodes_count} child node(s)")
+        if user_nodes_count > 0:
+            dependencies.append(f"{user_nodes_count} user record(s)")
 
         # 2. Block Deletion if dependencies exist
         if dependencies:
@@ -191,6 +193,74 @@ class NodeViewSet(viewsets.ModelViewSet):
             level_logger.exception(f"Failed to delete node: {e}")
             raise DRFValidationError({"error": "Failed to delete. Please try again."})
         
+    @action(detail=True, methods=['get'], url_path='delete-preview')
+    def delete_preview(self, request, pk=None):
+        instance = self.get_object()
+        child_nodes_count = Node.objects.filter(parent=instance, is_deleted=False).count()
+        user_nodes_count = count_user_node_references(instance.id)
+        return Response({
+            "node_id": instance.id,
+            "node_name": instance.name,
+            "child_nodes_count": child_nodes_count,
+            "user_references_count": user_nodes_count,
+            "total_dependencies": child_nodes_count + user_nodes_count
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='delete-with-reassignment')
+    def delete_with_reassignment(self, request, pk=None):
+        instance = self.get_object()
+        replacement_node_id = request.data.get('replacement_node_id')
+
+        if not replacement_node_id:
+            return Response({"error": "replacement_node_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            replacement_node = Node.objects.get(id=replacement_node_id, is_deleted=False)
+        except Node.DoesNotExist:
+            return Response({"error": "Replacement node not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if replacement_node.level_id != instance.level_id:
+            return Response({"error": "Replacement node must be at the same level."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if replacement_node.parent_id != instance.parent_id:
+            return Response({"error": "Replacement node must have the same parent."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if replacement_node.id == instance.id:
+            return Response({"error": "Replacement node cannot be the same as the node being deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # 1. Reparent children
+                children = Node.objects.filter(parent=instance, is_deleted=False)
+                for child in children:
+                    child.parent = replacement_node
+                    child.save() # Triggers closure table update
+
+                # 2. Reassign users
+                reassign_user_node_references([instance], replacement_node)
+
+                # 3. Log event
+                NodeEventLog.objects.create(
+                    event_type='MERGE', # Conceptually a merge since it's reassigned
+                    source_node=instance,
+                    target_node=replacement_node,
+                    performed_by=request.user,
+                    details=f"Deleted and reassigned dependencies to node {replacement_node.id}"
+                )
+
+                # 4. Soft delete
+                instance._change_reason = f"Deleted and reassigned to '{replacement_node.name}'"
+                instance.soft_delete(user=request.user)
+
+            return Response({
+                "message": f"Successfully deleted '{instance.name}' and reassigned all dependencies to '{replacement_node.name}'."
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            level_logger.exception(f"Failed to delete with reassignment: {e}")
+            return Response({"error": "Failed to reassign and delete. Please try again."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
