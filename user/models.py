@@ -274,7 +274,10 @@ class UserProfessionalDetails(AuditMixin):
             qs = self.professional_node_mappings.all() if self.pk else None
         except Exception:
             qs = None
-        return _generate_code_from_nodes(qs)
+        base_code = _generate_code_from_nodes(qs)
+        if base_code and self.user_id:
+            return f"{base_code}-{self.user_id}"
+        return base_code
 
     def __str__(self):
         company = self.business_family.name if self.business_family else "—"
@@ -294,7 +297,10 @@ class UserPersonalDetails(AuditMixin):
             qs = self.node_mappings.all() if self.pk else None
         except Exception:
             qs = None
-        return _generate_code_from_nodes(qs)
+        base_code = _generate_code_from_nodes(qs)
+        if base_code and self.user_id:
+            return f"{base_code}-{self.user_id}"
+        return base_code
 
     def __str__(self):
         return f"PersonalDetails({self.user.full_name})"
