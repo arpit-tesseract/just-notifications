@@ -207,11 +207,6 @@ class UserProfile(models.Model):
         max_length=200, blank=True, null=True,
         help_text="Free-text detail, e.g. 'B.Tech - Computer Science from XYZ University'"
     )
-    # National ID (stored plain; serializer is responsible for masking on read)
-    national_id_no = models.CharField(
-        max_length=50, blank=True, null=True,
-        help_text="Aadhar / Passport / SSN or equivalent national identifier"
-    )
     expired_date = models.DateField(blank=True, null=True)
     expired_time = models.TimeField(blank=True, null=True)
     expired_place = models.CharField(max_length=100, blank=True, null=True)

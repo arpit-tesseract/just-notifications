@@ -188,21 +188,7 @@ class RegistrationView(APIView):
                         defaults=user_defaults
                     )
                     
-                else:
-                    # Enforce duplicate detection before creating a new record
-                    national_id_no = member.get('national_id_no')
-                    
-                    filters = Q(contact_no=contact_no)
-                    if national_id_no:
-                        filters |= Q(userprofile__national_id_no=national_id_no)
-                    if full_name:
-                        filters |= Q(full_name__iexact=full_name)
-                    
-                    if User.objects.filter(filters).exists():
-                        raise ValidationError({
-                            "error": "A user with this contact number, national ID, or name already exists. Please select the existing user from suggestions."
-                        })
-                        
+                else:                        
                     user_obj = User.objects.create(
                         full_name = full_name,
                         email = email,
@@ -936,7 +922,6 @@ class UserSuggestionsListView(APIView):
         if user_id is None:
             full_name = request.query_params.get('name', "").strip()
             contact_no = request.query_params.get('contact_no', "").strip()
-            national_id_no = request.query_params.get('national_id_no', "").strip()
 
             filters = Q()
 
@@ -944,8 +929,6 @@ class UserSuggestionsListView(APIView):
                 filters |= Q(full_name__icontains=full_name)
             if contact_no:
                 filters |= Q(contact_no__icontains=contact_no)
-            if national_id_no:
-                filters |= Q(userprofile__national_id_no=national_id_no)
             
             if not filters:
                 return Response({

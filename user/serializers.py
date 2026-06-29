@@ -129,7 +129,6 @@ class UserDetailsInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     education_detail = serializers.CharField(required=True, allow_null=True)
-    national_id_no = serializers.CharField(required=True, allow_null=True)
 
     expired_date = serializers.DateField(required=True, allow_null=True)
     expired_time = serializers.TimeField(required=True, allow_null=True)
@@ -621,14 +620,13 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         source='user.documents',
         many=True
     )
-    national_id_no = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
         fields = [
             'user_id', 'post_no', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
             'father_name', 'gender', 'dob', 'birth_time', 'birth_place', 'blood_group', 'marital_status', 'marriage_date',
-            'education', 'education_detail', 'national_id_no', 'expired_date',  'expired_time', 'expired_place', 'cremation_place',
+            'education', 'education_detail', 'expired_date',  'expired_time', 'expired_place', 'cremation_place',
             'personal_details', 'residential_details', 'professional_details', 'documents', 'self_designation'
         ]
     
@@ -639,13 +637,6 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         if exclude:
             for field in exclude:
                 self.fields.pop(field, None)
-    
-    def get_national_id_no(self, obj):
-        # Mask all but the last 4 characters of the national ID
-        if not obj.national_id_no:
-            return None
-        id_str = str(obj.national_id_no)
-        return "*" * (len(id_str) - 4) + id_str[-4:] if len(id_str) > 4 else id_str
     
     def get_post_no(self, obj):
         context = self.context
