@@ -311,6 +311,26 @@ class Node(SoftDeleteMixin):
         return f"{self.name} ({self.code})"
 
 
+class NodeEventLog(models.Model):
+    EVENT_CHOICES = (
+        ('MERGE', 'Merge'),
+        ('SPLIT', 'Split'),
+    )
+    event_type = models.CharField(max_length=10, choices=EVENT_CHOICES)
+    source_node = models.ForeignKey(Node, on_delete=models.SET_NULL, null=True, related_name="source_events")
+    target_node = models.ForeignKey(Node, on_delete=models.SET_NULL, null=True, related_name="target_events")
+    effective_date = models.DateField(null=True, blank=True)
+    performed_by = models.ForeignKey('user.User', on_delete=models.SET_NULL, null=True, blank=True)
+    details = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.event_type}: {self.source_node} -> {self.target_node}"
+
+
 class NodeAlias(models.Model):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="aliases")
     name = models.CharField(max_length=255)

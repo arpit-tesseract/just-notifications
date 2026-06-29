@@ -28,6 +28,12 @@ class NodeAdmin(SimpleHistoryAdmin):
 class NodeAliasAdmin(SimpleHistoryAdmin):
     list_display = ['node', 'name']
 
+@admin.register(NodeEventLog)
+class NodeEventLogAdmin(admin.ModelAdmin):
+    list_display = ['event_type', 'source_node', 'target_node', 'effective_date', 'performed_by', 'created_at']
+    list_filter = ['event_type', 'effective_date']
+    search_fields = ['source_node__name', 'target_node__name']
+
 @admin.register(NodeClosure)
 class NodeClosureAdmin(admin.ModelAdmin):
     list_display = ['ancestor', 'descendant', 'depth']

@@ -789,6 +789,14 @@ class NodeViewSet(viewsets.ModelViewSet):
                     # C. Delete Source
                     # (Optional: You could set is_archived=True instead of deleting)
                     source._change_reason = f"Merged into '{target.name}' (ID: {target.id})"
+                    NodeEventLog.objects.create(
+                        event_type='MERGE',
+                        source_node=source,
+                        target_node=target,
+                        effective_date=merge_date,
+                        performed_by=request.user,
+                        details=f"Merged into existing node {target.id}"
+                    )
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -883,6 +891,14 @@ class NodeViewSet(viewsets.ModelViewSet):
                     # Delete Source
                     # NEW: Document the deletion reason
                     source._change_reason = f"Merged into new '{new_node.name}' (ID: {new_node.id})"
+                    NodeEventLog.objects.create(
+                        event_type='MERGE',
+                        source_node=source,
+                        target_node=new_node,
+                        effective_date=merge_date,
+                        performed_by=request.user,
+                        details=f"Merged into newly created node {new_node.id}"
+                    )
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -1802,6 +1818,16 @@ class NodeViewSet(viewsets.ModelViewSet):
             # NEW: Log why this node is being deleted
             new_node_names = ", ".join([n.name for n in created_nodes])
             source_node._change_reason = f"Split into {len(created_nodes)} nodes: {new_node_names}"
+
+            for target in created_nodes:
+                NodeEventLog.objects.create(
+                    event_type='SPLIT',
+                    source_node=source_node,
+                    target_node=target,
+                    effective_date=split_date,
+                    performed_by=request.user,
+                    details=f"Split from original node {source_node.id}"
+                )
 
             if not source_node_reused:
                 # It was not reused, so we safely delete it
