@@ -424,3 +424,31 @@ class UserRelations(AuditMixin):
     def __str__(self):
         return f"{self.from_user.full_name} - {self.relation_type.display_name} - {self.to_user.full_name}"
 
+
+class ResidentialNodeMapping(AuditMixin):
+    residential_detail = models.ForeignKey('ResidentialDetails', on_delete=models.CASCADE, related_name='node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+class PersonalNodeMapping(AuditMixin):
+    personal_detail = models.ForeignKey('UserPersonalDetails', on_delete=models.CASCADE, related_name='node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+class ProfessionalPersonalNodeMapping(AuditMixin):
+    professional_detail = models.ForeignKey('UserProfessionalDetails', on_delete=models.CASCADE, related_name='personal_node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+class ProfessionalNodeMapping(AuditMixin):
+    professional_detail = models.ForeignKey('UserProfessionalDetails', on_delete=models.CASCADE, related_name='professional_node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
