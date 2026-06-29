@@ -7,8 +7,8 @@ from configuration.models import Dimension, Level, Node
 from .utils import get_level_node_mapping
 
 
-class LoginEmailPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+class LoginInputSerializer(serializers.Serializer):
+    contact_no = serializers.CharField(write_only=True)
     password = serializers.CharField(write_only=True)
 
 

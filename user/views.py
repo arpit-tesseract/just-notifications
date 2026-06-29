@@ -15,7 +15,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 
 from .serializers import (
-    LoginEmailPasswordSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
+    LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
     ResidentialTypeListSerializer, DocumentTypeListSerializer, RelationTypeListSerializer, DesignationTypeListSerializer,
     BusinessFamilyListSerializer, BussinessFamilyDetailsOutputSerializer,
     UserSuggestionListSerializer, UserDetailsOutputSerializer,
@@ -26,26 +26,26 @@ from .utils import (map_family_internal_relations, map_relations_with_husband_us
 # Create your views here.
 
 
-class LoginWithEmailPasswordView(APIView):
+class LoginView(APIView):
     def post(self, request):
-        serializer = LoginEmailPasswordSerializer(data=request.data)
+        serializer = LoginInputSerializer(data=request.data)
         
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         validated_data = serializer.validated_data
-        email = validated_data.get('email').strip().lower()
-        password = validated_data.get('password').strip()
+        contact_no = validated_data.get('contact_no').strip()
+        password = validated_data.get('password')
             
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(contact_no=contact_no)
         except User.DoesNotExist:
             return Response(
-                {"error": "Email does not exist"},
+                {"error": "Wrong contact number or password"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        if user.is_verified == False:
+        if not user.is_verified:
             return Response(
                 {
                     "error": "Your account is not verified"
@@ -55,7 +55,7 @@ class LoginWithEmailPasswordView(APIView):
         
         if not user.check_password(password):
             return Response(
-                {"error": "Incorrect password"},
+                {"error": "Wrong contact number or password"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
