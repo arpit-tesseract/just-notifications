@@ -857,6 +857,12 @@ class MultiUserDocumentUploadView(APIView):
                         # Move to the next document, do not process file uploads
                         continue 
 
+                    # Regex Validation for document_no
+                    if document_type.regex_pattern and document_no:
+                        if not re.match(document_type.regex_pattern, document_no):
+                            error_msg = document_type.regex_error_message or f"Invalid format for {document_type.display_name}."
+                            errors.append({err_key: error_msg})
+                            continue
 
                     # File required Validation
                     if not file:

@@ -223,6 +223,7 @@ class DocumentType(AuditMixin):
     display_name = models.CharField(max_length=100, unique=True)
     order = models.PositiveIntegerField()
     is_required = models.BooleanField(default=False)
+    regex_pattern = models.CharField(max_length=100, blank=True, null=True)
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
