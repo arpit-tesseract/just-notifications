@@ -162,23 +162,24 @@ class UserDetailsInputSerializer(serializers.Serializer):
         email = attrs.get('email')
 
         if not user_obj:
-            try:
-                User.objects.get(contact_no=contact_no)
+            user_objs = User.objects.filter(contact_no=contact_no)
+            if user_objs.exists():
                 raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
-            except User.DoesNotExist:
-                pass
-        
-        if email:
-            try:
-                if user_obj:
-                    user_qs = User.objects.filter(email=email).exclude(id=user_obj.id)
-                else:
-                    user_qs = User.objects.filter(email=email)
-
-                if user_qs.exists():
+            
+            if email:
+                user_objs = User.objects.filter(email=email)
+                if user_objs.exists():
                     raise serializers.ValidationError({"email": "User with this email already exists."})
-            except User.DoesNotExist:
-                pass
+        else:
+            user_objs = User.objects.filter(contact_no=contact_no).exclude(id=user_obj.id)
+            if user_objs.exists():
+                raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
+            
+            if email:
+                user_objs = User.objects.filter(email=email).exclude(id=user_obj.id)
+                if user_objs.exists():
+                    raise serializers.ValidationError({"email": "User with this email already exists."})
+    
 
         if self_relation:
             if gender == 'male' and self_relation not in ['husband', 'guest', 'workers', 'son']:
