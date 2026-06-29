@@ -642,7 +642,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                         grouped_paths[c.descendant_id][level_name] = {
                             "id": c.ancestor.id,
                             "name": c.ancestor.name,
-                            "code": c.ancestor.code,
+                            "code": str(c.ancestor.code).zfill(c.ancestor.level.code_digits if c.ancestor.level else 2),
                             "sort_order": c.ancestor.level.sort_order
                         }
 

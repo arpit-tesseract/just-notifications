@@ -149,6 +149,15 @@ class LevelSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         print("validated_data", validated_data)
+        
+        new_code_digits = validated_data.get('code_digits')
+        if new_code_digits is not None and new_code_digits < instance.code_digits:
+            # Check if any node has a code length > new_code_digits
+            if Node.objects.filter(level=instance, code__gte=10**new_code_digits).exists():
+                raise serializers.ValidationError({
+                    "code_digits": f"Cannot decrease code digits to {new_code_digits}. Some nodes have codes requiring more digits."
+                })
+
         try:
             # Only update name
             level_logger.info(f"Try to updating level {instance.name} to {validated_data.get('name')}")
