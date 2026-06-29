@@ -15,7 +15,16 @@ from configuration.models import Level, Node
 #          to the level's configured code_digits).
 # Returns None if nodes_json is empty or every entry is invalid.
 # ---------------------------------------------------------------------------
-def _generate_code_from_nodes(nodes_json):
+def _generate_code_from_nodes(nodes_json, mappings_qs=None):
+    if mappings_qs is not None and mappings_qs.exists():
+        codes = []
+        mappings = mappings_qs.select_related('level', 'node').order_by('level__sort_order')
+        for mapping in mappings:
+            digits = mapping.level.code_digits if mapping.level.code_digits else 2
+            codes.append(str(mapping.node.code).zfill(digits))
+        if codes:
+            return "-".join(codes)
+
     if not nodes_json or not isinstance(nodes_json, dict):
         return None
     codes = []
@@ -99,8 +108,30 @@ class ResidentialDetails(AuditMixin):
 
     @property
     def residential_code(self):
-        """Dash-separated code built from nodes dict in insertion order."""
-        return _generate_code_from_nodes(self.nodes)
+        """Dash-separated code built from node mappings or nodes dict."""
+        try:
+            qs = self.node_mappings.all() if self.pk else None
+        except Exception:
+            qs = None
+        return _generate_code_from_nodes(self.nodes, qs)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if getattr(self, 'nodes', None) and isinstance(self.nodes, dict):
+            # Sync node_mappings
+            self.node_mappings.all().delete()
+            mappings = []
+            for level_id, node_id in self.nodes.items():
+                if level_id and node_id:
+                    mappings.append(
+                        ResidentialNodeMapping(
+                            residential_detail=self,
+                            level_id=int(level_id),
+                            node_id=int(node_id)
+                        )
+                    )
+            if mappings:
+                ResidentialNodeMapping.objects.bulk_create(mappings)
 
     def __str__(self):
         return f"{self.id}"
@@ -275,8 +306,44 @@ class UserProfessionalDetails(AuditMixin):
 
     @property
     def professional_code(self):
-        """Dash-separated code built from professional_nodes dict in insertion order."""
-        return _generate_code_from_nodes(self.professional_nodes)
+        """Dash-separated code built from node mappings or nodes dict."""
+        try:
+            qs = self.professional_node_mappings.all() if self.pk else None
+        except Exception:
+            qs = None
+        return _generate_code_from_nodes(self.professional_nodes, qs)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if getattr(self, 'professional_nodes', None) and isinstance(self.professional_nodes, dict):
+            self.professional_node_mappings.all().delete()
+            mappings = []
+            for level_id, node_id in self.professional_nodes.items():
+                if level_id and node_id:
+                    mappings.append(
+                        ProfessionalNodeMapping(
+                            professional_detail=self,
+                            level_id=int(level_id),
+                            node_id=int(node_id)
+                        )
+                    )
+            if mappings:
+                ProfessionalNodeMapping.objects.bulk_create(mappings)
+
+        if getattr(self, 'personal_nodes', None) and isinstance(self.personal_nodes, dict):
+            self.personal_node_mappings.all().delete()
+            mappings = []
+            for level_id, node_id in self.personal_nodes.items():
+                if level_id and node_id:
+                    mappings.append(
+                        ProfessionalPersonalNodeMapping(
+                            professional_detail=self,
+                            level_id=int(level_id),
+                            node_id=int(node_id)
+                        )
+                    )
+            if mappings:
+                ProfessionalPersonalNodeMapping.objects.bulk_create(mappings)
 
     def __str__(self):
         company = self.business_family.name if self.business_family else "—"
@@ -292,8 +359,30 @@ class UserPersonalDetails(AuditMixin):
 
     @property
     def personal_code(self):
-        """Dash-separated code built from nodes dict in insertion order."""
-        return _generate_code_from_nodes(self.nodes)
+        """Dash-separated code built from node mappings or nodes dict."""
+        try:
+            qs = self.node_mappings.all() if self.pk else None
+        except Exception:
+            qs = None
+        return _generate_code_from_nodes(self.nodes, qs)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if getattr(self, 'nodes', None) and isinstance(self.nodes, dict):
+            # Sync node_mappings
+            self.node_mappings.all().delete()
+            mappings = []
+            for level_id, node_id in self.nodes.items():
+                if level_id and node_id:
+                    mappings.append(
+                        PersonalNodeMapping(
+                            personal_detail=self,
+                            level_id=int(level_id),
+                            node_id=int(node_id)
+                        )
+                    )
+            if mappings:
+                PersonalNodeMapping.objects.bulk_create(mappings)
 
     def __str__(self):
         return f"PersonalDetails({self.user.full_name})"

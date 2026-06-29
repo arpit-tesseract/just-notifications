@@ -14,6 +14,8 @@ from rest_framework.decorators import action
 from django.db.models import Count, Window, F, Q
 from .pagination import ConfigurationPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
+from .services import reassign_user_node_references
+
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 import threading
@@ -725,7 +727,6 @@ class NodeViewSet(viewsets.ModelViewSet):
         
     
     # In views.py, inside NodeViewSet class
-
     @action(detail=False, methods=['post'], url_path='merge-to-existing')
     def merge_nodes(self, request):
         """
@@ -753,6 +754,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                 target._change_reason = f"Merged with: {source_names}, Merge Date: {merge_date}"
                 target.merge_date = merge_date
                 target.save(update_fields=['updated_at', 'merge_date']) # Touch the node to create a history record
+
+                # Reassign user node references
+                reassign_user_node_references(sources, target)
 
                 for source in sources:
                     # A. Create Alias
@@ -844,6 +848,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                 # NEW: Document the creation reason
                 source_names = ", ".join([s.name for s in sources])
                 update_change_reason(new_node, f"Created by merging: {source_names}, Merge Date: {merge_date}")
+
+                # Reassign user node references
+                reassign_user_node_references(sources, new_node)
 
                 # 2. Merge Logic (Aliases & Children)
                 summary = {"children_moved": 0, "aliases_created": 0}
@@ -1784,6 +1791,10 @@ class NodeViewSet(viewsets.ModelViewSet):
                         child.save() 
 
             # 4. Soft delete the original source node
+
+            # Reassign user node references to the first created node as default target
+            if created_nodes:
+                reassign_user_node_references([source_node], created_nodes[0])
 
             # Check if the source_node was updated/reused in any of the splits
             source_node_reused = any(n.id == source_node.id for n in created_nodes)

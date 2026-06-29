@@ -3159,22 +3159,27 @@ class NodeMergeCreateSerializer(serializers.Serializer):
         if parent and parent.id in source_ids:
             raise serializers.ValidationError({"parent": "The new parent cannot be one of the nodes being merged."})
     
-        # --- A. Validate Parent ---
-        if parent:
-            if parent.dimension != target_dimension:
-                raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
-        
-        if target_level.parent is not None and parent is None:
-            raise serializers.ValidationError({"parent": "Parent is required."})
-            
-
-        # --- B. Validate Source Nodes (The Logic You Requested) ---
-        # Fetch all unique source nodes
+        # Fetch all unique source nodes FIRST so we can infer the parent if needed
         source_nodes = Node.objects.filter(id__in=source_ids)
         
         # 1. Check if all IDs exist
         if source_nodes.count() != len(set(source_ids)):
             raise serializers.ValidationError({"source_node_ids": "One or more source IDs are invalid or duplicates."})
+
+        # --- A. Validate & Infer Parent ---
+        if target_level.parent is not None and parent is None:
+            first_source = source_nodes.first()
+            if first_source and first_source.parent:
+                parent = first_source.parent
+                attrs['parent'] = parent
+            else:
+                raise serializers.ValidationError({"parent": "Parent is required and could not be inferred from source nodes."})
+
+        if parent:
+            if parent.dimension != target_dimension:
+                raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
+        
+        # --- B. Validate Source Nodes (The Logic You Requested) ---
 
         # 2. Check Consistency
         for source in source_nodes:
