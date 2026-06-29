@@ -7,8 +7,8 @@ from configuration.models import Dimension, Level, Node
 from .utils import get_level_node_mapping
 
 
-class LoginEmailPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+class LoginInputSerializer(serializers.Serializer):
+    contact_no = serializers.CharField(write_only=True)
     password = serializers.CharField(write_only=True)
 
 
@@ -59,6 +59,9 @@ class UserProfessionalDetailsInputSerializer(serializers.Serializer):
         queryset = DesignationType.objects.filter(is_active=True),
         required=True, allow_null=True 
     )
+    joined_date = serializers.DateField(required=True, allow_null=True)
+    left_date = serializers.DateField(required=False, allow_null=True)
+    experience = serializers.CharField(required=False, allow_null=True)
     is_active = serializers.BooleanField(required=False)
 
     def validate_id(self, value):
@@ -71,6 +74,18 @@ class UserProfessionalDetailsInputSerializer(serializers.Serializer):
                 raise serializers.ValidationError(str(e))
 
         return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        joined_date = attrs.get("joined_date")
+        left_date = attrs.get("left_date")
+        
+        if joined_date and left_date and joined_date > left_date:
+            raise serializers.ValidationError({
+                "joined_date": "joined_date cannot be greater than left_date."
+            })
+            
+        return attrs
 
         
 
@@ -96,7 +111,10 @@ class UserDetailsInputSerializer(serializers.Serializer):
         choices=UserProfile.GENDER_CHOICES,
         required=True, allow_null=True
     )
+    post_no = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=True)
     dob = serializers.DateField(required=True, allow_null=True)
+    birth_time = serializers.TimeField(required=True, allow_null=True)
+    birth_place = serializers.CharField(required=True, allow_null=True)
     blood_group = serializers.ChoiceField(
         choices=UserProfile.BLOOD_GROUP_CHOICES,
         required=True, allow_null=True
@@ -105,7 +123,17 @@ class UserDetailsInputSerializer(serializers.Serializer):
         choices=UserProfile.MARITAL_STATUS_CHOICES,
         required=True, allow_null=True
     )
+    marriage_date = serializers.DateField(required=True, allow_null=True)
+    education = serializers.ChoiceField(
+        choices=UserProfile.EDUCATION_CHOICES,
+        required=True, allow_null=True
+    )
+    education_detail = serializers.CharField(required=True, allow_null=True)
+
     expired_date = serializers.DateField(required=True, allow_null=True)
+    expired_time = serializers.TimeField(required=True, allow_null=True)
+    expired_place = serializers.CharField(required=True, allow_null=True)
+    cremation_place = serializers.CharField(required=True, allow_null=True)
     relation = serializers.PrimaryKeyRelatedField(
         queryset = RelationType.objects.filter(is_active=True).exclude(
             name__in=['husband', 'wife', 'son', 'daughter', 'guest', 'worker']
@@ -133,23 +161,24 @@ class UserDetailsInputSerializer(serializers.Serializer):
         email = attrs.get('email')
 
         if not user_obj:
-            try:
-                User.objects.get(contact_no=contact_no)
+            user_objs = User.objects.filter(contact_no=contact_no)
+            if user_objs.exists():
                 raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
-            except User.DoesNotExist:
-                pass
-        
-        if email:
-            try:
-                if user_obj:
-                    user_qs = User.objects.filter(email=email).exclude(id=user_obj.id)
-                else:
-                    user_qs = User.objects.filter(email=email)
-
-                if user_qs.exists():
+            
+            if email:
+                user_objs = User.objects.filter(email=email)
+                if user_objs.exists():
                     raise serializers.ValidationError({"email": "User with this email already exists."})
-            except User.DoesNotExist:
-                pass
+        else:
+            user_objs = User.objects.filter(contact_no=contact_no).exclude(id=user_obj.id)
+            if user_objs.exists():
+                raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
+            
+            if email:
+                user_objs = User.objects.filter(email=email).exclude(id=user_obj.id)
+                if user_objs.exists():
+                    raise serializers.ValidationError({"email": "User with this email already exists."})
+    
 
         if self_relation:
             if gender == 'male' and self_relation not in ['husband', 'guest', 'workers', 'son']:
@@ -263,6 +292,9 @@ class RegistrationInputSerializer(serializers.Serializer):
 
     residential_details = serializers.JSONField()
 
+    stay_from = serializers.DateField(required=False, allow_null=True)
+    stay_to = serializers.DateField(required=False, allow_null=True)
+
     company = serializers.CharField(required=False, allow_null=True)
 
     family_members = UserDetailsInputSerializer(many=True, required=True, allow_null=True)
@@ -274,6 +306,14 @@ class RegistrationInputSerializer(serializers.Serializer):
         residential_details = attrs.get("residential_details")
         residential_type = attrs.get("residential_type")
         family_members = attrs.get("family_members", [])
+        
+        stay_from = attrs.get("stay_from")
+        stay_to = attrs.get("stay_to")
+
+        if stay_from and stay_to and stay_from > stay_to:
+            raise serializers.ValidationError({
+                "stay_from": "stay_from date cannot be greater than stay_to date."
+            })
         
 
         if not company and residential_type.name == "business":
@@ -422,6 +462,8 @@ class RegistrationOutputSerializer(serializers.Serializer):
     residential_type = serializers.SerializerMethodField()
     user_category = serializers.SerializerMethodField()
     residential_details = serializers.SerializerMethodField()
+    stay_from = serializers.SerializerMethodField()
+    stay_to = serializers.SerializerMethodField()
     family_members = serializers.SerializerMethodField()
 
     def get_registration_user(self, family_obj):
@@ -450,9 +492,36 @@ class RegistrationOutputSerializer(serializers.Serializer):
     def get_residential_details(self, family_obj):
         context = self.context
         residential_details = context.get('residential_details')
-        node_data = residential_details.nodes if residential_details else {}
-        return get_level_node_mapping(node_data)
-        
+        if not residential_details:
+            return None
+        return {
+            "residential_code": residential_details.residential_code,
+            "nodes": get_level_node_mapping(residential_details.node_mappings.all()),
+        }
+
+    def get_stay_from(self, family_obj):
+        context = self.context
+        residential_type = context.get('residential_type')
+        try:
+            resident_mapping = ResidentMapping.objects.get(
+                family=family_obj,
+                residential_type=residential_type
+            )
+            return resident_mapping.stay_from
+        except ResidentMapping.DoesNotExist:
+            return None
+
+    def get_stay_to(self, family_obj):
+        context = self.context
+        residential_type = context.get('residential_type')
+        try:
+            resident_mapping = ResidentMapping.objects.get(
+                family=family_obj,
+                residential_type=residential_type
+            )
+            return resident_mapping.stay_to
+        except ResidentMapping.DoesNotExist:
+            return None
     
     def get_family_members(self, family_obj):
         context = self.context
@@ -469,7 +538,10 @@ class RegistrationOutputSerializer(serializers.Serializer):
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details'],
-                    context={'self_designation': member.self_designation_type}
+                    context = {
+                        'self_designation': member.self_designation_type,
+                        'post_no': member.post_no
+                    }
                 ).data   
                 family_members_lst.append(user_details)
 
@@ -485,7 +557,10 @@ class RegistrationOutputSerializer(serializers.Serializer):
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details'],
-                    context = {'self_relation': member.self_relation_type}
+                    context = {
+                        'self_relation': member.self_relation_type,
+                        'post_no': member.post_no
+                    }
                 ).data
                 
                 if main_user_obj != registration_user_obj:
@@ -535,6 +610,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.full_name')
     is_verified = serializers.BooleanField(source='user.is_verified')
 
+    post_no = serializers.SerializerMethodField()
     self_relation = serializers.SerializerMethodField()
     self_designation = serializers.SerializerMethodField()
     personal_details = serializers.SerializerMethodField()
@@ -548,8 +624,9 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'user_id', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
-            'father_name', 'gender', 'dob', 'blood_group', 'marital_status', 'expired_date', 
+            'user_id', 'post_no', 'self_relation', 'photo', 'email', 'contact_no', 'full_name', 'is_verified', 'pet_name', 
+            'father_name', 'gender', 'dob', 'birth_time', 'birth_place', 'blood_group', 'marital_status', 'marriage_date',
+            'education', 'education_detail', 'expired_date',  'expired_time', 'expired_place', 'cremation_place',
             'personal_details', 'residential_details', 'professional_details', 'documents', 'self_designation'
         ]
     
@@ -560,6 +637,10 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
         if exclude:
             for field in exclude:
                 self.fields.pop(field, None)
+    
+    def get_post_no(self, obj):
+        context = self.context
+        return context.get('post_no')
 
     def get_self_relation(self, obj):
         context = self.context
@@ -582,19 +663,22 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
     
     def get_personal_details(self, obj):
         try:
-            # nodes_data is {"1": 1, "2": 5, ...} where value is the Node ID
-            nodes_data = obj.user.personal_details.nodes
-            return get_level_node_mapping(nodes_data)
-
+            personal_details_obj = obj.user.personal_details
+            return {
+                "personal_code": personal_details_obj.personal_code,
+                "is_verified": personal_details_obj.is_verified,
+                "nodes": get_level_node_mapping(personal_details_obj.node_mappings.all()),
+            }
         except Exception:
             return None
     
     def get_residential_details(self, obj):
         try:
-            # nodes_data is {"1": 1, "2": 5, ...} where value is the Node ID
-            nodes_data = obj.user.current_residential_details.nodes
-            return get_level_node_mapping(nodes_data)
-
+            residential_obj = obj.user.current_residential_details
+            return {
+                "residential_code": residential_obj.residential_code,
+                "nodes": get_level_node_mapping(residential_obj.node_mappings.all()),
+            }
         except Exception:
             return None
     
@@ -603,31 +687,36 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
             professional_details = obj.user.professional_details.all()
             result = []
             for detail in professional_details:
-                id = detail.id
                 if detail.residential_details:
-                    residential_node_mapping = get_level_node_mapping(detail.residential_details.nodes)
+                    residential_node_mapping = {
+                        "residential_code": detail.residential_details.residential_code,
+                        "nodes": get_level_node_mapping(detail.residential_details.node_mappings.all()),
+                    }
                 else:
                     residential_node_mapping = None
 
-                personal_node_mapping = get_level_node_mapping(detail.personal_nodes)
-                professional_node_mapping = get_level_node_mapping(detail.professional_nodes)
-                is_active = detail.is_active
-                result.append(
-                    {
-                        "id": id,
-                        "company": detail.business_family.name if detail.business_family else None,
-                        "designation": {
-                            "id": detail.designation.id,
-                            "name": detail.designation.display_name
-                        },
-                        "residential_details": residential_node_mapping,
-                        "personal_details": personal_node_mapping,
-                        "professional_details": professional_node_mapping,
-                        "is_active": is_active
-                    }
-                )
+                result.append({
+                    "id": detail.id,
+                    "company": detail.business_family.name if detail.business_family else None,
+                    "designation": {
+                        "id": detail.designation.id,
+                        "name": detail.designation.display_name
+                    } if detail.designation else None,
+                    "professional_code": detail.professional_code,
+                    "joined_date": detail.joined_date,
+                    "left_date": detail.left_date,
+                    "experience": detail.experience,
+                    "residential_details": residential_node_mapping,
+                    "personal_details": {
+                        "nodes": get_level_node_mapping(detail.personal_node_mappings.all())
+                    },
+                    "professional_details": {
+                        "nodes": get_level_node_mapping(detail.professional_node_mappings.all())
+                    },
+                    "is_active": detail.is_active,
+                })
             return result
-        
+
         except Exception as e:
             print(e)
             return None
@@ -646,7 +735,7 @@ class UserListSerializer(serializers.ModelSerializer):
 class RelationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = RelationType
-        fields = ['id', 'name', 'display_name']
+        fields = ['id', 'name', 'display_name', 'post_no']
 
 class DesignationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -662,22 +751,37 @@ class BusinessFamilyListSerializer(serializers.ModelSerializer):
 
 class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
     residential_details = serializers.SerializerMethodField()
+    stay_from = serializers.SerializerMethodField()
+    stay_to = serializers.SerializerMethodField()
     family_members = serializers.SerializerMethodField()
 
     class Meta:
         model = BusinessFamily
-        fields = ['name', 'residential_details', 'family_members']
+        fields = ['name', 'residential_details', 'stay_from', 'stay_to', 'family_members']
 
     def get_residential_details(self, obj):
         try:
             resident_mapping = ResidentMapping.objects.get(business_family=obj)
-            nodes_data = resident_mapping.residential_details.nodes
-       
-            return get_level_node_mapping(nodes_data)
+            return {
+                "residential_code": resident_mapping.residential_details.residential_code,
+                "nodes": get_level_node_mapping(resident_mapping.residential_details.node_mappings.all())
+            }
         except ResidentMapping.DoesNotExist:
             return None
         except Exception:
             return ValidationError("Something went wrong. Please try again.")
+
+    def get_stay_from(self, obj):
+        try:
+            return ResidentMapping.objects.get(business_family=obj).stay_from
+        except ResidentMapping.DoesNotExist:
+            return None
+
+    def get_stay_to(self, obj):
+        try:
+            return ResidentMapping.objects.get(business_family=obj).stay_to
+        except ResidentMapping.DoesNotExist:
+            return None
     
     def get_family_members(self, obj):
         try:
@@ -690,7 +794,10 @@ class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
                 user_details = UserDetailsOutputSerializer(
                     user_obj.profile,
                     exclude=['residential_details'],
-                    context = {'self_designation': member.self_designation_type}
+                    context = {
+                        'self_designation': member.self_designation_type,
+                        'post_no': member.post_no,
+                    }
                 ).data   
                 family_members_lst.append(user_details)
         except Exception as e:

@@ -329,6 +329,7 @@ class ColumnDefinitionSerializer(serializers.Serializer):
         ('boolean', 'Boolean (Checkbox)'),
         ('date', 'Date'),
         ('datetime', 'Date & Time'),
+        ('dropdown', 'Dropdown'),
     ]
 
     name = serializers.CharField(
@@ -352,6 +353,13 @@ class ColumnDefinitionSerializer(serializers.Serializer):
         required=False, 
         min_value=1,
         help_text="Only applicable for 'char' type"
+    )
+    
+    options = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text="Required for 'dropdown' type. List of valid options."
     )
     
     def check_name_regex(self, value):
@@ -400,9 +408,14 @@ class ColumnDefinitionSerializer(serializers.Serializer):
                 default_val = "false"
                 data['default_value'] = "false"
 
+        if field_type == 'dropdown':
+            options = data.get('options', [])
+            if not options:
+                raise serializers.ValidationError({"options": "Dropdown options cannot be empty."})
+
         if default_val is not None and default_val != "":
             try:
-                data['default_value'] = validate_value_type(default_val, field_type, max_len)
+                data['default_value'] = validate_value_type(default_val, field_type, max_len, options=data.get('options'))
             except ValueError:
                 raise serializers.ValidationError({
                     "default_value": f"The value '{default_val}' is not a valid {field_type}."
@@ -427,6 +440,13 @@ class CustomDefinationUpdateSerializer(serializers.Serializer):
     
     # Metadata Updates
     required = serializers.BooleanField(default=False)
+    
+    options = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text="Updated options for 'dropdown' type."
+    )
     
     default_value = serializers.CharField(
         required=False, 
@@ -3139,22 +3159,27 @@ class NodeMergeCreateSerializer(serializers.Serializer):
         if parent and parent.id in source_ids:
             raise serializers.ValidationError({"parent": "The new parent cannot be one of the nodes being merged."})
     
-        # --- A. Validate Parent ---
-        if parent:
-            if parent.dimension != target_dimension:
-                raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
-        
-        if target_level.parent is not None and parent is None:
-            raise serializers.ValidationError({"parent": "Parent is required."})
-            
-
-        # --- B. Validate Source Nodes (The Logic You Requested) ---
-        # Fetch all unique source nodes
+        # Fetch all unique source nodes FIRST so we can infer the parent if needed
         source_nodes = Node.objects.filter(id__in=source_ids)
         
         # 1. Check if all IDs exist
         if source_nodes.count() != len(set(source_ids)):
             raise serializers.ValidationError({"source_node_ids": "One or more source IDs are invalid or duplicates."})
+
+        # --- A. Validate & Infer Parent ---
+        if target_level.parent is not None and parent is None:
+            first_source = source_nodes.first()
+            if first_source and first_source.parent:
+                parent = first_source.parent
+                attrs['parent'] = parent
+            else:
+                raise serializers.ValidationError({"parent": "Parent is required and could not be inferred from source nodes."})
+
+        if parent:
+            if parent.dimension != target_dimension:
+                raise serializers.ValidationError({"parent": "Parent must belong to the selected dimension."})
+        
+        # --- B. Validate Source Nodes (The Logic You Requested) ---
 
         # 2. Check Consistency
         for source in source_nodes:

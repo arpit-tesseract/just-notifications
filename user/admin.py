@@ -4,7 +4,8 @@ from .models import (
     UserRole, UserManager, ResidentialDetails, User, UserProfile,
     DocumentType, UserDocument, UserProfessionalDetails, UserPersonalDetails,
     ResidentialType, Family, FamilyMember, RelationType, ResidentMapping, UserRelations,
-    BusinessFamily, BusinessFamilyMember, DesignationType
+    BusinessFamily, BusinessFamilyMember, DesignationType,
+    ResidentialNodeMapping, PersonalNodeMapping, ProfessionalPersonalNodeMapping, ProfessionalNodeMapping
 )
 
 @admin.register(UserRole)
@@ -17,7 +18,7 @@ class UserRoleAdmin(SimpleHistoryAdmin):
 @admin.register(ResidentialDetails)
 class ResidentialDetailsAdmin(SimpleHistoryAdmin):
     # JSON fields are hard to list, so we display the ID and audit fields
-    list_display = ('id', 'created_at', 'updated_at') 
+    list_display = ('id', 'residential_code', 'created_at') 
 
 
 @admin.register(User)
@@ -106,7 +107,7 @@ class ResidentMappingAdmin(SimpleHistoryAdmin):
 
 @admin.register(RelationType)
 class RelationTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'is_active')
+    list_display = ('display_name', 'name', 'is_active','post_no', 'role')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
@@ -121,3 +122,20 @@ class DesignationTypeAdmin(SimpleHistoryAdmin):
 @admin.register(UserRelations)
 class UserRelationsAdmin(SimpleHistoryAdmin):
     list_display = ('from_user', 'relation_type', 'to_user', 'created_at')
+
+
+@admin.register(ResidentialNodeMapping)
+class ResidentialNodeMappingAdmin(SimpleHistoryAdmin):
+    list_display = ('residential_detail', 'level', 'node')
+
+@admin.register(PersonalNodeMapping)
+class PersonalNodeMappingAdmin(SimpleHistoryAdmin):
+    list_display = ('personal_detail', 'level', 'node')
+
+@admin.register(ProfessionalPersonalNodeMapping)
+class ProfessionalPersonalNodeMappingAdmin(SimpleHistoryAdmin):
+    list_display = ('professional_detail', 'level', 'node')
+
+@admin.register(ProfessionalNodeMapping)
+class ProfessionalNodeMappingAdmin(SimpleHistoryAdmin):
+    list_display = ('professional_detail', 'level', 'node')

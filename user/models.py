@@ -5,7 +5,27 @@ from django.utils import timezone
 
 from common.models import AuditMixin, SoftDeleteMixin
 from configuration.models import Level, Node
-# Create your models here.
+
+
+# ---------------------------------------------------------------------------
+# Helper: build a dash-separated code string from a {level_id: node_id} JSON.
+#
+# Dict insertion order is PRESERVED — the caller controls the segment order.
+# Example: {"1": 2, "3": 11, "5": 32} → "01-05-08" (each segment zero-padded
+#          to the level's configured code_digits).
+# Returns None if nodes_json is empty or every entry is invalid.
+# ---------------------------------------------------------------------------
+def _generate_code_from_nodes(mappings_qs):
+    if mappings_qs is not None and mappings_qs.exists():
+        codes = []
+        mappings = mappings_qs.select_related('level', 'node').order_by('level__sort_order')
+        for mapping in mappings:
+            digits = mapping.level.code_digits if mapping.level.code_digits else 2
+            codes.append(str(mapping.node.code).zfill(digits))
+        if codes:
+            return "-".join(codes)
+    return None
+
 
 class UserRole(AuditMixin):
     name = models.CharField(max_length=100, unique=True)
@@ -67,9 +87,16 @@ class UserManager(BaseUserManager):
 
 
 class ResidentialDetails(AuditMixin):
-    nodes = models.JSONField(default=dict, null=True, blank=True)
-
     history = HistoricalRecords()
+
+    @property
+    def residential_code(self):
+        """Dash-separated code built from node mappings."""
+        try:
+            qs = self.node_mappings.all() if self.pk else None
+        except Exception:
+            qs = None
+        return _generate_code_from_nodes(qs)
 
     def __str__(self):
         return f"{self.id}"
@@ -147,6 +174,16 @@ class UserProfile(models.Model):
         ('married', 'Married'),
         ('divorced', 'Divorced'),
     ]
+    EDUCATION_CHOICES = [
+        ('below_10th', 'Below 10th'),
+        ('10th', '10th Pass'),
+        ('12th', '12th Pass'),
+        ('diploma', 'Diploma'),
+        ('graduate', 'Graduate'),
+        ('post_graduate', 'Post Graduate'),
+        ('doctorate', 'Doctorate'),
+        ('other', 'Other'),
+    ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     pet_name = models.CharField(max_length=100, blank=True, null=True)
@@ -154,9 +191,22 @@ class UserProfile(models.Model):
     photo = models.ImageField(upload_to='user_photos/', blank=True, null=True)
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True, null=True)
     dob = models.DateField(blank=True, null=True)
+    birth_time = models.TimeField(blank=True, null=True)
+    birth_place = models.CharField(max_length=100, blank=True, null=True)
     blood_group = models.CharField(max_length=10, choices=BLOOD_GROUP_CHOICES, blank=True, null=True)
     marital_status = models.CharField(max_length=50, choices=MARITAL_STATUS_CHOICES, blank=True, null=True)
+    # Marriage date — relevant only when marital_status == 'married'
+    marriage_date = models.DateField(blank=True, null=True)
+    # Education
+    education = models.CharField(max_length=50, choices=EDUCATION_CHOICES, blank=True, null=True)
+    education_detail = models.CharField(
+        max_length=200, blank=True, null=True,
+        help_text="Free-text detail, e.g. 'B.Tech - Computer Science from XYZ University'"
+    )
     expired_date = models.DateField(blank=True, null=True)
+    expired_time = models.TimeField(blank=True, null=True)
+    expired_place = models.CharField(max_length=100, blank=True, null=True)
+    cremation_place = models.CharField(max_length=100, blank=True, null=True)
 
     history = HistoricalRecords()
 
@@ -169,6 +219,7 @@ class DocumentType(AuditMixin):
     display_name = models.CharField(max_length=100, unique=True)
     order = models.PositiveIntegerField()
     is_required = models.BooleanField(default=False)
+    regex_pattern = models.CharField(max_length=100, blank=True, null=True)
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
@@ -204,19 +255,49 @@ class UserProfessionalDetails(AuditMixin):
     business_family = models.ForeignKey(BusinessFamily, on_delete=models.SET_NULL, null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='professional_details')
     residential_details = models.ForeignKey(ResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
-    personal_nodes = models.JSONField(default=dict, null=True, blank=True)
-    professional_nodes = models.JSONField(default=dict, null=True, blank=True)
     designation = models.ForeignKey('DesignationType', on_delete=models.SET_NULL, null=True, blank=True)
+    # Duration of employment / engagement
+    joined_date = models.DateField(blank=True, null=True, help_text="Date the person joined this role")
+    left_date = models.DateField(blank=True, null=True, help_text="Date the person left (null = currently active)")
+    experience = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Human-readable experience summary, e.g. '3 years 2 months'"
+    )
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
 
+    @property
+    def professional_code(self):
+        """Dash-separated code built from node mappings."""
+        try:
+            qs = self.professional_node_mappings.all() if self.pk else None
+        except Exception:
+            qs = None
+        return _generate_code_from_nodes(qs)
+
+    def __str__(self):
+        company = self.business_family.name if self.business_family else "—"
+        return f"{self.user.full_name} @ {company}"
+
 
 class UserPersonalDetails(AuditMixin):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='personal_details')
-    nodes = models.JSONField(default=dict, null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
 
     history = HistoricalRecords()
+
+    @property
+    def personal_code(self):
+        """Dash-separated code built from node mappings."""
+        try:
+            qs = self.node_mappings.all() if self.pk else None
+        except Exception:
+            qs = None
+        return _generate_code_from_nodes(qs)
+
+    def __str__(self):
+        return f"PersonalDetails({self.user.full_name})"
 
 
 class ResidentialType(AuditMixin):
@@ -243,6 +324,8 @@ class RelationType(AuditMixin):
     display_name = models.CharField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
+    post_no = models.PositiveBigIntegerField(null=True, blank=True)
+    role = models.ForeignKey(UserRole, on_delete=models.SET_NULL, null=True, blank=True)
 
     history = HistoricalRecords()
 
@@ -273,6 +356,7 @@ class FamilyMember(AuditMixin):
     family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='members')
     self_relation_type = models.ForeignKey(RelationType, on_delete=models.PROTECT)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    post_no = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     is_main_user = models.BooleanField(default=False)
 
     history = HistoricalRecords()
@@ -284,8 +368,9 @@ class FamilyMember(AuditMixin):
 
 class BusinessFamilyMember(AuditMixin):
     business_family = models.ForeignKey(BusinessFamily, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
     self_designation_type = models.ForeignKey(DesignationType, on_delete=models.PROTECT)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    post_no = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
@@ -299,21 +384,35 @@ class ResidentMapping(AuditMixin):
     business_family = models.ForeignKey(BusinessFamily, on_delete=models.SET_NULL, null=True, blank=True, related_name='residents')
     residential_details = models.ForeignKey(ResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
     residential_type = models.ForeignKey(ResidentialType, on_delete=models.PROTECT)
+    # Duration of stay at this address
+    stay_from = models.DateField(
+        blank=True, null=True,
+        help_text="Date the family moved in / association started"
+    )
+    stay_to = models.DateField(
+        blank=True, null=True,
+        help_text="Date the family moved out (null = currently residing)"
+    )
+    is_current = models.BooleanField(
+        default=True,
+        help_text="True when this is the active / ongoing address for this type"
+    )
 
     history = HistoricalRecords()
 
     class Meta:
-        # Enforce that a residential user can only have one record of a specific family type
+        # Enforce that a family can only have one record per residential type
         constraints = [
             models.UniqueConstraint(
-                fields=['residential_details', 'residential_type'], 
+                fields=['residential_details', 'residential_type'],
                 name='unique_resident_residential_type',
                 violation_error_message="A record with this residential details and family type already exists."
             )
         ]
 
     def __str__(self):
-        return f"{self.residential_details}"
+        stay = f" ({self.stay_from} → {self.stay_to or 'present'})" if self.stay_from else ""
+        return f"{self.residential_details}{stay}"
     
 
 
@@ -326,3 +425,31 @@ class UserRelations(AuditMixin):
     def __str__(self):
         return f"{self.from_user.full_name} - {self.relation_type.display_name} - {self.to_user.full_name}"
 
+
+class ResidentialNodeMapping(AuditMixin):
+    residential_detail = models.ForeignKey('ResidentialDetails', on_delete=models.CASCADE, related_name='node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+class PersonalNodeMapping(AuditMixin):
+    personal_detail = models.ForeignKey('UserPersonalDetails', on_delete=models.CASCADE, related_name='node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+class ProfessionalPersonalNodeMapping(AuditMixin):
+    professional_detail = models.ForeignKey('UserProfessionalDetails', on_delete=models.CASCADE, related_name='personal_node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()
+
+class ProfessionalNodeMapping(AuditMixin):
+    professional_detail = models.ForeignKey('UserProfessionalDetails', on_delete=models.CASCADE, related_name='professional_node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+
+    history = HistoricalRecords()

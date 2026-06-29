@@ -1,21 +1,50 @@
+from django.db.models import Count, Q
 from configuration.models import Dimension, Level, Node
-from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember
+from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping
 
-def get_level_node_mapping(node_json):
-    if not node_json:
+def get_or_create_residential_details(nodes_json):
+    if not nodes_json or not isinstance(nodes_json, dict):
+        return ResidentialDetails.objects.create(), True
+
+    target_node_ids = [int(nid) for nid in nodes_json.values() if nid]
+    target_length = len(target_node_ids)
+
+    existing_residential = ResidentialDetails.objects.annotate(
+        total_mappings=Count('node_mappings'),
+        matched_mappings=Count('node_mappings', filter=Q(node_mappings__node_id__in=target_node_ids))
+    ).filter(
+        total_mappings=target_length,
+        matched_mappings=target_length
+    ).first()
+
+    if existing_residential:
+        return existing_residential, False
+
+    residential_obj = ResidentialDetails.objects.create()
+    mappings_to_create = []
+    for level_id, node_id in nodes_json.items():
+        if level_id and node_id:
+            mappings_to_create.append(
+                ResidentialNodeMapping(
+                    residential_detail=residential_obj, level_id=int(level_id), node_id=int(node_id)
+                )
+            )
+    if mappings_to_create:
+        ResidentialNodeMapping.objects.bulk_create(mappings_to_create)
+    return residential_obj, True
+
+
+def get_level_node_mapping(mapping_qs):
+    if not mapping_qs:
         return {}
-
-    for level_id, node_id in node_json.items():
-        try:
-            node_obj = Node.objects.get(id=node_id, level_id=level_id)
-            node_json[level_id] = {
-                "id": node_obj.id,
-                "name": node_obj.name
-            }
-        except Node.DoesNotExist:
-            node_json[level_id] = None
     
-    return node_json
+    node_dict = {}
+    for mapping in mapping_qs.select_related('node'):
+        node_dict[str(mapping.level_id)] = {
+            "id": mapping.node.id,
+            "name": mapping.node.name
+        }
+    return node_dict
 
 
 def get_pidhi_node_from_personal_details(personal_details_obj):
@@ -28,22 +57,11 @@ def get_pidhi_node_from_personal_details(personal_details_obj):
     except (Dimension.DoesNotExist, Level.DoesNotExist):
         return None
 
+    mapping = personal_details_obj.node_mappings.filter(level=pidhi_level_obj).select_related('node').first()
+    if mapping:
+        return mapping.node
+    return None
 
-    node_data = personal_details_obj.nodes
-    if not node_data:
-        return None
-    
-    pidhi_level_key = str(pidhi_level_obj.id)
-    node_id = node_data.get(pidhi_level_key)
-    if not node_id:
-        return None
-    
-    try:
-        node_obj = Node.objects.get(id=node_id)
-    except Node.DoesNotExist:
-        return None
-
-    return node_obj
 
 
 def map_family_internal_relations(users):

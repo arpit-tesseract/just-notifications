@@ -15,37 +15,37 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 
 from .serializers import (
-    LoginEmailPasswordSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
+    LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
     ResidentialTypeListSerializer, DocumentTypeListSerializer, RelationTypeListSerializer, DesignationTypeListSerializer,
     BusinessFamilyListSerializer, BussinessFamilyDetailsOutputSerializer,
     UserSuggestionListSerializer, UserDetailsOutputSerializer,
     RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, 
 )
 from .models import *
-from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details)
 # Create your views here.
 
 
-class LoginWithEmailPasswordView(APIView):
+class LoginView(APIView):
     def post(self, request):
-        serializer = LoginEmailPasswordSerializer(data=request.data)
+        serializer = LoginInputSerializer(data=request.data)
         
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         validated_data = serializer.validated_data
-        email = validated_data.get('email').strip().lower()
-        password = validated_data.get('password').strip()
+        contact_no = validated_data.get('contact_no').strip()
+        password = validated_data.get('password')
             
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(contact_no=contact_no)
         except User.DoesNotExist:
             return Response(
-                {"error": "Email does not exist"},
+                {"error": "Wrong contact number or password"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        if user.is_verified == False:
+        if not user.is_verified:
             return Response(
                 {
                     "error": "Your account is not verified"
@@ -55,7 +55,7 @@ class LoginWithEmailPasswordView(APIView):
         
         if not user.check_password(password):
             return Response(
-                {"error": "Incorrect password"},
+                {"error": "Wrong contact number or password"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -123,6 +123,8 @@ class RegistrationView(APIView):
         user_category = validated_data.get('user_category')
         residential_type = validated_data.get('residential_type')
         residential_details_json = validated_data.get('residential_details')
+        stay_from = validated_data.get('stay_from')
+        stay_to = validated_data.get('stay_to')
         company_name = validated_data.get("company")
         family_members = validated_data.get('family_members')
 
@@ -138,9 +140,7 @@ class RegistrationView(APIView):
         #         nodes=residential_details_json
         #     )
         
-        residential_obj, _ = ResidentialDetails.objects.get_or_create(
-            nodes=residential_details_json
-        )
+        residential_obj, _ = get_or_create_residential_details(residential_details_json)
 
         with transaction.atomic():
             created_users = []
@@ -171,6 +171,7 @@ class RegistrationView(APIView):
                 full_name = member.pop('full_name')
                 email = member.pop('email', None)
                 contact_no = member.pop('contact_no')
+                post_no = member.pop('post_no', None)
 
                 user_defaults = {
                     "full_name": full_name,
@@ -185,7 +186,7 @@ class RegistrationView(APIView):
                         defaults=user_defaults
                     )
                     
-                else:
+                else:                        
                     user_obj = User.objects.create(
                         full_name = full_name,
                         email = email,
@@ -223,22 +224,30 @@ class RegistrationView(APIView):
 
                 try:
                     user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
-                    user_personal_obj.nodes = personal_details_json
-                    user_personal_obj.save()
                 except UserPersonalDetails.DoesNotExist:
                     user_personal_obj = UserPersonalDetails.objects.create(
-                        user = user_obj,
-                        nodes = personal_details_json
+                        user = user_obj
                     )
+                
+                # Bulk create mapping for personal details
+                user_personal_obj.node_mappings.all().delete()
+                personal_mappings_to_create = []
+                for level_id, node_id in personal_details_json.items():
+                    if level_id and node_id:
+                        personal_mappings_to_create.append(
+                            PersonalNodeMapping(
+                                personal_detail=user_personal_obj, level_id=int(level_id), node_id=int(node_id)
+                            )
+                        )
+                if personal_mappings_to_create:
+                    PersonalNodeMapping.objects.bulk_create(personal_mappings_to_create)
                 
                 print("professional_details_lst", professional_details_lst)
                 for professional_details in professional_details_lst:
                     company_name = professional_details.get('company')
                     residential_nodes = professional_details.get('residential_details', {})
 
-                    bussiness_residential_obj, _ = ResidentialDetails.objects.get_or_create(
-                        nodes=residential_nodes
-                    )
+                    bussiness_residential_obj, _ = get_or_create_residential_details(residential_nodes)
 
                     try:
                         temp_resident_mapping_obj = ResidentMapping.objects.get(
@@ -273,8 +282,6 @@ class RegistrationView(APIView):
                             )
                             professional_details_obj.business_family = business_family_obj
                             professional_details_obj.residential_details = bussiness_residential_obj
-                            professional_details_obj.personal_nodes = personal_nodes
-                            professional_details_obj.professional_nodes = professional_nodes
                             professional_details_obj.designation = designation_obj
                             professional_details_obj.is_active = is_active
                             professional_details_obj.save()
@@ -284,15 +291,35 @@ class RegistrationView(APIView):
                             })
 
                     else:
-                        UserProfessionalDetails.objects.create(
+                        professional_details_obj = UserProfessionalDetails.objects.create(
                             user=user_obj,
                             business_family = business_family_obj,
                             residential_details=bussiness_residential_obj,
-                            personal_nodes=personal_nodes,
-                            professional_nodes=professional_nodes,
                             designation=designation_obj,
                             is_active=is_active
                         )
+                        
+                    # Delete and recreate professional mappings
+                    professional_details_obj.professional_node_mappings.all().delete()
+                    prof_mappings_to_create = []
+                    for level_id, node_id in professional_nodes.items():
+                        if level_id and node_id:
+                            prof_mappings_to_create.append(ProfessionalNodeMapping(
+                                professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                            ))
+                    if prof_mappings_to_create:
+                        ProfessionalNodeMapping.objects.bulk_create(prof_mappings_to_create)
+
+                    # Delete and recreate professional personal mappings
+                    professional_details_obj.personal_node_mappings.all().delete()
+                    prof_pers_mappings_to_create = []
+                    for level_id, node_id in personal_nodes.items():
+                        if level_id and node_id:
+                            prof_pers_mappings_to_create.append(ProfessionalPersonalNodeMapping(
+                                professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                            ))
+                    if prof_pers_mappings_to_create:
+                        ProfessionalPersonalNodeMapping.objects.bulk_create(prof_pers_mappings_to_create)
                     
                     # Create members for this bussiness 
                     business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
@@ -311,7 +338,8 @@ class RegistrationView(APIView):
                         "self_relation_type": self_relation_type_obj if self_relation else None,
                         "self_designation_type": self_designation,
                         "personal_details": user_personal_obj,
-                        "relation": relation_obj
+                        "relation": relation_obj,
+                        "post_no": post_no,
                     }
                 )
                 created_user_ids.append(user_obj.id)
@@ -351,6 +379,7 @@ class RegistrationView(APIView):
                         family = family_obj,
                         user = user_obj,
                         self_relation_type = user.get("self_relation_type"),
+                        post_no = user.get("post_no"),
                         is_main_user = user_obj.id == main_user_obj.id
                     )
                     family_name += user_obj.full_name[0].upper()
@@ -365,7 +394,11 @@ class RegistrationView(APIView):
                         family_resident_obj, _ = ResidentMapping.objects.get_or_create(
                             family = family_obj,
                             residential_details = residential_obj,
-                            residential_type = residential_type
+                            residential_type = residential_type,
+                            defaults={
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
                 except IntegrityError:
                     raise ValidationError({
@@ -396,7 +429,9 @@ class RegistrationView(APIView):
                         ResidentMapping.objects.create(
                             residential_details=residential_obj,
                             residential_type=residential_type,
-                            business_family=business_family_obj
+                            business_family=business_family_obj,
+                            stay_from=stay_from,
+                            stay_to=stay_to
                         )
 
                     business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
@@ -454,7 +489,11 @@ class RegistrationView(APIView):
                         family_resident_obj, created = ResidentMapping.objects.get_or_create(
                             family=main_user_family_obj,
                             residential_type=current_residential_type_obj,
-                            defaults={'residential_details': main_user_residential_obj}
+                            defaults={
+                                'residential_details': main_user_residential_obj,
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
                 except IntegrityError:
                     raise ValidationError({
@@ -467,7 +506,11 @@ class RegistrationView(APIView):
                         registration_resident_obj, created = ResidentMapping.objects.get_or_create(
                             family=registration_user_family_obj,
                             residential_type=residential_type,
-                            defaults={'residential_details': main_user_residential_obj}
+                            defaults={
+                                'residential_details': main_user_residential_obj,
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
                 except IntegrityError:
                     raise ValidationError({
@@ -838,6 +881,12 @@ class MultiUserDocumentUploadView(APIView):
                         # Move to the next document, do not process file uploads
                         continue 
 
+                    # Regex Validation for document_no
+                    if document_type.regex_pattern and document_no:
+                        if not re.match(document_type.regex_pattern, document_no):
+                            error_msg = document_type.regex_error_message or f"Invalid format for {document_type.display_name}."
+                            errors.append({err_key: error_msg})
+                            continue
 
                     # File required Validation
                     if not file:
@@ -967,38 +1016,44 @@ class UserListView(APIView):
             if key.startswith("res_"):
                 json_key = key.replace("res_", "")
 
-                user_qs = user_qs.annotate(
-                    res_json_val=RawSQL(
-                        f"JSON_EXTRACT(user_userresidentialdetails.nodes, '$.\"{json_key}\"')",
-                        []
-                    )
-                ).filter(res_json_val=parsed_value)
+                user_qs = user_qs.filter(
+                    current_residential_details__node_mappings__level_id=int(json_key),
+                    current_residential_details__node_mappings__node_id=parsed_value
+                )
             
             # 3. Apply to Personal Filters
             elif key.startswith("per_"):
                 json_key = key.replace("per_", "")
                 
-                # Assuming your app name is 'user', the table name is 'user_userpersonaldetails'
-                user_qs = user_qs.annotate(
-                    per_json_val=RawSQL(
-                        f"JSON_EXTRACT(user_userpersonaldetails.nodes, '$.\"{json_key}\"')",
-                        []
-                    )
-                ).filter(per_json_val=parsed_value)
+                user_qs = user_qs.filter(
+                    personal_details__node_mappings__level_id=int(json_key),
+                    personal_details__node_mappings__node_id=parsed_value
+                )
 
         serializer = UserListSerializer(user_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class RelationTypeListView(APIView):
+class RelationTypeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        category_param = request.query_params.get("category", "general").strip()
 
-        relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param).exclude(
-            name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
-        )
+        category_param = request.query_params.get('category', '').strip()
+        role_param = request.query_params.get('role', 'user').strip()
+
+        if category_param:
+            relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param, role__name=role_param).exclude(
+                name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+            )
+        else:
+            relation_type_qs = RelationType.objects.filter(
+                is_active=True, 
+                category='general', 
+                role__name=role_param,
+                name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+            )
+
         serializer = RelationTypeListSerializer(relation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
