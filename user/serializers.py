@@ -6,6 +6,13 @@ from .models import *
 from configuration.models import Dimension, Level, Node
 from .utils import get_level_node_mapping
 
+class LoginPhoneInputSerializer(serializers.Serializer):
+    contact_no = serializers.CharField(required=True)
+
+
+class LoginPhoneOTPInputSerializer(serializers.Serializer):
+    contact_no = serializers.CharField(required=True)
+    otp = serializers.CharField(required=False, allow_blank=True)
 
 class LoginInputSerializer(serializers.Serializer):
     contact_no = serializers.CharField(write_only=True)

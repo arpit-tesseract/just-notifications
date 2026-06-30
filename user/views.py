@@ -19,12 +19,65 @@ from .serializers import (
     ResidentialTypeListSerializer, DocumentTypeListSerializer, RelationTypeListSerializer, DesignationTypeListSerializer,
     BusinessFamilyListSerializer, BussinessFamilyDetailsOutputSerializer,
     UserSuggestionListSerializer, UserDetailsOutputSerializer,
-    RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, 
+    RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, LoginPhoneInputSerializer,LoginPhoneOTPInputSerializer
 )
 from .models import *
 from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details)
 # Create your views here.
 
+class LoginOTPView(APIView):
+    def post(self,request):
+        serializer_obj = LoginPhoneInputSerializer(data = request.data)
+
+        if serializer_obj.is_valid():
+            contact_no = serializer_obj.validated_data.get('contact_no')
+            try:
+                user_obj = User.objects.get(contact_no = contact_no)
+            except User.DoesNotExist:
+                message = {
+                    'error' : 'User does not exsist'
+                }
+                return Response(message,status=status.HTTP_400_BAD_REQUEST)
+            
+            message = {
+                'success' : 'otp verified successfully'
+            }
+            return Response(message, status=status.HTTP_200_OK)
+        return Response(serializer_obj.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginPhoneOTPView(APIView):
+    def post(self,request):
+        serializer_obj = LoginPhoneOTPInputSerializer(data=request.data)
+        if serializer_obj.is_valid():
+            contact_no = serializer_obj.validated_data.get('contact_no')
+            otp = serializer_obj.validated_data.get('otp')
+            try:
+                user_obj = User.objects.get(contact_no = contact_no)
+            except User.DoesNotExist:
+                message = {
+                    'error' : 'User does not exsist'
+                }
+                return Response(message,status=status.HTTP_400_BAD_REQUEST)    
+            if otp ==   "1234":
+                    
+                refresh = RefreshToken.for_user(user_obj)
+                serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
+                return Response(
+                                {   
+                                    'message' : "Login successfully",
+                                    "refresh": str(refresh),
+                                    "access": str(refresh.access_token),
+                                    "user": serializer_obj.data
+                                },
+                            status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {
+                        "error" : 'Invalid otp'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(serializer_obj.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
     def post(self, request):
