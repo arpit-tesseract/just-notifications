@@ -1,5 +1,5 @@
 from rest_framework.exceptions import ValidationError
-from configuration.models import ModelAccess, ModelName, Designation
+from configuration.models import ModelAccess, ModelName
 from django.db.models import Q, ForeignKey
 from django.utils import timezone
 import re
@@ -186,14 +186,6 @@ def check_designation_name(name):
     else:
         return False
 
-
-def get_designation_obj_by_name(desingation_name):
-    try:
-        return Designation.objects.get(name=desingation_name)
-    except Designation.DoesNotExist:
-        return None
-    except Exception as e:
-        return None
 
 
 def parse_bool(v: str) -> bool:

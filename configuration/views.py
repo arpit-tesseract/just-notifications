@@ -76,55 +76,6 @@ class LevelViewSet(viewsets.ModelViewSet):
             status=status.HTTP_202_ACCEPTED
         )      
 
-    # def perform_destroy(self, instance):
-    #     try:
-    #         with transaction.atomic():
-    #             # Assuming you have a node_logger defined
-    #             # node_logger.info(f"Try to delete(archived) node {instance.name}")
-                
-    #             # 1. FIND ALL IMMEDIATE CHILDREN
-    #             # We select_for_update() to lock these rows while we modify their parent
-    #             nodes_in_level = Node.objects.select_for_update().filter(level=instance)
-                
-    #             # 2. BRIDGE THE GAP (Re-link to the deleted node's parent)
-    #             for node in nodes_in_level:
-    #                 Node.objects.filter(parent=node).update(parent=node.parent)
-
-    #                 node.soft_delete(user=self.request.user)
-    #             # 3. ACTUAL DELETE (Soft delete)
-    #             # Assuming `soft_delete` is provided by your SoftDeleteMixin
-    #             instance.soft_delete(user=self.request.user)
-                
-    #     except Exception as e:
-    #         print(e)
-    #         # node_logger.exception("Failed to delete node:", e)
-    #         raise ValidationError({"error": "Failed to delete node. Please try again."})
-
-    # def perform_destroy(self, instance):
-    #     try:
-    #         with transaction.atomic():
-    #             level_logger.info(f"Try to delete(archived) level {instance.name}")
-    #             qs = Level.objects.select_for_update().filter(
-    #                 dimension=instance.dimension,
-    #             )
-                
-    #             # update children
-    #             child = qs.filter(parent=instance).first()
-    #             if child:
-    #                 child.parent = instance.parent
-    #                 child.save(update_fields=['parent'])
-                
-    #             # CLOSE THE GAP (Shift everyone up)
-    #             qs.filter(sort_order__gt=instance.sort_order).update(sort_order=F('sort_order') - 1)
-
-    #             # ACTUAL DELETE
-    #             instance.soft_delete(user=self.request.user)
-                
-    #     except Exception as e:
-    #         level_logger.exception("Failed to delete level:", e)
-    #         raise ValidationError({"error": "Failed to delete. Please try again."})
-                
-    #     # return super().perform_destroy(instance)
 
 class LevelListView(APIView):
     permission_classes = [IsAuthenticated]
