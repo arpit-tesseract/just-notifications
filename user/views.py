@@ -40,7 +40,7 @@ class LoginOTPView(APIView):
                 return Response(message,status=status.HTTP_400_BAD_REQUEST)
             
             message = {
-                'success' : 'otp verified successfully'
+                'success' : 'otp sent successfully'
             }
             return Response(message, status=status.HTTP_200_OK)
         return Response(serializer_obj.errors, status=status.HTTP_400_BAD_REQUEST)
