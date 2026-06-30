@@ -19,7 +19,7 @@ from .services import reassign_user_node_references, count_user_node_references
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 import threading
-from .tasks import process_level_deletion, process_excel_import
+from .tasks import process_level_deletion
 from .mixins import BaseHistoryDiffAPIViewMixin
 from simple_history.utils import update_change_reason
 from django.core.files.storage import default_storage
@@ -1715,13 +1715,11 @@ class NodeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser, FormParser])
     def upload_excel(self, request):
-        room_id = f"import_{uuid.uuid4().hex}"
-
         file_obj = request.FILES.get('file')
         level_id = request.data.get('level_id')
         mapping_str = request.data.get('mapping')
 
-        # 1. Basic Validation (Fail fast before hitting background)
+        # 1. Basic Validation
         if not file_obj:
             return Response({"file": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
         if not level_id:
@@ -1734,28 +1732,106 @@ class NodeViewSet(viewsets.ModelViewSet):
         except json.JSONDecodeError:
             return Response({"mapping": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Save the file temporarily
+        # Save the file temporarily
         # Generate a unique filename so concurrent uploads don't overwrite each other
         file_extension = file_obj.name.split('.')[-1]
         temp_file_name = f"tmp_imports/{uuid.uuid4().hex}.{file_extension}"
         
         saved_path = default_storage.save(temp_file_name, ContentFile(file_obj.read()))
 
-        # 3. Trigger the Celery Task
-        # Pass the path to the file, NOT the file object itself
-        task = process_excel_import.delay(
+        from configuration.tasks import task_validate_excel
+        
+        # Trigger the validation Celery Task
+        task = task_validate_excel.delay(
             file_path=saved_path, 
             level_id=level_id, 
             mapping_dict=mapping_dict,
-            user_id=request.user.id,
-            # room_name=room_id
+            user_id=request.user.id
         )
 
-        # 4. Return the Task ID to the frontend
         return Response({
-            "message": "Import started successfully. This will process in the background.",
+            "message": "Validation started successfully. This will process in the background.",
             "task_id": task.id
         }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'], url_path='commit-excel-import')
+    def commit_excel_import(self, request):
+        import_session_id = request.data.get('import_session_id')
+        if not import_session_id:
+            return Response({"error": "import_session_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from configuration.tasks import task_commit_excel
+        
+        # Trigger the commit Celery Task
+        task = task_commit_excel.delay(
+            import_session_id=import_session_id,
+            user_id=request.user.id
+        )
+        
+        return Response({
+            "message": "Commit started successfully. This will process in the background.",
+            "task_id": task.id
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['get'], url_path='download-template')
+    def download_template(self, request):
+        level_id = request.query_params.get('level_id')
+        if not level_id:
+            return Response({"error": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            target_level = Level.objects.get(id=level_id)
+            
+            # Gather ancestor levels
+            from configuration.utils import get_level_ancestors
+            ancestors = get_level_ancestors(target_level)
+            
+            headers = ["ID"]
+            for ancestor in ancestors:
+                headers.append(ancestor.name)
+            
+            headers.append(target_level.name)
+            headers.extend(["Code", "Is Hidden", "On Hold", "Hold Date"])
+            
+            if target_level.extra_fields_schema:
+                for col in target_level.extra_fields_schema:
+                    headers.append(col['name'])
+                    
+            import pandas as pd
+            from django.http import HttpResponse
+            import io
+            
+            df = pd.DataFrame(columns=headers)
+            
+            # Add a hint row
+            hint_row = ["(Leave blank for new)"]
+            for ancestor in ancestors:
+                hint_row.append("Exact Parent Name")
+            hint_row.append("Node Name")
+            hint_row.extend(["Positive Number", "TRUE/FALSE", "TRUE/FALSE", "YYYY-MM-DD"])
+            
+            if target_level.extra_fields_schema:
+                for col in target_level.extra_fields_schema:
+                    hint_row.append(f"{col['type']}")
+                    
+            df.loc[0] = hint_row
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name=target_level.name)
+                
+            output.seek(0)
+            response = HttpResponse(
+                output.read(), 
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename={target_level.name}_template.xlsx'
+            return response
+            
+        except Level.DoesNotExist:
+            return Response({"error": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["POST"], url_path="split")
     def split_node(self, request, pk):
