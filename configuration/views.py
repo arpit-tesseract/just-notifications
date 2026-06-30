@@ -1637,7 +1637,7 @@ class NodeSearchAPIView(APIView):
                     formatted_item[level_name] = {
                         "id": node_obj.id,
                         "name": node_obj.name,
-                        "code": node_obj.code
+                        "code": str(node_obj.code).zfill(node_obj.level.code_digits)
                     }
 
                 # 3. [FIX] EXPLICITLY ADD THE TARGET NODE ITSELF
@@ -1645,7 +1645,7 @@ class NodeSearchAPIView(APIView):
                 formatted_item[target_level_name] = {
                     "id": node.id,
                     "name": node.name,
-                    "code": node.code
+                    "code": str(node.code).zfill(target_level_obj.code_digits)
                 }
                 
                 final_results.append(formatted_item)
