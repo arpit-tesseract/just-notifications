@@ -342,10 +342,13 @@ class RelationType(AuditMixin):
 class DesignationType(AuditMixin):
     name = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=100)
-    order = models.PositiveIntegerField(default=1)
+    post_no = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
+
+    class Meta:
+        ordering = ['post_no']
 
     def __str__(self):
         return self.display_name

@@ -9,37 +9,37 @@ class Command(BaseCommand):
             {
                 "name": "owner",
                 "display_name": "Owner",
-                "order": 1,
+                "post_no": 1,
                 "is_active": True
             },
             {
                 "name": "partner",
                 "display_name": "Partner",
-                "order": 2,
+                "post_no": 2,
                 "is_active": True
             },
             {
                 "name": "manager",
                 "display_name": "Manager",
-                "order": 3,
+                "post_no": 3,
                 "is_active": True
             },
             {
                 "name": "account",
                 "display_name": "Account",
-                "order": 4,
+                "post_no": 4,
                 "is_active": True
             },
             {
                 "name": "employee",
                 "display_name": "Employee",
-                "order": 5,
+                "post_no": 5,
                 "is_active": True
             },
             {
                 "name": "labour",
                 "display_name": "Labour",
-                "order": 6,
+                "post_no": 6,
                 "is_active": True
             }
         ]
@@ -51,7 +51,7 @@ class Command(BaseCommand):
                 name=desig_data['name'],
                 defaults={
                     'display_name': desig_data['display_name'],
-                    'order': desig_data['order'],
+                    'post_no': desig_data['post_no'],
                     'is_active': desig_data['is_active'],
                 }
             )

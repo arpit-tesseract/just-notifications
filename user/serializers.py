@@ -759,7 +759,7 @@ class RelationTypeListSerializer(serializers.ModelSerializer):
 class DesignationTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = DesignationType
-        fields = ['id', 'name', 'display_name']
+        fields = ['id', 'name', 'display_name', 'post_no']
 
 
 class BusinessFamilyListSerializer(serializers.ModelSerializer):
