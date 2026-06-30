@@ -159,12 +159,11 @@ class LevelSerializer(serializers.ModelSerializer):
                 })
 
         try:
-            # Only update name
-            level_logger.info(f"Try to updating level {instance.name} to {validated_data.get('name')}")
+            # Do not update name, only display_name and code_digits
+            level_logger.info(f"Try to updating level {instance.name}'s display_name or code_digits")
             instance.code_digits = validated_data.get('code_digits', instance.code_digits)
-            instance.name = validated_data.get('name', instance.name)
             instance.display_name = validated_data.get('display_name', instance.display_name)
-            instance.save(update_fields=['display_name', 'name', 'code_digits'])
+            instance.save(update_fields=['display_name', 'code_digits'])
         except Exception as e:
             level_logger.exception("Failed to update level:", e)
             raise serializers.ValidationError({"error": "Failed to update level."})
