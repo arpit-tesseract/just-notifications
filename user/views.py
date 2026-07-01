@@ -1126,14 +1126,14 @@ class BusinessFamilyListView(APIView):
     def get(self, request, id=None):
         if id:
             try:
-                business_family_obj = BusinessFamily.objects.get(id=id, is_verified=True)
+                business_family_obj = BusinessFamily.objects.get(id=id)
             except BusinessFamily.DoesNotExist:
                 return Response({"error": "Business family not found"}, status=status.HTTP_404_NOT_FOUND)
             
             serializer = BussinessFamilyDetailsOutputSerializer(business_family_obj)
             return Response(serializer.data, status=status.HTTP_200_OK)
         
-        business_family_qs = BusinessFamily.objects.filter(is_verified=True)
+        business_family_qs = BusinessFamily.objects.all()
 
         search_name = request.query_params.get("search", "").strip()
         if search_name:

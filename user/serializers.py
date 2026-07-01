@@ -775,7 +775,7 @@ class DesignationTypeListSerializer(serializers.ModelSerializer):
 class BusinessFamilyListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessFamily
-        fields = ['id', 'name']
+        fields = ['id', 'name' 'is_verified']
 
 
 class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
@@ -786,7 +786,7 @@ class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BusinessFamily
-        fields = ['name', 'residential_details', 'stay_from', 'stay_to', 'family_members']
+        fields = ['name', 'is_verified', 'residential_details', 'stay_from', 'stay_to', 'family_members']
 
     def get_residential_details(self, obj):
         try:
