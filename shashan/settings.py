@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'configuration',
     'common',
     'wallet',
+    'notification',
 
     'channels',
     'simple_history',
