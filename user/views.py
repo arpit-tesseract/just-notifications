@@ -815,7 +815,7 @@ class ResidentialTypeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        residential_type_qs = ResidentialType.objects.filter(is_active=True)
+        residential_type_qs = ResidentialType.objects.filter(is_active=True, roles__name='user')
         serializer = ResidentialTypeListSerializer(residential_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
