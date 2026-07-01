@@ -12,10 +12,13 @@ class LoginPhoneInputSerializer(serializers.Serializer):
 
 class LoginPhoneOTPInputSerializer(serializers.Serializer):
     contact_no = serializers.CharField(required=True)
-    otp = serializers.CharField(required=False, allow_blank=True)
+    otp = serializers.IntegerField(
+        min_value = 1000,   # min value as 1000
+        max_value = 9999    # max value as 9999
+    )
 
 class LoginInputSerializer(serializers.Serializer):
-    contact_no = serializers.CharField(write_only=True)
+    email = serializers.EmailField(write_only=True)
     password = serializers.CharField(write_only=True)
 
 

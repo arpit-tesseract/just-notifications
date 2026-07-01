@@ -58,7 +58,7 @@ class LoginPhoneOTPView(APIView):
                     'error' : 'User does not exsist'
                 }
                 return Response(message,status=status.HTTP_400_BAD_REQUEST)    
-            if otp ==   "1234":
+            if otp ==   1234:
                     
                 refresh = RefreshToken.for_user(user_obj)
                 serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
@@ -87,14 +87,14 @@ class LoginView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         validated_data = serializer.validated_data
-        contact_no = validated_data.get('contact_no').strip()
+        email = validated_data.get('email').strip()
         password = validated_data.get('password')
             
         try:
-            user = User.objects.get(contact_no=contact_no)
+            user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response(
-                {"error": "Wrong contact number or password"},
+                {"error": "Wrong Email or password"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -108,7 +108,7 @@ class LoginView(APIView):
         
         if not user.check_password(password):
             return Response(
-                {"error": "Wrong contact number or password"},
+                {"error": "Wrong Email or password"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
