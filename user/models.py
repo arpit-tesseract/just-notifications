@@ -4,6 +4,8 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.utils import timezone
 from django.db.models import Q, F
 
+from django.core.validators import MinValueValidator
+from decimal import Decimal
 from common.models import AuditMixin, SoftDeleteMixin
 from configuration.models import Level, Node
 
@@ -402,6 +404,7 @@ class UserProfessionalDetails(AuditMixin):
     )
     salary = models.DecimalField(
         max_digits=12, decimal_places=2, blank=True, null=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
         help_text="Salary or compensation amount"
     )
     is_active = models.BooleanField(default=True)

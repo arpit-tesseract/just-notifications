@@ -1091,15 +1091,27 @@ class UserListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user_role = request.query_params.get('user_role', "user").strip()
+        role_name = request.query_params.get('role', "user").strip()
+
+        role = UserRole.objects.filter(name=role_name).first()
+        if not role:
+            return Response({"detail": "Invalid role."}, status=400)
         
+        role_ids = UserRole.objects.filter(
+            models.Q(id=role.id) | models.Q(parent=role)
+        ).values_list("id", flat=True)
         # 1. Apply select_related early! 
         # This forces Django to JOIN the residential and personal tables immediately,
         # which is required because RawSQL needs those tables to exist in the SQL query.
-        user_qs = User.objects.filter(roles__name=user_role).select_related(
-            'current_residential_details', 
-            'personal_details', 
-            'profile'
+        
+        user_qs = (
+            User.objects.filter(roles__id__in=role_ids)
+            .distinct()
+            .select_related(
+                "current_residential_details",
+                "personal_details",
+                "profile",
+            )
         )
 
         for key, value in request.query_params.items():
@@ -1662,20 +1674,46 @@ class AdminRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        try:
-            admin_role = UserRole.objects.get(name="admin", is_active=True)
-        except UserRole.DoesNotExist:
-            return Response({"error": "Admin role not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        user_objs = User.objects.filter(roles=admin_role, is_deleted=False)
+        admin_role = get_object_or_404(
+            UserRole,
+            name="admin",
+            is_active=True
+        )
+
+        sub_role = request.query_params.get("sub_role")
+
+        if sub_role:
+            role = get_object_or_404(
+                UserRole,
+                name=sub_role,
+                parent=admin_role,
+                is_active=True
+            )
+
+            user_objs = User.objects.filter(
+                roles=role,
+                is_deleted=False
+            ).distinct()
+
+        else:
+            child_roles = UserRole.objects.filter(
+                parent=admin_role,
+                is_active=True
+            )
+
+            user_objs = User.objects.filter(
+                roles__in=child_roles,
+                is_deleted=False
+            ).distinct()
 
         output_data = {
             "role": admin_role,
-            "admin_members": user_objs
+            "users": user_objs
         }
 
         serializer = AdminRegistrationOutputSerializer(output_data)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
     def post(self, request):
         serializer = AdminRegistrationInputSerializer(data=request.data)
@@ -1731,6 +1769,7 @@ class AdminRegistrationView(APIView):
 
                     # Assign the admin role and sub_role to the user
                     user_obj.roles.add(sub_role_obj)
+                    user_obj.is_verified = True
                     user_obj.save()
                     
                     registered_users.append(user_obj)
@@ -1819,7 +1858,7 @@ class AdminRegistrationView(APIView):
 
         output_data = {
             "role": role_obj,
-            "admin_members": registered_users
+            "users": registered_users
         }
         
         output_serializer = AdminRegistrationOutputSerializer(output_data)
