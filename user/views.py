@@ -1656,6 +1656,180 @@ class BusinessRegisterView(APIView):
 
 
 
+from .serializers import AdminRegistrationInputSerializer, AdminRegistrationOutputSerializer
+
+class AdminRegistrationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            admin_role = UserRole.objects.get(name="admin", is_active=True)
+        except UserRole.DoesNotExist:
+            return Response({"error": "Admin role not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        user_objs = User.objects.filter(roles=admin_role, is_deleted=False)
+
+        output_data = {
+            "role": admin_role,
+            "admin_members": user_objs
+        }
+
+        serializer = AdminRegistrationOutputSerializer(output_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = AdminRegistrationInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+        role_obj = validated_data.get('role')
+        admin_members = validated_data.get('admin_members', [])
+        
+        registered_users = []
+
+        try:
+            with transaction.atomic():
+                for member_data in admin_members:
+                    existing_user_obj = member_data.pop('user_id', None)
+                    sub_role_obj = member_data.pop('self_sub_role')
+
+                    # Personal / residential node JSONs
+                    personal_details_json = member_data.pop('personal_details', {}) or {}
+                    residential_details_json_member = member_data.pop('residential_details', {}) or {}
+
+                    # Professional details nested dict
+                    prof_details_data = member_data.pop('professional_details', {}) or {}
+
+                    prof_id = prof_details_data.get('id')           
+                    prof_nodes_json = prof_details_data.get('professional_details', {}) or {}
+                    prof_designation = prof_details_data.get('designation') 
+                    prof_salary = prof_details_data.get('salary')  
+                    prof_joined_date = prof_details_data.get('joined_date')
+                    prof_left_date = prof_details_data.get('left_date')
+                    prof_experience = prof_details_data.get('experience')
+                    prof_is_active = prof_details_data.get('is_active', True)
+
+                    # User-level fields
+                    full_name = member_data.pop('full_name')
+                    email = member_data.pop('email', None)
+                    contact_no = member_data.pop('contact_no')
+
+                    user_defaults = {
+                        'full_name': full_name,
+                        'email': email,
+                        'contact_no': contact_no,
+                    }
+
+                    if existing_user_obj:
+                        user_obj, _ = User.objects.update_or_create(
+                            id=existing_user_obj.id,
+                            defaults=user_defaults,
+                        )
+                    else:
+                        user_obj = User.objects.create(**user_defaults)
+
+                    # Assign the admin role and sub_role to the user
+                    user_obj.roles.add(sub_role_obj)
+                    user_obj.save()
+                    
+                    registered_users.append(user_obj)
+
+                    # User Profile 
+                    UserProfile.objects.update_or_create(
+                        user = user_obj,
+                        defaults = member_data,
+                    )
+
+                    # Personal Details 
+                    try:
+                        user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
+                    except UserPersonalDetails.DoesNotExist:
+                        user_personal_obj = UserPersonalDetails.objects.create(user=user_obj)
+
+                    if personal_details_json:
+                        user_personal_obj.node_mappings.all().delete()
+                        personal_mappings = [
+                            PersonalNodeMapping(
+                                personal_detail = user_personal_obj,
+                                level_id = int(level_id),
+                                node_id = int(node_id),
+                            )
+                            for level_id, node_id in personal_details_json.items()
+                            if level_id and node_id
+                        ]
+                        if personal_mappings:
+                            PersonalNodeMapping.objects.bulk_create(personal_mappings)
+
+                    # Residential Details 
+                    from .utils import get_or_create_residential_details
+                    member_residential_obj, _ = get_or_create_residential_details(
+                        residential_details_json_member
+                    )
+
+                    # Professional Details (Not linked to a BusinessFamily)
+                    prof_detail_defaults = {
+                        'residential_details': member_residential_obj,
+                        'designation': prof_designation,
+                        'salary': prof_salary,
+                        'joined_date': prof_joined_date,
+                        'left_date': prof_left_date,
+                        'experience': prof_experience,
+                        'is_active': prof_is_active,
+                    }
+
+                    if prof_id:
+                        professional_details_obj = prof_id
+                        if professional_details_obj.user != user_obj:
+                            raise ValidationError({
+                                "professional_details": "Professional details record does not belong to this user."
+                            })
+                        for attr, val in prof_detail_defaults.items():
+                            setattr(professional_details_obj, attr, val)
+                        professional_details_obj.save()
+                    else:
+                        professional_details_obj, created = UserProfessionalDetails.objects.get_or_create(
+                            user = user_obj,
+                            business_family = None,
+                            defaults = prof_detail_defaults,
+                        )
+                        if not created:
+                            for attr, val in prof_detail_defaults.items():
+                                setattr(professional_details_obj, attr, val)
+                            professional_details_obj.save()
+
+                    if prof_nodes_json:
+                        professional_details_obj.professional_node_mappings.all().delete()
+                        member_prof_mappings = [
+                            ProfessionalNodeMapping(
+                                professional_detail=professional_details_obj,
+                                level_id=int(level_id),
+                                node_id=int(node_id),
+                            )
+                            for level_id, node_id in prof_nodes_json.items()
+                            if level_id and node_id
+                        ]
+                        if member_prof_mappings:
+                            ProfessionalNodeMapping.objects.bulk_create(member_prof_mappings)
+
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        output_data = {
+            "role": role_obj,
+            "admin_members": registered_users
+        }
+        
+        output_serializer = AdminRegistrationOutputSerializer(output_data)
+        
+        return Response({
+            "message": "Admin registration successful.",
+            "data": output_serializer.data
+        }, status=status.HTTP_201_CREATED)
+    
+
 class UserRoleListView(APIView):
     permission_classes = [IsAuthenticated]
 

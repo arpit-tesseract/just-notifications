@@ -1322,4 +1322,270 @@ class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):
         member_data["residential_details"] = member_residential_nodes
         member_data["professional_details"] = prof_detail_data
         
-        return member_data
+        return member_data
+
+
+
+
+class AdminMemberInputSerializer(serializers.Serializer):
+    user_id = serializers.PrimaryKeyRelatedField(
+        queryset = User.objects.all(), 
+        required=True, allow_null=True
+    )
+    self_sub_role = serializers.PrimaryKeyRelatedField(
+        queryset = UserRole.objects.filter(parent__name='admin', is_active=True), 
+    )
+    email = serializers.EmailField(required=True, allow_null=True)
+    contact_no = serializers.CharField(required=True, allow_null=False)
+    full_name = serializers.CharField(required=True, allow_null=False)
+    pet_name = serializers.CharField(required=True, allow_null=True)
+    father_name = serializers.CharField(required=True, allow_null=True)
+    gender = serializers.ChoiceField(
+        choices=UserProfile.GENDER_CHOICES,
+        required=True, allow_null=True
+    )
+    dob = serializers.DateField(required=True, allow_null=True)
+    birth_time = serializers.TimeField(required=True, allow_null=True)
+    birth_place = serializers.CharField(required=True, allow_null=True)
+    blood_group = serializers.ChoiceField(
+        choices=UserProfile.BLOOD_GROUP_CHOICES,
+        required=True, allow_null=True
+    )
+    marital_status = serializers.ChoiceField(
+        choices=UserProfile.MARITAL_STATUS_CHOICES,
+        required=True, allow_null=True
+    )
+    marriage_date = serializers.DateField(required=True, allow_null=True)
+
+    education = serializers.ChoiceField(
+        choices=UserProfile.EDUCATION_CHOICES,
+        required=True, allow_null=True
+    )
+    education_detail = serializers.CharField(required=True, allow_null=True)
+
+    expired_date = serializers.DateField(required=True, allow_null=True)
+    expired_time = serializers.TimeField(required=True, allow_null=True)
+    expired_place = serializers.CharField(required=True, allow_null=True)
+    cremation_place = serializers.CharField(required=True, allow_null=True)
+
+    personal_details = serializers.JSONField(required=True, allow_null=True)
+    residential_details = serializers.JSONField(required=True, allow_null=True)
+    professional_details = BusinessMemberProfessionalDetailsInputSerializer()
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        gender = attrs.get('gender')
+        user_obj = attrs.get('user_id')
+        contact_no = attrs.get('contact_no')
+        email = attrs.get('email')
+
+        if not user_obj:
+            user_objs = User.objects.filter(contact_no=contact_no)
+            if user_objs.exists():
+                raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
+            
+            if email:
+                user_objs = User.objects.filter(email=email)
+                if user_objs.exists():
+                    raise serializers.ValidationError({"email": "User with this email already exists."})
+        else:
+            user_objs = User.objects.filter(contact_no=contact_no).exclude(id=user_obj.id)
+            if user_objs.exists():
+                raise serializers.ValidationError({"contact_no": "User with this contact number already exists."})
+            
+            if email:
+                user_objs = User.objects.filter(email=email).exclude(id=user_obj.id)
+                if user_objs.exists():
+                    raise serializers.ValidationError({"email": "User with this email already exists."})
+        
+        return attrs
+    
+    def validate_expired_date(self, value):
+        if value and value > timezone.now().date():
+            raise serializers.ValidationError("Expired date cannot be in the future.")
+        return value
+    
+    def validate_dob(self, value):
+        if value and value > timezone.now().date():
+            raise serializers.ValidationError("Date of birth cannot be in the future.")
+        return value
+    
+    def _validate_node_json(self, value, dimension_obj):
+        # 1. Allow null/empty values to pass through if they aren't required
+        if not value:
+            return value
+            
+        # 2. Ensure it is actually a dictionary {...}, not a list [...]
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(f"must be a JSON object.")
+        
+        valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
+        
+        valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
+
+        # 3. Validate that every Key (Level) and Value (Node) is a valid ID
+        for level_id, node_id in value.items():
+            if not str(level_id).isdigit():
+                raise serializers.ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
+            
+            # Assuming node_id should also be numeric. If it can be a string, remove this check!
+            if not str(node_id).isdigit(): 
+                raise serializers.ValidationError({
+                    level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
+                })
+            
+    
+        # 4. Enforce Mandatory Levels (GAP-05)
+        mandatory_levels = Level.objects.filter(
+            dimension=dimension_obj, 
+            is_mandatory=True, 
+            is_deleted=False
+        )
+        
+        missing_mandatory = []
+        for level in mandatory_levels:
+            if str(level.id) not in value:
+                missing_mandatory.append(level.name)
+                
+        if missing_mandatory:
+            missing_names = ", ".join(missing_mandatory)
+            raise serializers.ValidationError(
+                f"Missing required node(s) for the following level(s): {missing_names}"
+            )
+
+        return value
+
+
+    def validate_personal_details(self, value):
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
+        return self._validate_node_json(value, dimension_obj)
+
+    def validate_residential_details(self, value):
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
+        return self._validate_node_json(value, dimension_obj)
+    
+    def validate_professional_details(self, value):
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
+        # value is the dictionary from BusinessMemberProfessionalDetailsInputSerializer
+        if value and 'professional_details' in value:
+            self._validate_node_json(value['professional_details'], dimension_obj)
+        return value
+    
+
+
+
+
+class AdminRegistrationInputSerializer(serializers.Serializer):
+    role = serializers.SlugRelatedField(
+        queryset=UserRole.objects.filter(name="admin", is_active=True),
+        slug_field="name"
+    )
+    admin_members = AdminMemberInputSerializer(many=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        role_obj = attrs.get('role')
+
+        errors = {}
+
+        # Check for duplicate contact_no or email within the payload itself
+        admin_members = attrs.get('admin_members', [])
+        seen_contact_nos = set()
+        seen_emails = set()
+        member_errors = {}
+
+        for index, member in enumerate(admin_members):
+            contact_no = member.get('contact_no')
+            email = member.get('email')
+            m_errors = {}
+
+            if contact_no:
+                if contact_no in seen_contact_nos:
+                    m_errors["contact_no"] = "This contact number is already used by another member in this request."
+                else:
+                    seen_contact_nos.add(contact_no)
+            
+            if email:
+                if email in seen_emails:
+                    m_errors["email"] = "This email is already used by another member in this request."
+                else:
+                    seen_emails.add(email)
+            
+            if m_errors:
+                member_errors[index] = m_errors
+
+        if member_errors:
+            raise serializers.ValidationError({"admin_members": member_errors})
+
+        return attrs
+
+
+class AdminRegistrationOutputSerializer(serializers.Serializer):
+    role = serializers.SerializerMethodField()
+    admin_members = serializers.SerializerMethodField()
+
+    def get_role(self, obj):
+        # Expects obj to be a dictionary like {"role": UserRole, "users": [User]}
+        role_obj = obj.get("role")
+        return role_obj.name if role_obj else None
+
+    def get_admin_members(self, obj):
+        users = obj.get("users", [])
+        result = []
+        for user in users:
+            profile = user.profile if hasattr(user, 'profile') else None
+            personal_details = user.personal_details if hasattr(user, 'personal_details') else None
+            
+            # Find the admin sub-role assigned to this user
+            sub_role = user.roles.filter(parent__name='admin').first()
+            
+            # Find professional details (assuming first active one for admin)
+            prof_detail = UserProfessionalDetails.objects.filter(user=user, is_active=True).first()
+
+            prof_detail_data = {}
+            member_residential_nodes = {}
+            if prof_detail:
+                if prof_detail.residential_details:
+                    member_residential_nodes = get_level_node_mapping(prof_detail.residential_details.node_mappings.all())
+                
+                prof_detail_data = {
+                    "id": prof_detail.id,
+                    "designation": prof_detail.designation.id if prof_detail.designation else None,
+                    "professional_details": get_level_node_mapping(prof_detail.professional_node_mappings.all()),
+                    "joined_date": prof_detail.joined_date,
+                    "left_date": prof_detail.left_date,
+                    "experience": prof_detail.experience,
+                    "salary": prof_detail.salary,
+                    "is_active": prof_detail.is_active,
+                }
+            
+            member_data = {
+                "user_id": user.id,
+                "self_sub_role": sub_role.id if sub_role else None,
+                "full_name": user.full_name,
+                "email": user.email,
+                "contact_no": user.contact_no,
+                "pet_name": profile.pet_name if profile else None,
+                "father_name": profile.father_name if profile else None,
+                "gender": profile.gender if profile else None,
+                "dob": profile.dob if profile else None,
+                "birth_time": profile.birth_time if profile else None,
+                "birth_place": profile.birth_place if profile else None,
+                "blood_group": profile.blood_group if profile else None,
+                "marital_status": profile.marital_status if profile else None,
+                "marriage_date": profile.marriage_date if profile else None,
+                "education": profile.education if profile else None,
+                "education_detail": profile.education_detail if profile else None,
+                "expired_date": profile.expired_date if profile else None,
+                "expired_time": profile.expired_time if profile else None,
+                "expired_place": profile.expired_place if profile else None,
+                "cremation_place": profile.cremation_place if profile else None,
+            }
+            
+            member_data["personal_details"] = get_level_node_mapping(personal_details.node_mappings.all()) if personal_details else {}
+            member_data["residential_details"] = member_residential_nodes
+            member_data["professional_details"] = prof_detail_data
+            
+            result.append(member_data)
+        
+        return result

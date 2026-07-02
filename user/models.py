@@ -76,8 +76,8 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, contact_no, password=None, **extra_fields):
         role, _ = UserRole.objects.get_or_create(
-            name="system_admin",
-            display_name="System Admin"
+            name="admin",
+            display_name="Admin"
         )
         extra_fields.setdefault("user_roles", [role])
         extra_fields.setdefault("is_staff", True)
@@ -249,7 +249,7 @@ class BusinessFamily(AuditMixin):
         ('regional_office', 'Regional Office'), # Manages operations for an entire region (multiple cities or states).
         ('branch', 'Branch'), # Serves a specific local area or city.
     ]
-    
+
     BUSINESS_TYPE_CHOICES = [
         ("private_limited", "Private Limited"),
         ("public_limited", "Public Limited"),
