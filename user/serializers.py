@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 
 from .models import *
 from configuration.models import Dimension, Level, Node
-from .utils import get_level_node_mapping
+from .utils import get_level_node_mapping, validate_dimension_nodes
 
 class LoginPhoneInputSerializer(serializers.Serializer):
     contact_no = serializers.CharField(required=True)
@@ -209,64 +209,9 @@ class UserDetailsInputSerializer(serializers.Serializer):
             raise serializers.ValidationError("Date of birth cannot be in the future.")
         return value
     
-    def _validate_node_json(self, value, dimension_obj):
-        # 1. Allow null/empty values to pass through if they aren't required
-        if not value:
-            return value
-            
-        # 2. Ensure it is actually a dictionary {...}, not a list [...]
-        if not isinstance(value, dict):
-            raise serializers.ValidationError(f"must be a JSON object.")
-        
-        valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-        
-        valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-
-        # 3. Validate that every Key (Level) and Value (Node) is a valid ID
-        for level_id, node_id in value.items():
-            if not str(level_id).isdigit():
-                raise serializers.ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
-            
-            # Assuming node_id should also be numeric. If it can be a string, remove this check!
-            if not str(node_id).isdigit(): 
-                raise serializers.ValidationError({
-                    level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
-                })
-            
-            # if int(level_id) not in valid_level_ids:
-            #     raise serializers.ValidationError({
-            #         level_id: f"Invalid Level ID '{level_id}'."
-            #     })
-
-            # if int(node_id) not in valid_node_ids:
-            #     raise serializers.ValidationError({
-            #         level_id: f"Invalid Node ID '{node_id}'."
-            #     })
-
-        # 4. Enforce Mandatory Levels (GAP-05)
-        mandatory_levels = Level.objects.filter(
-            dimension=dimension_obj, 
-            is_mandatory=True, 
-            is_deleted=False
-        )
-        
-        missing_mandatory = []
-        for level in mandatory_levels:
-            if str(level.id) not in value:
-                missing_mandatory.append(level.name)
-                
-        if missing_mandatory:
-            missing_names = ", ".join(missing_mandatory)
-            raise serializers.ValidationError(
-                f"Missing required node(s) for the following level(s): {missing_names}"
-            )
-
-        return value
-
-
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
-        return self._validate_node_json(value, dimension_obj)
+        return validate_dimension_nodes(value, dimension_obj)
     
     def validate_professional_details(self, value):
         personal_dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
@@ -285,9 +230,9 @@ class UserDetailsInputSerializer(serializers.Serializer):
             professional_nodes = item.get("professional_details")
             row_id = item.get("id")
 
-            self._validate_node_json(residential_nodes, residential_dimension_obj)
-            self._validate_node_json(personal_nodes, personal_dimension_obj)
-            self._validate_node_json(professional_nodes, professional_dimension_obj)
+            validate_dimension_nodes(residential_nodes, residential_dimension_obj)
+            validate_dimension_nodes(personal_nodes, personal_dimension_obj)
+            validate_dimension_nodes(professional_nodes, professional_dimension_obj)
 
             if row_id:
                 if row_id in ids:
@@ -437,39 +382,7 @@ class RegistrationInputSerializer(serializers.Serializer):
 
     def validate_residential_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
-
-        if not value:
-            return value
-            
-        # 2. Ensure it is actually a dictionary {...}, not a list [...]
-        if not isinstance(value, dict):
-            raise serializers.ValidationError(f"must be a JSON object.")
-        
-        valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-        
-        valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-
-        # 3. Validate that every Key (Level) and Value (Node) is a valid ID
-        for level_id, node_id in value.items():
-            if not str(level_id).isdigit():
-                raise serializers.ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
-            
-            # Assuming node_id should also be numeric. If it can be a string, remove this check!
-            if not str(node_id).isdigit(): 
-                raise serializers.ValidationError({
-                    level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
-                })
-            
-            # if int(level_id) not in valid_level_ids:
-            #     raise serializers.ValidationError({
-            #         level_id: f"Invalid Level ID '{level_id}'."
-            #     })
-
-            # if int(node_id) not in valid_node_ids:
-            #     raise serializers.ValidationError({
-            #         level_id: f"Invalid Node ID '{node_id}'."
-            #     })
-        return value
+        return validate_dimension_nodes(value, dimension_obj)
 
 
     # def validate_family_members(self, value):
@@ -980,67 +893,20 @@ class BusinessMemberInputSerializer(serializers.Serializer):
             raise serializers.ValidationError("Date of birth cannot be in the future.")
         return value
     
-    def _validate_node_json(self, value, dimension_obj):
-        # 1. Allow null/empty values to pass through if they aren't required
-        if not value:
-            return value
-            
-        # 2. Ensure it is actually a dictionary {...}, not a list [...]
-        if not isinstance(value, dict):
-            raise serializers.ValidationError(f"must be a JSON object.")
-        
-        valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-        
-        valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-
-        # 3. Validate that every Key (Level) and Value (Node) is a valid ID
-        for level_id, node_id in value.items():
-            if not str(level_id).isdigit():
-                raise serializers.ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
-            
-            # Assuming node_id should also be numeric. If it can be a string, remove this check!
-            if not str(node_id).isdigit(): 
-                raise serializers.ValidationError({
-                    level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
-                })
-            
-    
-        # 4. Enforce Mandatory Levels (GAP-05)
-        mandatory_levels = Level.objects.filter(
-            dimension=dimension_obj, 
-            is_mandatory=True, 
-            is_deleted=False
-        )
-        
-        missing_mandatory = []
-        for level in mandatory_levels:
-            if str(level.id) not in value:
-                missing_mandatory.append(level.name)
-                
-        if missing_mandatory:
-            missing_names = ", ".join(missing_mandatory)
-            raise serializers.ValidationError(
-                f"Missing required node(s) for the following level(s): {missing_names}"
-            )
-
-        return value
-
-
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
-        return self._validate_node_json(value, dimension_obj)
+        return validate_dimension_nodes(value, dimension_obj)
 
     def validate_residential_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
-        return self._validate_node_json(value, dimension_obj)
+        return validate_dimension_nodes(value, dimension_obj)
     
     def validate_professional_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
         # value is the dictionary from BusinessMemberProfessionalDetailsInputSerializer
         if value and 'professional_details' in value:
-            self._validate_node_json(value['professional_details'], dimension_obj)
+            validate_dimension_nodes(value['professional_details'], dimension_obj)
         return value
-    
 
 
 class BusinessOperatingHoursSerializer(serializers.ModelSerializer):
@@ -1410,65 +1276,19 @@ class AdminMemberInputSerializer(serializers.Serializer):
             raise serializers.ValidationError("Date of birth cannot be in the future.")
         return value
     
-    def _validate_node_json(self, value, dimension_obj):
-        # 1. Allow null/empty values to pass through if they aren't required
-        if not value:
-            return value
-            
-        # 2. Ensure it is actually a dictionary {...}, not a list [...]
-        if not isinstance(value, dict):
-            raise serializers.ValidationError(f"must be a JSON object.")
-        
-        valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-        
-        valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
-
-        # 3. Validate that every Key (Level) and Value (Node) is a valid ID
-        for level_id, node_id in value.items():
-            if not str(level_id).isdigit():
-                raise serializers.ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
-            
-            # Assuming node_id should also be numeric. If it can be a string, remove this check!
-            if not str(node_id).isdigit(): 
-                raise serializers.ValidationError({
-                    level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
-                })
-            
-    
-        # 4. Enforce Mandatory Levels (GAP-05)
-        mandatory_levels = Level.objects.filter(
-            dimension=dimension_obj, 
-            is_mandatory=True, 
-            is_deleted=False
-        )
-        
-        missing_mandatory = []
-        for level in mandatory_levels:
-            if str(level.id) not in value:
-                missing_mandatory.append(level.name)
-                
-        if missing_mandatory:
-            missing_names = ", ".join(missing_mandatory)
-            raise serializers.ValidationError(
-                f"Missing required node(s) for the following level(s): {missing_names}"
-            )
-
-        return value
-
-
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
-        return self._validate_node_json(value, dimension_obj)
+        return validate_dimension_nodes(value, dimension_obj)
 
     def validate_residential_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
-        return self._validate_node_json(value, dimension_obj)
+        return validate_dimension_nodes(value, dimension_obj)
     
     def validate_professional_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
         # value is the dictionary from BusinessMemberProfessionalDetailsInputSerializer
         if value and 'professional_details' in value:
-            self._validate_node_json(value['professional_details'], dimension_obj)
+            validate_dimension_nodes(value['professional_details'], dimension_obj)
         return value
     
 
