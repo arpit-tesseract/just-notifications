@@ -179,15 +179,14 @@ class NotificationTemplate(AuditMixin):
 
     body = models.TextField()
 
-    priority = models.CharField(
-        max_length=20,
-        choices=NotificationPriority.choices,
-        default=NotificationPriority.MEDIUM,
+    priority = models.ForeignKey(
+        NotificationPriority,
+        on_delete=models.PROTECT,
+        related_name="templates",
     )
-
     is_active = models.BooleanField(
-        default=True,
-    )
+            default=True,
+        )
 
     class Meta:
         db_table = "notification_templates"
@@ -243,10 +242,10 @@ class Notification(AuditMixin, SoftDeleteMixin):
 
     message = models.TextField()
 
-    priority = models.CharField(
-        max_length=20,
-        choices=NotificationPriority.choices,
-        default=NotificationPriority.MEDIUM,
+    priority = models.ForeignKey(
+        NotificationPriority,
+        on_delete=models.PROTECT,
+        related_name="notifications",
     )
 
     action_url = models.CharField(
@@ -620,11 +619,6 @@ class NotificationStatus(AuditMixin, SoftDeleteMixin):
     def __str__(self):
         return self.name
     
-from django.db import models
-
-from common.models import AuditMixin
-from user.models import User
-
 from .models import (
     Notification,
     NotificationChannel,
@@ -727,7 +721,7 @@ class NotificationQueue(AuditMixin):
     def __str__(self):
         return f"{self.notification.title} -> {self.recipient.full_name}"
     
-    
+
 class NotificationLog(AuditMixin):
     """
     Stores every delivery attempt.
@@ -753,17 +747,16 @@ class NotificationLog(AuditMixin):
         related_name="logs",
     )
 
-    channel = models.CharField(
-        max_length=20,
-        choices=NotificationChannel.choices,
+    channel = models.ForeignKey(
+    NotificationChannel,
+    on_delete=models.PROTECT,
+    related_name="logs",
+)    
+    status = models.ForeignKey(
+        NotificationStatus,
+        on_delete=models.PROTECT,
+        related_name="logs",
     )
-
-    status = models.CharField(
-        max_length=20,
-        choices=NotificationStatus.choices,
-        default=NotificationStatus.PENDING,
-    )
-
     retry_count = models.PositiveIntegerField(
         default=0,
     )
