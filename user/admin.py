@@ -5,7 +5,8 @@ from .models import (
     DocumentType, UserDocument, UserProfessionalDetails, UserPersonalDetails,
     ResidentialType, Family, FamilyMember, RelationType, ResidentMapping, UserRelations,
     BusinessFamily, BusinessFamilyMember, DesignationType,
-    ResidentialNodeMapping, PersonalNodeMapping, ProfessionalPersonalNodeMapping, ProfessionalNodeMapping
+    ResidentialNodeMapping, PersonalNodeMapping, ProfessionalPersonalNodeMapping, ProfessionalNodeMapping,
+    AdminResidentialNodeAssignment
 )
 
 @admin.register(UserRole)
@@ -138,4 +139,12 @@ class ProfessionalPersonalNodeMappingAdmin(SimpleHistoryAdmin):
 
 @admin.register(ProfessionalNodeMapping)
 class ProfessionalNodeMappingAdmin(SimpleHistoryAdmin):
-    list_display = ('professional_detail', 'level', 'node')
+    list_display = ('professional_detail', 'level', 'node')
+
+
+
+@admin.register(AdminResidentialNodeAssignment)
+class AdminResidentialNodeAssignmentAdmin(SimpleHistoryAdmin):
+    list_display = ('user', 'level', 'node', 'assigned_by', 'created_at')
+    search_fields = ('user__full_name', 'level__name', 'node__name', 'assigned_by__full_name')
+    list_filter = ('level',)

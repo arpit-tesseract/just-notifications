@@ -1881,3 +1881,53 @@ class UserRoleListView(APIView):
 
         serializer = RoleListSerializer(role_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+from .serializers import AdminNodeAssignmentInputSerializer, AdminNodeAssignmentOutputSerializer
+from configuration.models import Level, Node
+
+class AdminNodeAssignmentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({"error": "user_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user_id)
+        serializer = AdminNodeAssignmentOutputSerializer(assignments, many=True)
+        return Response({"user_id": int(user_id), "assignments": serializer.data}, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = AdminNodeAssignmentInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.validated_data['user_id']
+        assignments = serializer.validated_data['assignments']
+
+        processed_ids = []
+        
+        try:
+            with transaction.atomic():
+                for item in assignments:
+                    # Serializer uses source='level' and source='node'
+                    level_obj = item['level']
+                    node_obj = item['node']
+
+                    assignment_obj, created = AdminResidentialNodeAssignment.objects.get_or_create(
+                        user=user,
+                        level=level_obj,
+                        node=node_obj,
+                    )
+                    processed_ids.append(assignment_obj.id)
+                
+                # Remove assignments that were not included in the payload
+                AdminResidentialNodeAssignment.objects.filter(user=user).exclude(id__in=processed_ids).delete()
+                
+        except Exception as e:
+             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        updated_assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user.id)
+        out_serializer = AdminNodeAssignmentOutputSerializer(updated_assignments, many=True)
+        return Response({"message": "Admin node assignments updated successfully.", "user_id": user.id, "assignments": out_serializer.data}, status=status.HTTP_200_OK)

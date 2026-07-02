@@ -1409,3 +1409,42 @@ class AdminRegistrationOutputSerializer(serializers.Serializer):
             result.append(member_data)
         
         return result
+
+
+class AdminNodeAssignmentItemSerializer(serializers.Serializer):
+    level_id = serializers.PrimaryKeyRelatedField(queryset=Level.objects.all(), source='level')
+    node_id = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all(), source='node')
+
+    def validate(self, attrs):
+        level_obj = attrs.get('level')
+        node_obj = attrs.get('node')
+        if node_obj.level != level_obj:
+            raise serializers.ValidationError({"node_id": "Node does not belong to the specified level."})
+        return attrs
+
+class AdminNodeAssignmentInputSerializer(serializers.Serializer):
+    user_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+    )
+    assignments = AdminNodeAssignmentItemSerializer(many=True, required=True)
+
+    def validate_user_id(self, value):
+        if not value.roles.filter(parent__name="admin").exists():
+            raise serializers.ValidationError(
+                "Invalid User."
+            )
+        return value
+
+class AdminNodeAssignmentOutputSerializer(serializers.ModelSerializer):
+    level = serializers.SerializerMethodField()
+    node = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AdminResidentialNodeAssignment
+        fields = ['level', 'node']
+
+    def get_level(self, obj):
+        return {"id": obj.level.id, "name": obj.level.name} if obj.level else None
+
+    def get_node(self, obj):
+        return {"id": obj.node.id, "name": obj.node.name} if obj.node else None

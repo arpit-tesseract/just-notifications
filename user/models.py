@@ -625,3 +625,39 @@ class ProfessionalNodeMapping(AuditMixin):
     node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
 
     history = HistoricalRecords()
+
+
+# =====================================================
+# Admin assignments
+# =====================================================
+
+class AdminResidentialNodeAssignment(AuditMixin):
+    """
+    Assigns specific hierarchical nodes (and their corresponding levels) to an Admin.
+    This is used for Row-Level Security so the admin only sees data falling under this node.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='node_assignments')
+    level = models.ForeignKey(
+        'configuration.Level', 
+        on_delete=models.CASCADE, 
+        related_name='assigned_admins'
+    )
+    node = models.ForeignKey(
+        'configuration.Node', 
+        on_delete=models.CASCADE, 
+        related_name='assigned_admins'
+    )
+    assigned_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name='assigned_admins'
+    )
+    is_active = models.BooleanField(default=True)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'level', 'node'], 
+                name='unique_admin_node_assignment'
+            )
+        ]
