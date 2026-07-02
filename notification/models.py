@@ -363,7 +363,7 @@ class NotificationRecipient(AuditMixin, SoftDeleteMixin):
         ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.notification.title}"
+        return f"{self.user.contact_no} - {self.notification.title}"
     
 
 #user to control how they receive notifications
@@ -414,7 +414,7 @@ class NotificationPreference(AuditMixin):
         ]
 
     def __str__(self):
-        return f"{self.user.username}"
+        return f"{self.user.contact_no}"
     
 
 class NotificationAttachment(AuditMixin, SoftDeleteMixin):

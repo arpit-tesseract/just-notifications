@@ -105,6 +105,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'shashan.wsgi.application'
+ASGI_APPLICATION = 'shashan.asgi.application'
 
 
 # Database
