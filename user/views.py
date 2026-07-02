@@ -1534,8 +1534,9 @@ class BusinessRegisterView(APIView):
                 else:
                     user_obj = User.objects.create(**user_defaults)
 
+                user_role_obj = UserRole.objects.get(name="user")
                 # Assign role to the user
-                user_obj.roles.add(role_obj)
+                user_obj.roles.add(user_role_obj)
                 user_obj.save()
 
                 # User Profile (remaining profile fields after popping all non-profile keys)
