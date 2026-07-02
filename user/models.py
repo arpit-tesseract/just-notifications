@@ -244,6 +244,12 @@ class UserDocument(AuditMixin, SoftDeleteMixin):
 
 
 class BusinessFamily(AuditMixin):
+    COMPANY_TYPE_CHOICES = [
+        ('headquarter', 'Headquarter'), # Controls the entire organization.
+        ('regional_office', 'Regional Office'), # Manages operations for an entire region (multiple cities or states).
+        ('branch', 'Branch'), # Serves a specific local area or city.
+    ]
+    
     BUSINESS_TYPE_CHOICES = [
         ("private_limited", "Private Limited"),
         ("public_limited", "Public Limited"),
@@ -328,11 +334,7 @@ class BusinessFamily(AuditMixin):
     )
     
     # NEW: Optional field to classify
-    COMPANY_TYPE_CHOICES = [
-        ('headquarter', 'Headquarter'), # Controls the entire organization.
-        ('regional_office', 'Regional Office'), # Manages operations for an entire region (multiple cities or states).
-        ('branch', 'Branch'), # Serves a specific local area or city.
-    ]
+    
     company_type = models.CharField(max_length=50, choices=COMPANY_TYPE_CHOICES, default='headquarter')
     is_verified = models.BooleanField(default=False)
 
@@ -398,9 +400,22 @@ class UserProfessionalDetails(AuditMixin):
         max_length=100, blank=True, null=True,
         help_text="Human-readable experience summary, e.g. '3 years 2 months'"
     )
+    salary = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text="Salary or compensation amount"
+    )
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['business_family', 'user'],
+                name='unique_business_professional_user',
+                violation_error_message="A professional detail record for this user and business already exists."
+            )
+        ]
 
     @property
     def professional_code(self):
@@ -519,6 +534,15 @@ class BusinessFamilyMember(AuditMixin):
     is_active = models.BooleanField(default=True)
 
     history = HistoricalRecords()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['business_family', 'user'],
+                name='unique_business_family_member',
+                violation_error_message="This user is already a member of this business family."
+            )
+        ]
 
     def __str__(self):
         return f"{self.business_family.id} - {self.user.full_name}"

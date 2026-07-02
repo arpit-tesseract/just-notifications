@@ -19,7 +19,9 @@ from .serializers import (
     ResidentialTypeListSerializer, DocumentTypeListSerializer, RelationTypeListSerializer, DesignationTypeListSerializer,
     BusinessFamilyListSerializer, BussinessFamilyDetailsOutputSerializer,
     UserSuggestionListSerializer, UserDetailsOutputSerializer,
-    RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, LoginPhoneInputSerializer,LoginPhoneOTPInputSerializer
+    RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, LoginPhoneInputSerializer,LoginPhoneOTPInputSerializer,
+    BusienssRegistrationInputSerializer, RoleListSerializer,
+    BusinessMemberPayloadSuggestionSerializer, BusinessRegisterOutputSerializer
 )
 from .models import *
 from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details)
@@ -815,7 +817,8 @@ class ResidentialTypeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        residential_type_qs = ResidentialType.objects.filter(is_active=True, roles__name='user')
+        role_name = request.query_params.get('role', 'user').strip()
+        residential_type_qs = ResidentialType.objects.filter(is_active=True, roles__name=role_name)
         serializer = ResidentialTypeListSerializer(residential_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -998,6 +1001,47 @@ class MultiUserDocumentUploadView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+class BusinessMemberSuggestionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        business_id = request.query_params.get('business_id')
+        residential_code = request.query_params.get('residential_code')
+
+        if not business_id and not residential_code:
+            return Response({
+                "suggestions": []
+            }, status=status.HTTP_200_OK)
+
+        filters = Q(is_active=True)
+
+        conditions = Q()
+        if business_id:
+            conditions |= Q(business_family_id=business_id)
+        if residential_code:
+            conditions |= Q(residential_details__residential_code=residential_code)
+        
+        filters &= conditions
+        
+        prof_qs = UserProfessionalDetails.objects.filter(filters).values_list('user_id', flat=True)
+        
+        # Only suggest active users not already deleted
+        suggestions = User.objects.filter(
+            id__in=prof_qs, 
+            is_deleted=False
+        ).distinct()
+
+        user_suggestions_serializer = BusinessMemberPayloadSuggestionSerializer(
+            suggestions, 
+            many=True,
+            context={'business_id': business_id, 'residential_code': residential_code}
+        )
+
+        return Response({
+            "suggestions": user_suggestions_serializer.data
+        }, status=status.HTTP_200_OK)
+
+
 class UserSuggestionsListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1130,14 +1174,14 @@ class BusinessFamilyListView(APIView):
             except BusinessFamily.DoesNotExist:
                 return Response({"error": "Business family not found"}, status=status.HTTP_404_NOT_FOUND)
             
-            serializer = BussinessFamilyDetailsOutputSerializer(business_family_obj)
+            serializer = BusinessRegisterOutputSerializer(business_family_obj)
             return Response(serializer.data, status=status.HTTP_200_OK)
         
         business_family_qs = BusinessFamily.objects.all()
 
         search_name = request.query_params.get("search", "").strip()
         if search_name:
-            business_family_qs = business_family_qs.filter(name__icontains=search_name)
+            business_family_qs = business_family_qs.filter(name__icontains=search_name)[:10]
 
         serializer = BusinessFamilyListSerializer(business_family_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1298,3 +1342,328 @@ class FamilyTreeByPidhiView(APIView):
         return Response(data, status=200)
     
 
+
+class BusinessRegisterView(APIView):
+    """
+    POST /api/users/business/register/
+
+    Registers a new Business (BusinessFamily) along with its members.
+
+    Expected payload (validated by BusienssRegistrationInputSerializer):
+    {
+        "role": "<role_name>",
+        "sub_role": <sub_role_id>,
+        "residential_type": <residential_type_id>,
+        "business_family": {
+            "name": "",
+            "company_type": "",
+            "registration_no": "",
+            "pan_no": "",
+            "gstin": "",
+            "business_type": "",
+            "company_size": "",
+            "email": "",
+            "contact_no": "",
+            "website": "",
+            "established_year": null,
+            "latitude": null,
+            "longitude": null,
+            "residential_details": {"<level_id>": <node_id>, ...},
+            "professional_details": {"<level_id>": <node_id>, ...},
+            "operating_hours": [
+                {"day_of_week": "monday", "open_time": "09:00", "close_time": "18:00"},
+                ...
+            ]
+        },
+        "business_members": [
+            {
+                "user_id": null,
+                "self_designation_type": <designation_type_id>,
+                "contact_no": "",
+                "email": "",
+                "full_name": "",
+                ...<profile fields>...,
+                "personal_details": {"<level_id>": <node_id>, ...},
+                "residential_details": {"<level_id>": <node_id>, ...},
+                "professional_details": {
+                    "id": null,                        # null = new, or PK of existing UserProfessionalDetails
+                    "designation": <designation_id>,   # designation within the business
+                    "professional_details": {"<level_id>": <node_id>, ...},
+                    "joined_date": "YYYY-MM-DD",
+                    "left_date": null,
+                    "experience": "",
+                    "is_active": true
+                }
+            },
+            ...
+        ]
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        input_serializer = BusienssRegistrationInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        validated_data = input_serializer.validated_data
+
+        role_obj = validated_data.get('role')
+        sub_role_obj = validated_data.get('sub_role')
+        residential_type = validated_data.get('residential_type')
+        business_data = validated_data.get('business_family')
+        business_members = validated_data.get('business_members')
+
+        with transaction.atomic():
+            # ------------------------------------------------------------------
+            # 1. Build / update BusinessFamily
+            # ------------------------------------------------------------------
+            operating_hours_data = business_data.pop('operating_hours', [])
+            residential_details_json = business_data.pop('residential_details', {})
+            professional_details_json = business_data.pop('professional_details', {})
+
+            business_family_id = business_data.pop('id', None)
+
+            business_family_defaults = {
+                **business_data,
+                'role': role_obj,
+                'sub_role': sub_role_obj,
+            }
+
+            if business_family_id:
+                try:
+                    business_family_obj = BusinessFamily.objects.get(id=business_family_id)
+                    for attr, value in business_family_defaults.items():
+                        setattr(business_family_obj, attr, value)
+                    business_family_obj.save()
+                except BusinessFamily.DoesNotExist:
+                    raise ValidationError({"business_family": "Business family not found."})
+            else:
+                business_family_obj = BusinessFamily.objects.create(**business_family_defaults)
+
+            # ------------------------------------------------------------------
+            # 2. Operating Hours – replace all for idempotency
+            # ------------------------------------------------------------------
+            if operating_hours_data:
+                BusinessOperatingHours.objects.filter(business_family=business_family_obj).delete()
+                hours_to_create = [
+                    BusinessOperatingHours(
+                        business_family=business_family_obj,
+                        day_of_week = hours['day_of_week'],
+                        open_time = hours['open_time'],
+                        close_time = hours['close_time'],
+                    )
+                    for hours in operating_hours_data
+                ]
+                BusinessOperatingHours.objects.bulk_create(hours_to_create)
+
+            # ------------------------------------------------------------------
+            # 3. Residential Details for the business
+            # ------------------------------------------------------------------
+            from .utils import get_or_create_residential_details
+            business_residential_obj, _ = get_or_create_residential_details(residential_details_json)
+
+            # Link the business to the residential address via ResidentMapping
+            resident_mapping, _ = ResidentMapping.objects.get_or_create(
+                business_family = business_family_obj,
+                residential_type = residential_type,
+                defaults={'residential_details': business_residential_obj},
+            )
+            # If an existing mapping exists, update the residential details
+            if resident_mapping.residential_details != business_residential_obj:
+                resident_mapping.residential_details = business_residential_obj
+                resident_mapping.save()
+
+            # ------------------------------------------------------------------
+            # 4. Professional Node Mappings for the business itself
+            # ------------------------------------------------------------------
+            business_family_obj.professional_node_mappings.all().delete()
+            prof_mappings = [
+                BusinessFamilyProfessionalNodeMapping(
+                    business_family=business_family_obj,
+                    level_id=int(level_id),
+                    node_id=int(node_id),
+                )
+                for level_id, node_id in professional_details_json.items()
+                if level_id and node_id
+            ]
+            if prof_mappings:
+                BusinessFamilyProfessionalNodeMapping.objects.bulk_create(prof_mappings)
+
+            # ------------------------------------------------------------------
+            # 5. Business Members
+            # ------------------------------------------------------------------
+            for member_data in business_members:
+                existing_user_obj = member_data.pop('user_id', None)
+                designation_type_obj = member_data.pop('self_designation_type')
+                post_no = member_data.pop('post_no', None)
+
+                # Personal / residential node JSONs
+                personal_details_json = member_data.pop('personal_details', {}) or {}
+                residential_details_json_member = member_data.pop('residential_details', {}) or {}
+
+                # --- NEW: professional_details is now a nested validated dict ---
+                prof_details_data = member_data.pop('professional_details', {}) or {}
+
+                # Unpack the nested professional details
+                prof_id = prof_details_data.get('id')           # UserProfessionalDetails instance or None
+                prof_nodes_json = prof_details_data.get('professional_details', {}) or {}
+                prof_designation = prof_details_data.get('designation')  # DesignationType instance
+                prof_joined_date = prof_details_data.get('joined_date')
+                prof_left_date = prof_details_data.get('left_date')
+                prof_experience = prof_details_data.get('experience')
+                prof_is_active = prof_details_data.get('is_active', True)
+
+                # Use prof_designation if provided, otherwise fall back to self_designation_type
+                effective_designation = prof_designation or designation_type_obj
+
+                # User-level fields
+                full_name = member_data.pop('full_name')
+                email = member_data.pop('email', None)
+                contact_no = member_data.pop('contact_no')
+
+                user_defaults = {
+                    'full_name': full_name,
+                    'email': email,
+                    'contact_no': contact_no,
+                }
+
+                if existing_user_obj:
+                    user_obj, _ = User.objects.update_or_create(
+                        id=existing_user_obj.id,
+                        defaults=user_defaults,
+                    )
+                else:
+                    user_obj = User.objects.create(**user_defaults)
+
+                # Assign role to the user
+                user_obj.roles.add(role_obj)
+                user_obj.save()
+
+                # User Profile (remaining profile fields after popping all non-profile keys)
+                UserProfile.objects.update_or_create(
+                    user = user_obj,
+                    defaults = member_data,
+                )
+
+                # ----------------------------------------------------------
+                # Personal Details + node mappings
+                # ----------------------------------------------------------
+                try:
+                    user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
+                except UserPersonalDetails.DoesNotExist:
+                    user_personal_obj = UserPersonalDetails.objects.create(user=user_obj)
+
+                if personal_details_json:
+                    user_personal_obj.node_mappings.all().delete()
+                    personal_mappings = [
+                        PersonalNodeMapping(
+                            personal_detail = user_personal_obj,
+                            level_id = int(level_id),
+                            node_id = int(node_id),
+                        )
+                        for level_id, node_id in personal_details_json.items()
+                        if level_id and node_id
+                    ]
+                    if personal_mappings:
+                        PersonalNodeMapping.objects.bulk_create(personal_mappings)
+
+                # ----------------------------------------------------------
+                # Residential Details for the member's workplace address
+                # ----------------------------------------------------------
+                member_residential_obj, _ = get_or_create_residential_details(
+                    residential_details_json_member
+                )
+
+                # ----------------------------------------------------------
+                # UserProfessionalDetails — update existing record by ID or
+                # get-or-create against the (user, business_family) pair
+                # ----------------------------------------------------------
+                prof_detail_defaults = {
+                    'residential_details': member_residential_obj,
+                    'designation': effective_designation,
+                    'joined_date': prof_joined_date,
+                    'left_date': prof_left_date,
+                    'experience': prof_experience,
+                    'is_active': prof_is_active,
+                }
+
+                if prof_id:
+                    # Serializer resolved the PK to a UserProfessionalDetails instance
+                    professional_details_obj = prof_id
+                    if professional_details_obj.user != user_obj or \
+                       professional_details_obj.business_family != business_family_obj:
+                        raise ValidationError({
+                            "professional_details": "Professional details record does not belong to this user/business."
+                        })
+                    for attr, val in prof_detail_defaults.items():
+                        setattr(professional_details_obj, attr, val)
+                    professional_details_obj.save()
+                else:
+                    professional_details_obj, created = UserProfessionalDetails.objects.get_or_create(
+                        user = user_obj,
+                        business_family = business_family_obj,
+                        defaults = prof_detail_defaults,
+                    )
+                    if not created:
+                        for attr, val in prof_detail_defaults.items():
+                            setattr(professional_details_obj, attr, val)
+                        professional_details_obj.save()
+
+                # Professional node mappings for the member
+                if prof_nodes_json:
+                    professional_details_obj.professional_node_mappings.all().delete()
+                    member_prof_mappings = [
+                        ProfessionalNodeMapping(
+                            professional_detail=professional_details_obj,
+                            level_id=int(level_id),
+                            node_id=int(node_id),
+                        )
+                        for level_id, node_id in prof_nodes_json.items()
+                        if level_id and node_id
+                    ]
+                    if member_prof_mappings:
+                        ProfessionalNodeMapping.objects.bulk_create(member_prof_mappings)
+
+                # ----------------------------------------------------------
+                # BusinessFamilyMember link
+                # ----------------------------------------------------------
+                business_member_obj, created = BusinessFamilyMember.objects.get_or_create(
+                    business_family=business_family_obj,
+                    user=user_obj,
+                    defaults={
+                        'self_designation_type': designation_type_obj,
+                        'post_no': post_no or 0,
+                        'is_active': True,
+                    },
+                )
+                if not created:
+                    business_member_obj.self_designation_type = designation_type_obj
+                    if post_no is not None:
+                        business_member_obj.post_no = post_no
+                    business_member_obj.save()
+
+        # ------------------------------------------------------------------
+        # 6. Return response
+        # ------------------------------------------------------------------
+        serializer = BusinessRegisterOutputSerializer(business_family_obj)
+        return Response(
+            {
+                "message": "Business registered successfully.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+
+class UserRoleListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        role_name = request.query_params.get('role', '').strip()
+
+        role_qs = UserRole.objects.filter(is_active=True)
+        if role_name:
+            role_qs = role_qs.filter(parent__name=role_name, is_active=True)
+
+        serializer = RoleListSerializer(role_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

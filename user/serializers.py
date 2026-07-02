@@ -735,6 +735,7 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
                     "joined_date": detail.joined_date,
                     "left_date": detail.left_date,
                     "experience": detail.experience,
+                    "salary": detail.salary,
                     "residential_details": residential_node_mapping,
                     "personal_details": {
                         "nodes": get_level_node_mapping(detail.personal_node_mappings.all())
@@ -773,9 +774,17 @@ class DesignationTypeListSerializer(serializers.ModelSerializer):
 
 
 class BusinessFamilyListSerializer(serializers.ModelSerializer):
+    residential_code = serializers.SerializerMethodField()
+
     class Meta:
         model = BusinessFamily
-        fields = ['id', 'name' 'is_verified']
+        fields = ['id', 'name', 'is_verified', 'residential_code']
+        
+    def get_residential_code(self, obj):
+        resident_mapping = ResidentMapping.objects.filter(business_family=obj).first()
+        if resident_mapping and resident_mapping.residential_details:
+            return resident_mapping.residential_details.residential_code
+        return None
 
 
 class BussinessFamilyDetailsOutputSerializer(serializers.ModelSerializer):
@@ -863,6 +872,31 @@ class FamilyTreeResponseSerializer(serializers.Serializer):
 # Merchant Registration Serializers
 # ===========================================
 
+class BusinessMemberProfessionalDetailsInputSerializer(serializers.Serializer):
+    id = serializers.PrimaryKeyRelatedField(queryset = UserProfessionalDetails.objects.all(), required=True, allow_null=True)
+    professional_details = serializers.JSONField(required=True, allow_null=True)
+    designation = serializers.PrimaryKeyRelatedField(
+        queryset = DesignationType.objects.filter(is_active=True),
+        required=True, allow_null=True 
+    )
+    joined_date = serializers.DateField(required=True, allow_null=True)
+    left_date = serializers.DateField(required=False, allow_null=True)
+    experience = serializers.CharField(required=False, allow_null=True)
+    salary = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        joined_date = attrs.get("joined_date")
+        left_date = attrs.get("left_date")
+        
+        if joined_date and left_date and joined_date > left_date:
+            raise serializers.ValidationError({
+                "joined_date": "joined_date cannot be greater than left_date."
+            })
+            
+        return attrs
+
 class BusinessMemberInputSerializer(serializers.Serializer):
     user_id = serializers.PrimaryKeyRelatedField(
         queryset = User.objects.all(), 
@@ -906,7 +940,7 @@ class BusinessMemberInputSerializer(serializers.Serializer):
 
     personal_details = serializers.JSONField(required=True, allow_null=True)
     residential_details = serializers.JSONField(required=True, allow_null=True)
-    professional_details = serializers.JSONField(required=True, allow_null=True)
+    professional_details = BusinessMemberProfessionalDetailsInputSerializer()
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -1002,11 +1036,14 @@ class BusinessMemberInputSerializer(serializers.Serializer):
     
     def validate_professional_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
-        return self._validate_node_json(value, dimension_obj)
+        # value is the dictionary from BusinessMemberProfessionalDetailsInputSerializer
+        if value and 'professional_details' in value:
+            self._validate_node_json(value['professional_details'], dimension_obj)
+        return value
     
 
 
-class BusinessOperatingHours(serializers.ModelSerializer):
+class BusinessOperatingHoursSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessOperatingHours
         fields = ['day_of_week', 'open_time', 'close_time']
@@ -1016,7 +1053,7 @@ class BusinessOperatingHours(serializers.ModelSerializer):
 class BusinessFamilyInputSerializer(serializers.ModelSerializer):
     residential_details = serializers.JSONField()
     professional_details = serializers.JSONField()
-    operating_hours = BusinessOperatingHours(many=True, required=True, allow_null=True)
+    operating_hours = BusinessOperatingHoursSerializer(many=True, required=True, allow_null=True)
 
     class Meta:
         model = BusinessFamily
@@ -1058,5 +1095,231 @@ class BusienssRegistrationInputSerializer(serializers.Serializer):
         if errors:
             raise serializers.ValidationError(errors)
 
+        # Check for duplicate contact_no or email within the payload itself
+        business_members = attrs.get('business_members', [])
+        seen_contact_nos = set()
+        seen_emails = set()
+        member_errors = {}
+
+        for index, member in enumerate(business_members):
+            contact_no = member.get('contact_no')
+            email = member.get('email')
+            m_errors = {}
+
+            if contact_no:
+                if contact_no in seen_contact_nos:
+                    m_errors["contact_no"] = "This contact number is already used by another member in this request."
+                else:
+                    seen_contact_nos.add(contact_no)
+            
+            if email:
+                if email in seen_emails:
+                    m_errors["email"] = "This email is already used by another member in this request."
+                else:
+                    seen_emails.add(email)
+            
+            if m_errors:
+                member_errors[index] = m_errors
+
+        if member_errors:
+            raise serializers.ValidationError({"business_members": member_errors})
+
         return attrs
+
+
+class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
+    role = serializers.SerializerMethodField()
+    sub_role = serializers.SerializerMethodField()
+    residential_type = serializers.SerializerMethodField()
+    business_family = serializers.SerializerMethodField()
+    business_members = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BusinessFamily
+        fields = ['role', 'sub_role', 'residential_type', 'business_family', 'business_members']
+
+    def get_role(self, obj):
+        return obj.role.name if obj.role else None
+
+    def get_sub_role(self, obj):
+        return obj.sub_role.id if obj.sub_role else None
+
+    def get_residential_type(self, obj):
+        resident_mapping = ResidentMapping.objects.filter(business_family=obj).first()
+        return resident_mapping.residential_type.id if resident_mapping and resident_mapping.residential_type else None
+
+    def get_business_family(self, obj):
+        resident_mapping = ResidentMapping.objects.filter(business_family=obj).first()
+        residential_nodes = get_level_node_mapping(resident_mapping.residential_details.node_mappings.all()) if resident_mapping and resident_mapping.residential_details else {}
+        
+        prof_nodes = get_level_node_mapping(obj.professional_node_mappings.all())
+        
+        operating_hours = BusinessOperatingHoursSerializer(
+            obj.businessoperatinghours_set.all(), many=True
+        ).data
+
+        return {
+            "id": obj.id,
+            "name": obj.name,
+            "company_type": obj.company_type,
+            "registration_no": obj.registration_no,
+            "pan_no": obj.pan_no,
+            "gstin": obj.gstin,
+            "business_type": obj.business_type,
+            "company_size": obj.company_size,
+            "email": obj.email,
+            "contact_no": obj.contact_no,
+            "website": obj.website,
+            "established_year": obj.established_year,
+            "latitude": obj.latitude,
+            "longitude": obj.longitude,
+            "residential_details": residential_nodes,
+            "professional_details": prof_nodes,
+            "operating_hours": operating_hours,
+        }
+
+    def get_business_members(self, obj):
+        members = BusinessFamilyMember.objects.filter(business_family=obj, user__is_deleted=False)
+        result = []
+        for member in members:
+            user = member.user
+            profile = user.profile if hasattr(user, 'profile') else None
+            personal_details = user.personal_details if hasattr(user, 'personal_details') else None
+            
+            prof_detail = UserProfessionalDetails.objects.filter(user=user, business_family=obj).first()
+
+            prof_detail_data = {}
+            member_residential_nodes = {}
+            if prof_detail:
+                if prof_detail.residential_details:
+                    member_residential_nodes = get_level_node_mapping(prof_detail.residential_details.node_mappings.all())
+                
+                prof_detail_data = {
+                    "id": prof_detail.id,
+                    "designation": prof_detail.designation.id if prof_detail.designation else None,
+                    "professional_details": get_level_node_mapping(prof_detail.professional_node_mappings.all()),
+                    "joined_date": prof_detail.joined_date,
+                    "left_date": prof_detail.left_date,
+                    "experience": prof_detail.experience,
+                    "salary": prof_detail.salary,
+                    "is_active": prof_detail.is_active,
+                }
+            
+            member_data = {
+                "user_id": user.id,
+                "self_designation_type": member.self_designation_type.id if member.self_designation_type else None,
+                "post_no": member.post_no,
+                "full_name": user.full_name,
+                "email": user.email,
+                "contact_no": user.contact_no,
+                "pet_name": profile.pet_name if profile else None,
+                "father_name": profile.father_name if profile else None,
+                "gender": profile.gender if profile else None,
+                "dob": profile.dob if profile else None,
+                "birth_time": profile.birth_time if profile else None,
+                "birth_place": profile.birth_place if profile else None,
+                "blood_group": profile.blood_group if profile else None,
+                "marital_status": profile.marital_status if profile else None,
+                "marriage_date": profile.marriage_date if profile else None,
+                "education": profile.education if profile else None,
+                "education_detail": profile.education_detail if profile else None,
+                "expired_date": profile.expired_date if profile else None,
+                "expired_time": profile.expired_time if profile else None,
+                "expired_place": profile.expired_place if profile else None,
+                "cremation_place": profile.cremation_place if profile else None,
+            }
+            
+            member_data["personal_details"] = get_level_node_mapping(personal_details.node_mappings.all()) if personal_details else {}
+            member_data["residential_details"] = member_residential_nodes
+            member_data["professional_details"] = prof_detail_data
+            
+            result.append(member_data)
+        
+        return result
     
+
+
+class RoleListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserRole
+        fields = ['id', 'name', 'display_name']
+
+
+class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = []  # We will manually map everything to match the input payload
+
+    def to_representation(self, user):
+        profile = user.profile if hasattr(user, 'profile') else None
+        personal_details = user.personal_details if hasattr(user, 'personal_details') else None
+        
+        business_id = self.context.get('business_id')
+        residential_code = self.context.get('residential_code')
+        
+        # Try to find the member record if business_id is given
+        member = None
+        if business_id:
+            member = BusinessFamilyMember.objects.filter(user=user, business_family_id=business_id).first()
+
+        # Find the relevant professional details
+        filters = Q(user=user, is_active=True)
+        conditions = Q()
+        if business_id:
+            conditions |= Q(business_family_id=business_id)
+        if residential_code:
+            conditions |= Q(residential_details__residential_code=residential_code)
+        
+        prof_detail = UserProfessionalDetails.objects.filter(filters & conditions).first()
+
+        prof_detail_data = {}
+        member_residential_nodes = {}
+        
+        if prof_detail:
+            if prof_detail.residential_details:
+                member_residential_nodes = get_level_node_mapping(prof_detail.residential_details.node_mappings.all())
+            
+            prof_detail_data = {
+                "id": prof_detail.id,
+                "designation": prof_detail.designation.id if prof_detail.designation else None,
+                "professional_details": get_level_node_mapping(prof_detail.professional_node_mappings.all()),
+                "joined_date": prof_detail.joined_date,
+                "left_date": prof_detail.left_date,
+                "experience": prof_detail.experience,
+                "salary": prof_detail.salary,
+                "is_active": prof_detail.is_active,
+            }
+
+        member_data = {
+            "user_id": user.id,
+            "self_designation_type": member.self_designation_type.id if (member and member.self_designation_type) else None,
+            "post_no": member.post_no if member else 0,
+            "full_name": user.full_name,
+            "email": user.email,
+            "contact_no": user.contact_no,
+        }
+        
+        if profile:
+            member_data.update({
+                "pet_name": profile.pet_name,
+                "father_name": profile.father_name,
+                "gender": profile.gender,
+                "dob": profile.dob,
+                "birth_time": profile.birth_time,
+                "birth_place": profile.birth_place,
+                "blood_group": profile.blood_group,
+                "marital_status": profile.marital_status,
+                "marriage_date": profile.marriage_date,
+                "education": profile.education,
+                "education_detail": profile.education_detail,
+                "expired_date": profile.expired_date,
+                "expired_time": profile.expired_time,
+                "expired_place": profile.expired_place,
+                "cremation_place": profile.cremation_place,
+            })
+        
+        member_data["personal_details"] = get_level_node_mapping(personal_details.node_mappings.all()) if personal_details else {}
+        member_data["residential_details"] = member_residential_nodes
+        member_data["professional_details"] = prof_detail_data
+        
+        return member_data
