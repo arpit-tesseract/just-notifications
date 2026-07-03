@@ -579,8 +579,17 @@ class ResidentMapping(AuditMixin):
     history = HistoricalRecords()
 
     class Meta:
-        # Enforce that a family can only have one record per residential type
         constraints = [
+            models.UniqueConstraint(
+                fields=['family', 'residential_details'],
+                name='unique_family_residential_details',
+                violation_error_message="This family is already mapped to this residential details."
+            ),
+            models.UniqueConstraint(
+                fields=['business_family', 'residential_details'],
+                name='unique_business_residential_details',
+                violation_error_message="This business is already mapped to this residential details."
+            ),
             models.UniqueConstraint(
                 fields=['residential_details', 'residential_type'],
                 name='unique_resident_residential_type',

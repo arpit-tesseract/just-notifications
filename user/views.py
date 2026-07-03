@@ -1091,7 +1091,7 @@ class UserSuggestionsDropdownView(APIView):
 class UserListView(AssignedNodeFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
     model = User
-    node_filter_field = "current_residential_details__residentialnodemapping__node_id__in"
+    node_filter_field = "current_residential_details__node_mappings__node_id__in"
 
     def get(self, request):
         role_name = request.query_params.get('role', "user").strip()
