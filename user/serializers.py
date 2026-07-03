@@ -22,15 +22,15 @@ class LoginInputSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
-class UserRoleSerializer(serializers.ModelSerializer):
+class RoleDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserRole
-        fields = ['id', 'name','display_name']
-        read_only_fields = ['id', 'name', 'display_name']
+        fields = ['id', 'name', 'display_name']
+
 
 # This Serializer Use after loggin success
 class UserBasicDetailsOutputSerializer(serializers.ModelSerializer):
-    roles = UserRoleSerializer(many=True)
+    roles = RoleDropdownSerializer(many=True)
     # designation = DesignationSerializer(many=False)
     class Meta:
         model = User
@@ -668,11 +668,12 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
 class UserListSerializer(serializers.ModelSerializer):
     profile_pic = serializers.ImageField(source='profile.photo')
     father_name = serializers.CharField(source='profile.father_name')
+    roles = RoleDropdownSerializer(many=True)
     class Meta:
         model = User
         fields = [
             'id', 'full_name', 'contact_no', 'is_verified', 'user_category', 'father_name',
-            'profile_pic'
+            'profile_pic', 'roles'
         ]
 
 class RelationTypeDropdownSerializer(serializers.ModelSerializer):
@@ -1102,13 +1103,6 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
             result.append(member_data)
         
         return result
-    
-
-
-class RoleDropdownSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserRole
-        fields = ['id', 'name', 'display_name']
 
 
 class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):

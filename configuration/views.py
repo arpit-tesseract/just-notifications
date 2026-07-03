@@ -12,7 +12,7 @@ from .models import *
 from .serializers import *
 from rest_framework.decorators import action
 from django.db.models import Count, Window, F, Q
-from .pagination import ConfigurationPagination
+from common.pagination import CommonPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
 from .services import reassign_user_node_references, count_user_node_references
 from .tasks import process_level_deletion
@@ -101,7 +101,7 @@ class NodeViewSet(AssignedNodeFilterMixin, viewsets.ModelViewSet):
     
     queryset = Node.objects.select_related("dimension", "level", "parent")
     serializer_class = NodeSerializer
-    pagination_class = ConfigurationPagination
+    pagination_class = CommonPagination
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:

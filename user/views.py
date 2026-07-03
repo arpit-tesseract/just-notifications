@@ -14,6 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 
 from configuration.mixins import AssignedNodeFilterMixin
+from common.pagination import CommonPagination
 from .serializers import (
     LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
     ResidentialTypeDropdownSerializer, DocumentTypeDropdownSerializer, RelationTypeDropdownSerializer, DesignationTypeDropdownSerializer,
@@ -1141,8 +1142,10 @@ class UserListView(AssignedNodeFilterMixin, APIView):
                     personal_details__node_mappings__node_id=parsed_value
                 )
 
-        serializer = UserListSerializer(user_qs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        paginator = CommonPagination()
+        paginated_qs = paginator.paginate_queryset(user_qs, request, view=self)
+        serializer = UserListSerializer(paginated_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class RelationTypeDropdownView(APIView):
