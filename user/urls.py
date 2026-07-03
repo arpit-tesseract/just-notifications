@@ -32,5 +32,5 @@ urlpatterns = [
     path('business/register/', views.BusinessRegisterView.as_view(), name='business_register'),
     path('business/member-suggestions/', views.BusinessMemberSuggestionView.as_view(), name='business_member_suggestions'),
     path('admin/register/', views.AdminRegistrationView.as_view(), name='admin_register'),
-    path('admin/node-assignments/', views.AdminNodeAssignmentView.as_view(), name='admin_node_assignments'),
+    path('admin/residential-node-assignments/', views.AdminResidentialNodeAssignmentView.as_view(), name='admin_node_assignments'),
 ]

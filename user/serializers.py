@@ -1411,7 +1411,7 @@ class AdminRegistrationOutputSerializer(serializers.Serializer):
         return result
 
 
-class AdminNodeAssignmentItemSerializer(serializers.Serializer):
+class AdminResidentialNodeAssignmentItemSerializer(serializers.Serializer):
     level_id = serializers.PrimaryKeyRelatedField(queryset=Level.objects.all(), source='level')
     node_id = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all(), source='node')
 
@@ -1426,7 +1426,7 @@ class AdminNodeAssignmentInputSerializer(serializers.Serializer):
     user_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
     )
-    assignments = AdminNodeAssignmentItemSerializer(many=True, required=True)
+    assignments = AdminResidentialNodeAssignmentItemSerializer(many=True, required=True)
 
     def validate_user_id(self, value):
         if not value.roles.filter(parent__name="admin").exists():
@@ -1435,7 +1435,7 @@ class AdminNodeAssignmentInputSerializer(serializers.Serializer):
             )
         return value
 
-class AdminNodeAssignmentOutputSerializer(serializers.ModelSerializer):
+class AdminResidentialNodeAssignmentOutputSerializer(serializers.ModelSerializer):
     level = serializers.SerializerMethodField()
     node = serializers.SerializerMethodField()
 

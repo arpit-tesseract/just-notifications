@@ -1883,10 +1883,10 @@ class UserRoleListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-from .serializers import AdminNodeAssignmentInputSerializer, AdminNodeAssignmentOutputSerializer
+from .serializers import AdminResidentialNodeAssignmentInputSerializer, AdminResidentialNodeAssignmentOutputSerializer
 from configuration.models import Level, Node
 
-class AdminNodeAssignmentView(APIView):
+class AdminResidentialNodeAssignmentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1895,11 +1895,11 @@ class AdminNodeAssignmentView(APIView):
             return Response({"error": "user_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user_id)
-        serializer = AdminNodeAssignmentOutputSerializer(assignments, many=True)
+        serializer = AdminResidentialNodeAssignmentOutputSerializer(assignments, many=True)
         return Response({"user_id": int(user_id), "assignments": serializer.data}, status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = AdminNodeAssignmentInputSerializer(data=request.data)
+        serializer = AdminResidentialNodeAssignmentInputSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1929,5 +1929,5 @@ class AdminNodeAssignmentView(APIView):
              return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         updated_assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user.id)
-        out_serializer = AdminNodeAssignmentOutputSerializer(updated_assignments, many=True)
+        out_serializer = AdminResidentialNodeAssignmentOutputSerializer(updated_assignments, many=True)
         return Response({"message": "Admin node assignments updated successfully.", "user_id": user.id, "assignments": out_serializer.data}, status=status.HTTP_200_OK)
