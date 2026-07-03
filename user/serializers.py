@@ -47,13 +47,13 @@ class LogoutInputSerializer(serializers.Serializer):
     refresh = serializers.CharField(write_only=True)
 
 
-class ResidentialTypeListSerializer(serializers.ModelSerializer):
+class ResidentialTypeDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResidentialType
         fields = ['id', 'name', 'display_name']
 
 
-class DocumentTypeListSerializer(serializers.ModelSerializer):
+class DocumentTypeDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentType
         fields = ['id', 'display_name', 'is_required']
@@ -531,7 +531,7 @@ class RegistrationOutputSerializer(serializers.Serializer):
         return family_members_lst
 
 
-class UserSuggestionListSerializer(serializers.ModelSerializer):
+class UserSuggestionDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'full_name', 'contact_no']
@@ -675,18 +675,18 @@ class UserListSerializer(serializers.ModelSerializer):
             'profile_pic'
         ]
 
-class RelationTypeListSerializer(serializers.ModelSerializer):
+class RelationTypeDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = RelationType
         fields = ['id', 'name', 'display_name', 'post_no']
 
-class DesignationTypeListSerializer(serializers.ModelSerializer):
+class DesignationTypeDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = DesignationType
         fields = ['id', 'name', 'display_name', 'post_no']
 
 
-class BusinessFamilyListSerializer(serializers.ModelSerializer):
+class BusinessFamilyDropdownSerializer(serializers.ModelSerializer):
     residential_code = serializers.SerializerMethodField()
 
     class Meta:
@@ -1105,7 +1105,7 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
     
 
 
-class RoleListSerializer(serializers.ModelSerializer):
+class RoleDropdownSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserRole
         fields = ['id', 'name', 'display_name']

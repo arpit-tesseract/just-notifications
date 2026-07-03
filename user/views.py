@@ -13,14 +13,14 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 
-
+from configuration.mixins import AssignedNodeFilterMixin
 from .serializers import (
     LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
-    ResidentialTypeListSerializer, DocumentTypeListSerializer, RelationTypeListSerializer, DesignationTypeListSerializer,
-    BusinessFamilyListSerializer, BussinessFamilyDetailsOutputSerializer,
-    UserSuggestionListSerializer, UserDetailsOutputSerializer,
+    ResidentialTypeDropdownSerializer, DocumentTypeDropdownSerializer, RelationTypeDropdownSerializer, DesignationTypeDropdownSerializer,
+    BusinessFamilyDropdownSerializer, BussinessFamilyDetailsOutputSerializer,
+    UserSuggestionDropdownSerializer, UserDetailsOutputSerializer,
     RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, LoginPhoneInputSerializer,LoginPhoneOTPInputSerializer,
-    BusienssRegistrationInputSerializer, RoleListSerializer,
+    BusienssRegistrationInputSerializer, RoleDropdownSerializer,
     BusinessMemberPayloadSuggestionSerializer, BusinessRegisterOutputSerializer
 )
 from .models import *
@@ -813,22 +813,22 @@ class RegistrationView(APIView):
 
 
 
-class ResidentialTypeListView(APIView):
+class ResidentialTypeDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         role_name = request.query_params.get('role', 'user').strip()
         residential_type_qs = ResidentialType.objects.filter(is_active=True, roles__name=role_name)
-        serializer = ResidentialTypeListSerializer(residential_type_qs, many=True)
+        serializer = ResidentialTypeDropdownSerializer(residential_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class DocumentTypeListView(APIView):
+class DocumentTypeDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         document_type_qs = DocumentType.objects.filter(is_active=True)
-        serializer = DocumentTypeListSerializer(document_type_qs, many=True)
+        serializer = DocumentTypeDropdownSerializer(document_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -1042,7 +1042,7 @@ class BusinessMemberSuggestionView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class UserSuggestionsListView(APIView):
+class UserSuggestionsDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_id=None):
@@ -1066,7 +1066,7 @@ class UserSuggestionsListView(APIView):
                 filters
             ).distinct()[:10]
 
-            user_suggestions_seriaizer = UserSuggestionListSerializer(suggestions, many=True)
+            user_suggestions_seriaizer = UserSuggestionDropdownSerializer(suggestions, many=True)
 
             return Response({
                 "suggestions": user_suggestions_seriaizer.data
@@ -1087,8 +1087,10 @@ class UserSuggestionsListView(APIView):
 
 
 
-class UserListView(APIView):
+class UserListView(AssignedNodeFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
+    model = User
+    node_filter_field = "current_residential_details__residentialnodemapping__node_id__in"
 
     def get(self, request):
         role_name = request.query_params.get('role', "user").strip()
@@ -1105,7 +1107,7 @@ class UserListView(APIView):
         # which is required because RawSQL needs those tables to exist in the SQL query.
         
         user_qs = (
-            User.objects.filter(roles__id__in=role_ids)
+            self.get_queryset().filter(roles__id__in=role_ids)
             .distinct()
             .select_related(
                 "current_residential_details",
@@ -1143,7 +1145,7 @@ class UserListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class RelationTypeView(APIView):
+class RelationTypeDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1163,39 +1165,30 @@ class RelationTypeView(APIView):
                 name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
             )
 
-        serializer = RelationTypeListSerializer(relation_type_qs, many=True)
+        serializer = RelationTypeDropdownSerializer(relation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class DesignationTypeListView(APIView):
+class DesignationTypeDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         designation_type_qs = DesignationType.objects.filter(is_active=True)
-        serializer = DesignationTypeListSerializer(designation_type_qs, many=True)
+        serializer = DesignationTypeDropdownSerializer(designation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class BusinessFamilyListView(APIView):
+class BusinessFamilyDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, id=None):
-        if id:
-            try:
-                business_family_obj = BusinessFamily.objects.get(id=id)
-            except BusinessFamily.DoesNotExist:
-                return Response({"error": "Business family not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            serializer = BusinessRegisterOutputSerializer(business_family_obj)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
+    def get(self, request):
         business_family_qs = BusinessFamily.objects.all()
 
         search_name = request.query_params.get("search", "").strip()
         if search_name:
             business_family_qs = business_family_qs.filter(name__icontains=search_name)[:10]
 
-        serializer = BusinessFamilyListSerializer(business_family_qs, many=True)
+        serializer = BusinessFamilyDropdownSerializer(business_family_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -1869,7 +1862,7 @@ class AdminRegistrationView(APIView):
         }, status=status.HTTP_201_CREATED)
     
 
-class UserRoleListView(APIView):
+class UserRoleDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1879,7 +1872,7 @@ class UserRoleListView(APIView):
         if role_name:
             role_qs = role_qs.filter(parent__name=role_name, is_active=True)
 
-        serializer = RoleListSerializer(role_qs, many=True)
+        serializer = RoleDropdownSerializer(role_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
