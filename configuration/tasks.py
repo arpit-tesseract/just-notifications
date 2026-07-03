@@ -253,8 +253,9 @@ def task_commit_excel(self, import_session_id, user_id):
                         )
 
                 node_id = row.get("id")
+                is_update = row.get("is_update", False)
                 
-                if node_id:
+                if node_id and is_update:
                     node = Node.objects.get(id=node_id)
                     node.name = row["name"]
                     node.code = row["code"]
@@ -267,17 +268,21 @@ def task_commit_excel(self, import_session_id, user_id):
                     update_change_reason(node, "Updated via Excel Import")
                     summary["updated"] += 1
                 else:
-                    node = Node.objects.create(
-                        name=row["name"],
-                        code=row["code"],
-                        is_hidden=row["is_hidden"],
-                        on_hold=row["on_hold"],
-                        hold_date=row["hold_date"],
-                        parent_id=row["parent_id"],
-                        level_id=row["level_id"],
-                        dimension_id=row["dimension_id"],
-                        attributes=row["attributes"]
-                    )
+                    create_kwargs = {
+                        "name": row["name"],
+                        "code": row["code"],
+                        "is_hidden": row["is_hidden"],
+                        "on_hold": row["on_hold"],
+                        "hold_date": row["hold_date"],
+                        "parent_id": row["parent_id"],
+                        "level_id": row["level_id"],
+                        "dimension_id": row["dimension_id"],
+                        "attributes": row["attributes"]
+                    }
+                    if node_id:
+                        create_kwargs["id"] = node_id
+                        
+                    node = Node.objects.create(**create_kwargs)
                     update_change_reason(node, "Created via Excel Import")
                     summary["created"] += 1
                     

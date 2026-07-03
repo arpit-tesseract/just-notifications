@@ -113,9 +113,9 @@ class ImportService:
                     return None, f"Provided ID '{id_val}' is not a valid integer."
                     
             if id_val is not None:
-                node = Node.objects.filter(id=id_val, level=target_level).first()
-                if not node:
-                    return None, f"Provided ID '{id_val}' does not exist in the database for level '{target_level.name}'."
+                node = Node.objects.filter(id=id_val).first()
+                if node and node.level != target_level:
+                    return None, f"Provided ID '{id_val}' already exists but belongs to a different level '{node.level.name}'."
 
             def get_mapped_val(key, default=None):
                 if key in mapping_dict and mapping_dict[key] in row_data:
@@ -191,7 +191,7 @@ class ImportService:
 
             # Step 6: Create Dummy Node for Model Validation
             temp_node = Node(
-                id=node.id if node else None,
+                id=id_val,
                 name=name_val,
                 code=code_val,
                 is_hidden=is_hidden,
@@ -210,7 +210,7 @@ class ImportService:
                 return None, clean_error_text
 
             parsed_data = {
-                "id": node.id if node else None,
+                "id": id_val,
                 "name": name_val,
                 "code": code_val,
                 "is_hidden": is_hidden,
@@ -254,7 +254,16 @@ class ImportService:
             col_target_name = mapping_dict.get(target_level_name_key)
             name_val = row_data.get(col_target_name)
             
+            # Skip completely empty rows (like Excel "ghost" rows)
+            if not any(v for v in row_data.values() if v is not None and str(v).strip() != ""):
+                continue
+
             if not name_val:
+                invalid_rows.append({
+                    "row": row_index,
+                    "error": f"Missing target name for mapped column '{col_target_name}'. Please check your column mapping.",
+                    "raw_data": row_data
+                })
                 continue
                 
             parsed_data, error = ImportService.validate_row(row_data, row_index, target_level, mapping_dict)
