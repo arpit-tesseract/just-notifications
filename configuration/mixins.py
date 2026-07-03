@@ -162,9 +162,17 @@ class AssignedNodeFilterMixin(BaseQueryMixin):
             return qs
             
         from user.models import AdminResidentialNodeAssignment
+        from configuration.models import NodeClosure
+        
         assigned_node_ids = AdminResidentialNodeAssignment.objects.filter(
             user=user
         ).values_list('node_id', flat=True)
         
-        filter_kwargs = {self.node_filter_field: assigned_node_ids}
-        return qs.filter(**filter_kwargs).distinct()
+        if assigned_node_ids:
+            allowed_node_ids = NodeClosure.objects.filter(
+                ancestor_id__in=assigned_node_ids
+            ).values_list('descendant_id', flat=True)
+            filter_kwargs = {self.node_filter_field: allowed_node_ids}
+            return qs.filter(**filter_kwargs).distinct()
+        else:
+            return qs.none()
