@@ -1674,6 +1674,7 @@ class AdminRegistrationView(APIView):
         )
 
         sub_role = request.query_params.get("sub_role")
+        user_id = request.query_params.get("user_id")
 
         if sub_role:
             role = get_object_or_404(
@@ -1698,6 +1699,9 @@ class AdminRegistrationView(APIView):
                 roles__in=child_roles,
                 is_deleted=False
             ).distinct()
+
+        if user_id:
+            user_objs = user_objs.filter(id=user_id)
 
         output_data = {
             "role": admin_role,
