@@ -1411,7 +1411,7 @@ class AdminRegistrationOutputSerializer(serializers.Serializer):
         return result
 
 
-class AdminResidentialNodeAssignmentItemSerializer(serializers.Serializer):
+class AdminResidentialResidentialNodeAssignmentItemSerializer(serializers.Serializer):
     level_id = serializers.PrimaryKeyRelatedField(queryset=Level.objects.all(), source='level')
     node_id = serializers.PrimaryKeyRelatedField(queryset=Node.objects.all(), source='node')
 
@@ -1422,11 +1422,11 @@ class AdminResidentialNodeAssignmentItemSerializer(serializers.Serializer):
             raise serializers.ValidationError({"node_id": "Node does not belong to the specified level."})
         return attrs
 
-class AdminNodeAssignmentInputSerializer(serializers.Serializer):
+class AdminResidentialNodeAssignmentInputSerializer(serializers.Serializer):
     user_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
     )
-    assignments = AdminResidentialNodeAssignmentItemSerializer(many=True, required=True)
+    assignments = AdminResidentialResidentialNodeAssignmentItemSerializer(many=True, required=True)
 
     def validate_user_id(self, value):
         if not value.roles.filter(parent__name="admin").exists():
