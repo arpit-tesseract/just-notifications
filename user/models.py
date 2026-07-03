@@ -152,6 +152,12 @@ class User(AbstractBaseUser, PermissionsMixin, AuditMixin, SoftDeleteMixin):
 
         return super().soft_delete(user)
 
+    def is_admin(self):
+        return self.roles.filter(parent__name="admin").exists()
+    
+    def is_super_admin(self):
+        return self.roles.filter(name="super_admin").exists()
+
     def __str__(self):
         return f"{self.full_name} - {self.contact_no}"
 
