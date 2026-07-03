@@ -14,6 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 
 from configuration.mixins import AssignedNodeFilterMixin
+from .mixins import AdminRoleFilterMixin
 from common.pagination import CommonPagination
 from .serializers import (
     LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
@@ -1088,7 +1089,7 @@ class UserSuggestionsDropdownView(APIView):
 
 
 
-class UserListView(AssignedNodeFilterMixin, APIView):
+class UserListView(AssignedNodeFilterMixin, AdminRoleFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
     model = User
     node_filter_field = "current_residential_details__node_mappings__node_id__in"
@@ -1096,13 +1097,10 @@ class UserListView(AssignedNodeFilterMixin, APIView):
     def get(self, request):
         role_name = request.query_params.get('role', "user").strip()
 
-        role = UserRole.objects.filter(name=role_name).first()
-        if not role:
-            return Response({"detail": "Invalid role."}, status=400)
+        role_ids, error_response = self.get_allowed_role_ids(request, role_name)
+        if error_response:
+            return error_response
         
-        role_ids = UserRole.objects.filter(
-            models.Q(id=role.id) | models.Q(parent=role)
-        ).values_list("id", flat=True)
         # 1. Apply select_related early! 
         # This forces Django to JOIN the residential and personal tables immediately,
         # which is required because RawSQL needs those tables to exist in the SQL query.
@@ -1666,7 +1664,7 @@ class BusinessRegisterView(APIView):
 
 from .serializers import AdminRegistrationInputSerializer, AdminRegistrationOutputSerializer
 
-class AdminRegistrationView(APIView):
+class AdminRegistrationView(AdminRoleFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1679,13 +1677,19 @@ class AdminRegistrationView(APIView):
         sub_role = request.query_params.get("sub_role")
         user_id = request.query_params.get("user_id")
 
+        role_ids, error_response = self.get_allowed_role_ids(request, "admin")
+        if error_response:
+             return error_response
+
         if sub_role:
             role = get_object_or_404(
                 UserRole,
                 name=sub_role,
-                parent=admin_role,
                 is_active=True
             )
+            
+            if role.id not in role_ids:
+                return Response({"error": "You don't have permission to view this role."}, status=status.HTTP_403_FORBIDDEN)
 
             user_objs = User.objects.filter(
                 roles=role,
@@ -1693,13 +1697,8 @@ class AdminRegistrationView(APIView):
             ).distinct()
 
         else:
-            child_roles = UserRole.objects.filter(
-                parent=admin_role,
-                is_active=True
-            )
-
             user_objs = User.objects.filter(
-                roles__in=child_roles,
+                roles__in=role_ids,
                 is_deleted=False
             ).distinct()
 
