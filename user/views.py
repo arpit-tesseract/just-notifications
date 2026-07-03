@@ -1877,12 +1877,25 @@ class AdminRegistrationView(AdminRoleFilterMixin, APIView):
 class UserRoleDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get_all_descendants(self, role_name):
+        descendant_ids = set()
+        roles_to_check = list(UserRole.objects.filter(parent__name=role_name, is_active=True).values_list('id', flat=True))
+        
+        while roles_to_check:
+            current_id = roles_to_check.pop(0)
+            descendant_ids.add(current_id)
+            children = list(UserRole.objects.filter(parent_id=current_id, is_active=True).values_list('id', flat=True))
+            roles_to_check.extend(children)
+            
+        return descendant_ids
+
     def get(self, request):
         role_name = request.query_params.get('role', '').strip()
 
         role_qs = UserRole.objects.filter(is_active=True)
         if role_name:
-            role_qs = role_qs.filter(parent__name=role_name, is_active=True)
+            descendant_ids = self.get_all_descendants(role_name)
+            role_qs = role_qs.filter(id__in=descendant_ids).order_by('id')
 
         serializer = RoleDropdownSerializer(role_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
