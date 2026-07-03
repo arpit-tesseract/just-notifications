@@ -3,7 +3,9 @@ from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils import timezone
 from django.db.models import Q, F
-
+from phonenumber_field.modelfields import PhoneNumberField
+import re
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 from common.models import AuditMixin, SoftDeleteMixin
@@ -114,7 +116,7 @@ class User(AbstractBaseUser, PermissionsMixin, AuditMixin, SoftDeleteMixin):
     ]
     full_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True, null=True, blank=True)
-    contact_no = models.CharField(max_length=50, unique=True)
+    contact_no = PhoneNumberField(max_length=50, unique=True)
     roles = models.ManyToManyField(UserRole)
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
@@ -250,6 +252,18 @@ class UserDocument(AuditMixin, SoftDeleteMixin):
     def __str__(self):
         return f"{self.user.full_name} - {self.document_type.display_name}"
 
+    def clean(self):
+        super().clean()
+        if self.document_no and self.document_type and self.document_type.regex_pattern:
+            if not re.match(self.document_type.regex_pattern, self.document_no):
+                raise ValidationError({
+                    'document_no': f"Invalid format for {self.document_type.display_name}. Please enter a valid number."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class BusinessFamily(AuditMixin):
     COMPANY_TYPE_CHOICES = [
@@ -316,7 +330,7 @@ class BusinessFamily(AuditMixin):
     )
     
     email = models.EmailField()
-    contact_no = models.CharField(max_length=50)
+    contact_no = PhoneNumberField(max_length=50, unique=True)
     website = models.URLField(null=True, blank=True)
     established_year = models.PositiveIntegerField(null=True, blank=True)
     logo = models.ImageField(upload_to='business_family_logos/', null=True, blank=True)

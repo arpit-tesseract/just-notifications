@@ -3,22 +3,23 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from .models import *
+from phonenumber_field.serializerfields import PhoneNumberField
 from configuration.models import Dimension, Level, Node
 from .utils import get_level_node_mapping, validate_dimension_nodes
-
+from common.validators import validate_dob, validate_marriage_date, validate_expired_date, validate_email_format, validate_gstin
 class LoginPhoneInputSerializer(serializers.Serializer):
-    contact_no = serializers.CharField(required=True)
+    contact_no = PhoneNumberField(required=True)
 
 
 class LoginPhoneOTPInputSerializer(serializers.Serializer):
-    contact_no = serializers.CharField(required=True)
+    contact_no = PhoneNumberField(required=True)
     otp = serializers.IntegerField(
         min_value = 1000,   # min value as 1000
         max_value = 9999    # max value as 9999
     )
 
 class LoginInputSerializer(serializers.Serializer):
-    email = serializers.EmailField(write_only=True)
+    email = serializers.EmailField(write_only=True, validators=[validate_email_format])
     password = serializers.CharField(write_only=True)
 
 
@@ -112,8 +113,8 @@ class UserDetailsInputSerializer(serializers.Serializer):
         queryset = DesignationType.objects.filter(is_active=True), 
         required=False
     )
-    email = serializers.EmailField(required=True, allow_null=True)
-    contact_no = serializers.CharField(required=True, allow_null=False)
+    email = serializers.EmailField(required=True, allow_null=True, validators=[validate_email_format])
+    contact_no = PhoneNumberField(required=True, allow_null=False)
     full_name = serializers.CharField(required=True, allow_null=False)
     pet_name = serializers.CharField(required=True, allow_null=True)
     father_name = serializers.CharField(required=True, allow_null=True)
@@ -122,7 +123,7 @@ class UserDetailsInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     post_no = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=True)
-    dob = serializers.DateField(required=True, allow_null=True)
+    dob = serializers.DateField(required=True, allow_null=True, validators=[validate_dob])
     birth_time = serializers.TimeField(required=True, allow_null=True)
     birth_place = serializers.CharField(required=True, allow_null=True)
     blood_group = serializers.ChoiceField(
@@ -133,14 +134,14 @@ class UserDetailsInputSerializer(serializers.Serializer):
         choices=UserProfile.MARITAL_STATUS_CHOICES,
         required=True, allow_null=True
     )
-    marriage_date = serializers.DateField(required=True, allow_null=True)
+    marriage_date = serializers.DateField(required=True, allow_null=True, validators=[validate_marriage_date])
     education = serializers.ChoiceField(
         choices=UserProfile.EDUCATION_CHOICES,
         required=True, allow_null=True
     )
     education_detail = serializers.CharField(required=True, allow_null=True)
 
-    expired_date = serializers.DateField(required=True, allow_null=True)
+    expired_date = serializers.DateField(required=True, allow_null=True, validators=[validate_expired_date])
     expired_time = serializers.TimeField(required=True, allow_null=True)
     expired_place = serializers.CharField(required=True, allow_null=True)
     cremation_place = serializers.CharField(required=True, allow_null=True)
@@ -197,17 +198,19 @@ class UserDetailsInputSerializer(serializers.Serializer):
             if gender == 'female' and self_relation not in ['wife', 'guest', 'workers', 'daughter']:
                 raise serializers.ValidationError({"gender": "Invalid gender."})
         
+        dob = attrs.get('dob')
+        marriage_date = attrs.get('marriage_date')
+        expired_date = attrs.get('expired_date')
+        
+        if dob:
+            if marriage_date and marriage_date < dob:
+                raise serializers.ValidationError({"marriage_date": "Marriage date cannot be before Date of Birth."})
+            if expired_date and expired_date < dob:
+                raise serializers.ValidationError({"expired_date": "Expired date cannot be before Date of Birth."})
+        
         return attrs
     
-    def validate_expired_date(self, value):
-        if value and value > timezone.now().date():
-            raise serializers.ValidationError("Expired date cannot be in the future.")
-        return value
-    
-    def validate_dob(self, value):
-        if value and value > timezone.now().date():
-            raise serializers.ValidationError("Date of birth cannot be in the future.")
-        return value
+
     
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
@@ -547,8 +550,8 @@ class UserDocumentOutputSerializer(serializers.ModelSerializer):
 
 class UserDetailsOutputSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source='user.id')
-    email = serializers.CharField(source='user.email')
-    contact_no = serializers.CharField(source='user.contact_no')
+    email = serializers.EmailField(source='user.email')
+    contact_no = PhoneNumberField(source='user.contact_no')
     full_name = serializers.CharField(source='user.full_name')
     is_verified = serializers.BooleanField(source='user.is_verified')
 
@@ -819,8 +822,8 @@ class BusinessMemberInputSerializer(serializers.Serializer):
     self_designation_type = serializers.PrimaryKeyRelatedField(
         queryset = DesignationType.objects.filter(is_active=True), 
     )
-    email = serializers.EmailField(required=True, allow_null=True)
-    contact_no = serializers.CharField(required=True, allow_null=False)
+    email = serializers.EmailField(required=True, allow_null=True, validators=[validate_email_format])
+    contact_no = PhoneNumberField(required=True, allow_null=False)
     full_name = serializers.CharField(required=True, allow_null=False)
     pet_name = serializers.CharField(required=True, allow_null=True)
     father_name = serializers.CharField(required=True, allow_null=True)
@@ -829,7 +832,7 @@ class BusinessMemberInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     post_no = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=True)
-    dob = serializers.DateField(required=True, allow_null=True)
+    dob = serializers.DateField(required=True, allow_null=True, validators=[validate_dob])
     birth_time = serializers.TimeField(required=True, allow_null=True)
     birth_place = serializers.CharField(required=True, allow_null=True)
     blood_group = serializers.ChoiceField(
@@ -840,14 +843,14 @@ class BusinessMemberInputSerializer(serializers.Serializer):
         choices=UserProfile.MARITAL_STATUS_CHOICES,
         required=True, allow_null=True
     )
-    marriage_date = serializers.DateField(required=True, allow_null=True)
+    marriage_date = serializers.DateField(required=True, allow_null=True, validators=[validate_marriage_date])
     education = serializers.ChoiceField(
         choices=UserProfile.EDUCATION_CHOICES,
         required=True, allow_null=True
     )
     education_detail = serializers.CharField(required=True, allow_null=True)
 
-    expired_date = serializers.DateField(required=True, allow_null=True)
+    expired_date = serializers.DateField(required=True, allow_null=True, validators=[validate_expired_date])
     expired_time = serializers.TimeField(required=True, allow_null=True)
     expired_place = serializers.CharField(required=True, allow_null=True)
     cremation_place = serializers.CharField(required=True, allow_null=True)
@@ -882,17 +885,17 @@ class BusinessMemberInputSerializer(serializers.Serializer):
                 if user_objs.exists():
                     raise serializers.ValidationError({"email": "User with this email already exists."})
         
+        dob = attrs.get('dob')
+        marriage_date = attrs.get('marriage_date')
+        expired_date = attrs.get('expired_date')
+        
+        if dob:
+            if marriage_date and marriage_date < dob:
+                raise serializers.ValidationError({"marriage_date": "Marriage date cannot be before Date of Birth."})
+            if expired_date and expired_date < dob:
+                raise serializers.ValidationError({"expired_date": "Expired date cannot be before Date of Birth."})
+        
         return attrs
-    
-    def validate_expired_date(self, value):
-        if value and value > timezone.now().date():
-            raise serializers.ValidationError("Expired date cannot be in the future.")
-        return value
-    
-    def validate_dob(self, value):
-        if value and value > timezone.now().date():
-            raise serializers.ValidationError("Date of birth cannot be in the future.")
-        return value
     
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
@@ -914,6 +917,17 @@ class BusinessOperatingHoursSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessOperatingHours
         fields = ['day_of_week', 'open_time', 'close_time']
+        
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        open_time = attrs.get('open_time')
+        close_time = attrs.get('close_time')
+        
+        if open_time and close_time and open_time >= close_time:
+            raise serializers.ValidationError({
+                "close_time": "Closing time must be strictly after opening time."
+            })
+        return attrs
 
 
 
@@ -931,6 +945,10 @@ class BusinessFamilyInputSerializer(serializers.ModelSerializer):
             'latitude', 'longitude',
             'residential_details', 'professional_details', 'operating_hours'
         ]
+        extra_kwargs = {
+            'email': {'validators': [validate_email_format]},
+            'gstin': {'validators': [validate_gstin]},
+        }
 
 
 class BusienssRegistrationInputSerializer(serializers.Serializer):
@@ -1195,8 +1213,8 @@ class AdminMemberInputSerializer(serializers.Serializer):
     self_sub_role = serializers.PrimaryKeyRelatedField(
         queryset = UserRole.objects.filter(parent__name='admin', is_active=True), 
     )
-    email = serializers.EmailField(required=True, allow_null=True)
-    contact_no = serializers.CharField(required=True, allow_null=False)
+    email = serializers.EmailField(required=True, allow_null=True, validators=[validate_email_format])
+    contact_no = PhoneNumberField(required=True, allow_null=False)
     full_name = serializers.CharField(required=True, allow_null=False)
     pet_name = serializers.CharField(required=True, allow_null=True)
     father_name = serializers.CharField(required=True, allow_null=True)
@@ -1204,7 +1222,7 @@ class AdminMemberInputSerializer(serializers.Serializer):
         choices=UserProfile.GENDER_CHOICES,
         required=True, allow_null=True
     )
-    dob = serializers.DateField(required=True, allow_null=True)
+    dob = serializers.DateField(required=True, allow_null=True, validators=[validate_dob])
     birth_time = serializers.TimeField(required=True, allow_null=True)
     birth_place = serializers.CharField(required=True, allow_null=True)
     blood_group = serializers.ChoiceField(
@@ -1215,7 +1233,7 @@ class AdminMemberInputSerializer(serializers.Serializer):
         choices=UserProfile.MARITAL_STATUS_CHOICES,
         required=True, allow_null=True
     )
-    marriage_date = serializers.DateField(required=True, allow_null=True)
+    marriage_date = serializers.DateField(required=True, allow_null=True, validators=[validate_marriage_date])
 
     education = serializers.ChoiceField(
         choices=UserProfile.EDUCATION_CHOICES,
@@ -1223,7 +1241,7 @@ class AdminMemberInputSerializer(serializers.Serializer):
     )
     education_detail = serializers.CharField(required=True, allow_null=True)
 
-    expired_date = serializers.DateField(required=True, allow_null=True)
+    expired_date = serializers.DateField(required=True, allow_null=True, validators=[validate_expired_date])
     expired_time = serializers.TimeField(required=True, allow_null=True)
     expired_place = serializers.CharField(required=True, allow_null=True)
     cremation_place = serializers.CharField(required=True, allow_null=True)
@@ -1258,17 +1276,17 @@ class AdminMemberInputSerializer(serializers.Serializer):
                 if user_objs.exists():
                     raise serializers.ValidationError({"email": "User with this email already exists."})
         
+        dob = attrs.get('dob')
+        marriage_date = attrs.get('marriage_date')
+        expired_date = attrs.get('expired_date')
+        
+        if dob:
+            if marriage_date and marriage_date < dob:
+                raise serializers.ValidationError({"marriage_date": "Marriage date cannot be before Date of Birth."})
+            if expired_date and expired_date < dob:
+                raise serializers.ValidationError({"expired_date": "Expired date cannot be before Date of Birth."})
+        
         return attrs
-    
-    def validate_expired_date(self, value):
-        if value and value > timezone.now().date():
-            raise serializers.ValidationError("Expired date cannot be in the future.")
-        return value
-    
-    def validate_dob(self, value):
-        if value and value > timezone.now().date():
-            raise serializers.ValidationError("Date of birth cannot be in the future.")
-        return value
     
     def validate_personal_details(self, value):
         dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
