@@ -448,11 +448,11 @@ class RegistrationView(APIView):
 
                 try:
                     with transaction.atomic():
-                        family_resident_obj, _ = ResidentMapping.objects.get_or_create(
+                        family_resident_obj, _ = ResidentMapping.objects.update_or_create(
                             family = family_obj,
-                            residential_details = residential_obj,
                             residential_type = residential_type,
                             defaults={
+                                'residential_details': residential_obj,
                                 'stay_from': stay_from,
                                 'stay_to': stay_to
                             }
@@ -543,7 +543,7 @@ class RegistrationView(APIView):
                 # 1. Check for Main User Family Resident
                 try:
                     with transaction.atomic():
-                        family_resident_obj, created = ResidentMapping.objects.get_or_create(
+                        family_resident_obj, created = ResidentMapping.objects.update_or_create(
                             family=main_user_family_obj,
                             residential_type=current_residential_type_obj,
                             defaults={
@@ -560,7 +560,7 @@ class RegistrationView(APIView):
                 # 2. Check for Registration User Family Resident
                 try:
                     with transaction.atomic():
-                        registration_resident_obj, created = ResidentMapping.objects.get_or_create(
+                        registration_resident_obj, created = ResidentMapping.objects.update_or_create(
                             family=registration_user_family_obj,
                             residential_type=residential_type,
                             defaults={
