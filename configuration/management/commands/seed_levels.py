@@ -66,7 +66,11 @@ class Command(BaseCommand):
             # Calculate sort_order and parent
             current_order = sort_order_for_dimension.get(dimension_name, 0) + 1
             sort_order_for_dimension[dimension_name] = current_order
-            parent = last_level_for_dimension.get(dimension_name)
+            
+            if level_data['single_mode']:
+                parent = None
+            else:
+                parent = last_level_for_dimension.get(dimension_name)
 
             level, created = Level.objects.update_or_create(
                 dimension=dimension,
@@ -79,8 +83,9 @@ class Command(BaseCommand):
                 }
             )
 
-            # Update the last level to the one we just created
-            last_level_for_dimension[dimension_name] = level
+            # Update the last level to the one we just created only if it's not a single node
+            if not level_data['single_mode']:
+                last_level_for_dimension[dimension_name] = level
             
             if created:
                 self.stdout.write(self.style.SUCCESS(f"Created Level: {level.display_name} under {dimension_name}"))
