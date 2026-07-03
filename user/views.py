@@ -1713,6 +1713,7 @@ class AdminRegistrationView(APIView):
 
 
     def post(self, request):
+        print(request.data)
         serializer = AdminRegistrationInputSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1765,6 +1766,11 @@ class AdminRegistrationView(APIView):
                         user_obj = User.objects.create(**user_defaults)
 
                     # Assign the admin role and sub_role to the user
+                    if existing_user_obj:
+                        admin_sub_roles = user_obj.roles.filter(parent__name='admin')
+                        if admin_sub_roles.exists():
+                            user_obj.roles.remove(*admin_sub_roles)
+
                     user_obj.roles.add(sub_role_obj)
                     user_obj.is_verified = True
                     user_obj.save()
