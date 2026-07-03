@@ -149,6 +149,9 @@ class AssignedNodeFilterMixin(BaseQueryMixin):
     # Set to False in your view if even super admins should be restricted by specific node assignments
     bypass_for_super_admins = True
 
+    # Set to True if you want the user to also see the ancestors of their assigned nodes
+    include_ancestors = False
+
     def get_queryset(self):
         print("AssignedNodeFilterMixin.get_queryset()")
         qs = super().get_queryset()
@@ -169,10 +172,22 @@ class AssignedNodeFilterMixin(BaseQueryMixin):
         ).values_list('node_id', flat=True)
         
         if assigned_node_ids:
-            allowed_node_ids = NodeClosure.objects.filter(
-                ancestor_id__in=assigned_node_ids
-            ).values_list('descendant_id', flat=True)
-            filter_kwargs = {self.node_filter_field: allowed_node_ids}
-            return qs.filter(**filter_kwargs).distinct()
+            filter_kwargs_desc = {
+                self.node_filter_field: NodeClosure.objects.filter(
+                    ancestor_id__in=assigned_node_ids
+                ).values('descendant_id')
+            }
+            
+            final_query = Q(**filter_kwargs_desc)
+            
+            if self.include_ancestors:
+                filter_kwargs_anc = {
+                    self.node_filter_field: NodeClosure.objects.filter(
+                        descendant_id__in=assigned_node_ids
+                    ).values('ancestor_id')
+                }
+                final_query = final_query | Q(**filter_kwargs_anc)
+            
+            return qs.filter(final_query).distinct()
         else:
             return qs.none()

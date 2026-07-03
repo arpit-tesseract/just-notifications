@@ -98,6 +98,7 @@ from django.db.models import F
 
 class NodeViewSet(AssignedNodeFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+    include_ancestors = True
     
     queryset = Node.objects.select_related("dimension", "level", "parent")
     serializer_class = NodeSerializer
@@ -1425,6 +1426,7 @@ from collections import defaultdict
 
 class NodeSearchAPIView(AssignedNodeFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
+    include_ancestors = True
     model = Node
     """
     POST /api/search/nodes/?dimension=1
