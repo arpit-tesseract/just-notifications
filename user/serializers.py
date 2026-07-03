@@ -3,7 +3,13 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from .models import *
-from phonenumber_field.serializerfields import PhoneNumberField
+from phonenumber_field.serializerfields import PhoneNumberField as BasePhoneNumberField
+
+class PhoneNumberField(BasePhoneNumberField):
+    def to_internal_value(self, data):
+        phone_number = super().to_internal_value(data)
+        return str(phone_number) if phone_number else phone_number
+
 from configuration.models import Dimension, Level, Node
 from .utils import get_level_node_mapping, validate_dimension_nodes
 from common.validators import validate_dob, validate_marriage_date, validate_expired_date, validate_email_format, validate_gstin
@@ -1053,7 +1059,7 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
             "business_type": obj.business_type,
             "company_size": obj.company_size,
             "email": obj.email,
-            "contact_no": obj.contact_no,
+            "contact_no": str(obj.contact_no) if obj.contact_no else None,
             "website": obj.website,
             "established_year": obj.established_year,
             "latitude": obj.latitude,
@@ -1096,7 +1102,7 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
                 "post_no": member.post_no,
                 "full_name": user.full_name,
                 "email": user.email,
-                "contact_no": user.contact_no,
+                "contact_no": str(user.contact_no) if user.contact_no else None,
                 "pet_name": profile.pet_name if profile else None,
                 "father_name": profile.father_name if profile else None,
                 "gender": profile.gender if profile else None,
@@ -1174,7 +1180,7 @@ class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):
             "post_no": member.post_no if member else 0,
             "full_name": user.full_name,
             "email": user.email,
-            "contact_no": user.contact_no,
+            "contact_no": str(user.contact_no) if user.contact_no else None,
         }
         
         if profile:
@@ -1396,7 +1402,7 @@ class AdminRegistrationOutputSerializer(serializers.Serializer):
                 "self_sub_role": sub_role.id if sub_role else None,
                 "full_name": user.full_name,
                 "email": user.email,
-                "contact_no": user.contact_no,
+                "contact_no": str(user.contact_no) if user.contact_no else None,
                 "pet_name": profile.pet_name if profile else None,
                 "father_name": profile.father_name if profile else None,
                 "gender": profile.gender if profile else None,
