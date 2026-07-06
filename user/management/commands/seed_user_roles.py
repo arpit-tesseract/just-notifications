@@ -7,7 +7,11 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         # Initial data fetched from your current database setup
         roles_data = [
-            {"name": "system_admin", "display_name": "System Admin", "parent_name": None, "is_active": True},
+            {"name": "admin", "display_name": "Admin", "parent_name": None, "is_active": True},
+            {"name": "super_admin", "display_name": "Super Admin", "parent_name": "admin", "is_active": True},
+            {"name": "system_admin", "display_name": "System Admin", "parent_name": "super_admin", "is_active": True},
+            {"name": "group_admin", "display_name": "Group Admin", "parent_name": "system_admin", "is_active": True},
+            {"name": "sub_group_admin", "display_name": "Sub Group Admin", "parent_name": "group_admin", "is_active": True},
             {"name": "user", "display_name": "User", "parent_name": None, "is_active": True},
             {"name": "merchant", "display_name": "Merchant", "parent_name": None, "is_active": True},
             {"name": "service_provider", "display_name": "Service Provider", "parent_name": None, "is_active": True},

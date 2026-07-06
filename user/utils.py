@@ -1,6 +1,21 @@
 from django.db.models import Count, Q
 from configuration.models import Dimension, Level, Node
-from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping
+from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping, UserRole
+
+def get_all_role_descendant_names(role_name, include_self=True):
+    descendant_names = set()
+    if include_self:
+        descendant_names.add(role_name)
+    
+    roles_to_check = list(UserRole.objects.filter(parent__name=role_name, is_active=True).values_list('name', flat=True))
+    
+    while roles_to_check:
+        current_name = roles_to_check.pop(0)
+        descendant_names.add(current_name)
+        children = list(UserRole.objects.filter(parent__name=current_name, is_active=True).values_list('name', flat=True))
+        roles_to_check.extend(children)
+        
+    return list(descendant_names)
 
 def get_or_create_residential_details(nodes_json):
     if not nodes_json or not isinstance(nodes_json, dict):
@@ -591,3 +606,57 @@ def build_family_tree_by_pidhi(family_id):
         "generations": ordered_generations,
         "edges": edges
     }
+
+from rest_framework.exceptions import ValidationError
+
+def validate_dimension_nodes(value, dimension_obj):
+    # 1. Allow null/empty values to pass through if they aren't required
+    if not value:
+        return value
+        
+    # 2. Ensure it is actually a dictionary {...}, not a list [...]
+    if not isinstance(value, dict):
+        raise ValidationError("Must be a JSON object.")
+    
+    valid_level_ids = set(Level.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
+    valid_node_ids = set(Node.objects.filter(dimension=dimension_obj).values_list('id', flat=True))
+
+    # 3. Validate that every Key (Level) and Value (Node) is a valid ID
+    for level_id, node_id in value.items():
+        if not str(level_id).isdigit():
+            raise ValidationError(f"Invalid Level ID '{level_id}'. It must be numeric.")
+        
+        if not str(node_id).isdigit(): 
+            raise ValidationError({
+                level_id: f"Invalid Node ID '{node_id}'. It must be numeric."
+            })
+        
+        if int(level_id) not in valid_level_ids:
+            raise ValidationError({
+                level_id: f"Invalid Level ID '{level_id}' for dimension '{dimension_obj.name}'."
+            })
+
+        if int(node_id) not in valid_node_ids:
+            raise ValidationError({
+                level_id: f"Invalid Node ID '{node_id}' for dimension '{dimension_obj.name}'."
+            })
+
+    # 4. Enforce Mandatory Levels (GAP-05)
+    mandatory_levels = Level.objects.filter(
+        dimension=dimension_obj, 
+        is_mandatory=True, 
+        is_deleted=False
+    )
+    
+    missing_mandatory = []
+    for level in mandatory_levels:
+        if str(level.id) not in value:
+            missing_mandatory.append(level.name)
+            
+    if missing_mandatory:
+        missing_names = ", ".join(missing_mandatory)
+        raise ValidationError(
+            f"Missing required node(s) for the following level(s): {missing_names}"
+        )
+
+    return value

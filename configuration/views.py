@@ -12,15 +12,15 @@ from .models import *
 from .serializers import *
 from rest_framework.decorators import action
 from django.db.models import Count, Window, F, Q
-from .pagination import ConfigurationPagination
+from common.pagination import CommonPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
 from .services import reassign_user_node_references, count_user_node_references
+from .tasks import process_level_deletion
+from .mixins import BaseHistoryDiffAPIViewMixin, AssignedNodeFilterMixin
 
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 import threading
-from .tasks import process_level_deletion
-from .mixins import BaseHistoryDiffAPIViewMixin
 from simple_history.utils import update_change_reason
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -96,12 +96,13 @@ class LevelListView(APIView):
 from collections import defaultdict
 from django.db.models import F
 
-class NodeViewSet(viewsets.ModelViewSet):
+class NodeViewSet(AssignedNodeFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-
+    include_ancestors = True
+    
     queryset = Node.objects.select_related("dimension", "level", "parent")
     serializer_class = NodeSerializer
-    pagination_class = ConfigurationPagination
+    pagination_class = CommonPagination
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -296,7 +297,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         ).values('descendant_id')
 
         # 1. Filter Target Nodes (Base Queryset)
-        queryset = Node.objects.filter(
+        queryset = self.get_queryset().filter(
             dimension_id=int(dimension),
             level_id=int(level),
         ).exclude(
@@ -1423,8 +1424,10 @@ from rest_framework import status
 from django.db.models import Q
 from collections import defaultdict
 
-class NodeSearchAPIView(APIView):
+class NodeSearchAPIView(AssignedNodeFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
+    include_ancestors = True
+    model = Node
     """
     POST /api/search/nodes/?dimension=1
     Body:
@@ -1436,6 +1439,7 @@ class NodeSearchAPIView(APIView):
     }
     """
     def post(self, request):
+        print("Logged user: ", request.user)
         # 1. Get Params
         dimension_id = request.query_params.get('dimension')
         if not dimension_id:
@@ -1474,7 +1478,7 @@ class NodeSearchAPIView(APIView):
 
         # 3. Step A: Find CANDIDATE Nodes first
         # We search for ANY node at Level="Country" that contains "In"
-        nodes = Node.objects.filter(
+        nodes = self.get_queryset().filter(
             dimension_id=dimension_obj,
             # level__name__iexact=target_level_name,
             # level__name__iexact=target_level_obj.name,
@@ -1821,10 +1825,24 @@ class LevelHistoryDiffView(BaseHistoryDiffAPIViewMixin):
     model_class = Level
 
 
-class NodeRelationshipViewset(viewsets.ModelViewSet):
+class NodeRelationshipViewset(AssignedNodeFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = NodeRelationshipInputSerializer
     queryset = NodeRelationship.objects.all()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        
+        if not user or not user.is_authenticated:
+            return qs.none()
+
+        if self.bypass_for_super_admins and hasattr(user, 'is_super_admin') and user.is_super_admin():
+            return qs
+
+        from user.models import AdminResidentialNodeAssignment
+        assigned_node_ids = AdminResidentialNodeAssignment.objects.filter(user=user).values_list('node_id', flat=True)
+        return qs.filter(Q(territory_id__in=assigned_node_ids) | Q(controller_id__in=assigned_node_ids)).distinct()
 
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -1839,7 +1857,7 @@ class NodeRelationshipViewset(viewsets.ModelViewSet):
         if not node_params:
             return Response({"error": "Node is required"}, status=status.HTTP_400_BAD_REQUEST)
         
-        query_set = NodeRelationship.objects.filter(
+        query_set = self.get_queryset().filter(
             Q(territory=node_params) | Q(controller=node_params)
         )
 
