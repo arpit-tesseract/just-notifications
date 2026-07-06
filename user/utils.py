@@ -1,6 +1,6 @@
 from django.db.models import Count, Q
 from configuration.models import Dimension, Level, Node
-from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping, UserRole
+from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping, UserRole, _generate_code_from_nodes
 
 def get_all_role_descendant_names(role_name, include_self=True):
     descendant_names = set()
@@ -16,6 +16,37 @@ def get_all_role_descendant_names(role_name, include_self=True):
         roles_to_check.extend(children)
         
     return list(descendant_names)
+
+def get_residential_details_ids_by_code(residential_code):
+    """
+    Return a list of ResidentialDetails PKs whose computed residential_code
+    matches the given string.
+
+    residential_code is a Python @property (not a DB column), so we cannot
+    use it in an ORM filter. Instead, we fetch all ResidentialDetails that
+    have at least one node mapping and compute the code in Python.
+    """
+    if not residential_code:
+        return []
+
+    # Collect all residential_detail IDs that have mappings
+    residential_ids_with_mappings = (
+        ResidentialNodeMapping.objects
+        .values_list('residential_detail_id', flat=True)
+        .distinct()
+    )
+
+    matching_ids = []
+    for rd_id in residential_ids_with_mappings:
+        mappings_qs = ResidentialNodeMapping.objects.filter(
+            residential_detail_id=rd_id
+        )
+        code = _generate_code_from_nodes(mappings_qs)
+        if code == residential_code:
+            matching_ids.append(rd_id)
+
+    return matching_ids
+
 
 def get_or_create_residential_details(nodes_json):
     if not nodes_json or not isinstance(nodes_json, dict):

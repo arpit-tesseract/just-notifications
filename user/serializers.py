@@ -11,7 +11,7 @@ class PhoneNumberField(BasePhoneNumberField):
         return str(phone_number) if phone_number else phone_number
 
 from configuration.models import Dimension, Level, Node
-from .utils import get_level_node_mapping, validate_dimension_nodes, get_all_role_descendant_names
+from .utils import get_level_node_mapping, validate_dimension_nodes, get_all_role_descendant_names, get_residential_details_ids_by_code
 from common.validators import validate_dob, validate_marriage_date, validate_expired_date, validate_email_format, validate_gstin
 class LoginPhoneInputSerializer(serializers.Serializer):
     contact_no = PhoneNumberField(required=True)
@@ -30,9 +30,18 @@ class LoginInputSerializer(serializers.Serializer):
 
 
 class RoleDropdownSerializer(serializers.ModelSerializer):
+    parent = serializers.SerializerMethodField()
     class Meta:
         model = UserRole
-        fields = ['id', 'name', 'display_name']
+        fields = ['id', 'name', 'display_name', 'parent']
+    
+    def get_parent(self, obj):
+        if obj.parent:
+            return {
+                'id': obj.parent.id,
+                'name': obj.parent.name,
+                'display_name': obj.parent.display_name
+            }
 
 
 # This Serializer Use after loggin success
@@ -804,6 +813,12 @@ class BusinessMemberProfessionalDetailsInputSerializer(serializers.Serializer):
     salary = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True)
     is_active = serializers.BooleanField(required=False)
 
+    def validate_professional_details(self, value):
+        from configuration.models import Dimension
+        from .utils import validate_dimension_nodes
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
+        return validate_dimension_nodes(value, dimension_obj)
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
         joined_date = attrs.get("joined_date")
@@ -860,6 +875,18 @@ class BusinessMemberInputSerializer(serializers.Serializer):
     personal_details = serializers.JSONField(required=True, allow_null=True)
     residential_details = serializers.JSONField(required=True, allow_null=True)
     professional_details = BusinessMemberProfessionalDetailsInputSerializer()
+
+    def validate_personal_details(self, value):
+        from configuration.models import Dimension
+        from .utils import validate_dimension_nodes
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Personal")
+        return validate_dimension_nodes(value, dimension_obj)
+
+    def validate_residential_details(self, value):
+        from configuration.models import Dimension
+        from .utils import validate_dimension_nodes
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
+        return validate_dimension_nodes(value, dimension_obj)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -934,6 +961,7 @@ class BusinessOperatingHoursSerializer(serializers.ModelSerializer):
 
 
 class BusinessFamilyInputSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False, allow_null=True)
     residential_details = serializers.JSONField()
     professional_details = serializers.JSONField()
     operating_hours = BusinessOperatingHoursSerializer(many=True, required=True, allow_null=True)
@@ -950,7 +978,43 @@ class BusinessFamilyInputSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'email': {'validators': [validate_email_format]},
             'gstin': {'validators': [validate_gstin]},
+            'contact_no': {'validators': []},
         }
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        
+        business_id = attrs.get('id')
+        contact_no = attrs.get('contact_no')
+        gstin = attrs.get('gstin')
+        
+        if contact_no:
+            qs = BusinessFamily.objects.filter(contact_no=contact_no)
+            if business_id:
+                qs = qs.exclude(id=business_id)
+            if qs.exists():
+                raise serializers.ValidationError({"contact_no": ["business family with this contact no already exists."]})
+                
+        if gstin:
+            qs = BusinessFamily.objects.filter(gstin=gstin)
+            if business_id:
+                qs = qs.exclude(id=business_id)
+            if qs.exists():
+                raise serializers.ValidationError({"gstin": ["business family with this gstin already exists."]})
+                
+        return attrs
+
+    def validate_residential_details(self, value):
+        from configuration.models import Dimension
+        from .utils import validate_dimension_nodes
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Residential")
+        return validate_dimension_nodes(value, dimension_obj)
+
+    def validate_professional_details(self, value):
+        from configuration.models import Dimension
+        from .utils import validate_dimension_nodes
+        dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
+        return validate_dimension_nodes(value, dimension_obj)
 
 
 class BusienssRegistrationInputSerializer(serializers.Serializer):
@@ -978,6 +1042,37 @@ class BusienssRegistrationInputSerializer(serializers.Serializer):
 
         if not residential_type.roles.filter(id=role_obj.id).exists():
             errors['residential_type'] = "Invalid residential type."
+
+        # Check for unique residential details and residential type combination
+        business_data = attrs.get('business_family')
+        business_id = business_data.get('id') if business_data else None
+        residential_nodes = business_data.get('residential_details') if business_data else None
+
+        if residential_nodes and isinstance(residential_nodes, dict) and residential_type:
+            from django.db.models import Count, Q
+            from .models import ResidentialDetails, ResidentMapping
+
+            target_node_ids = [int(nid) for nid in residential_nodes.values() if nid]
+            target_length = len(target_node_ids)
+
+            existing_residential = ResidentialDetails.objects.annotate(
+                total_mappings=Count('node_mappings'),
+                matched_mappings=Count('node_mappings', filter=Q(node_mappings__node_id__in=target_node_ids))
+            ).filter(
+                total_mappings=target_length,
+                matched_mappings=target_length
+            ).first()
+
+            if existing_residential:
+                qs = ResidentMapping.objects.filter(
+                    residential_details=existing_residential,
+                    residential_type=residential_type
+                )
+                if business_id:
+                    qs = qs.exclude(business_family_id=business_id)
+                    
+                if qs.exists():
+                    errors['business_family'] = {"residential_details": ["A business with these residential details already exists."]}
 
         if errors:
             raise serializers.ValidationError(errors)
@@ -1148,7 +1243,10 @@ class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):
         if business_id:
             conditions |= Q(business_family_id=business_id)
         if residential_code:
-            conditions |= Q(residential_details__residential_code=residential_code)
+            # residential_code is a computed @property, not a DB column.
+            # Resolve matching ResidentialDetails IDs first, then filter.
+            matching_residential_ids = get_residential_details_ids_by_code(residential_code)
+            conditions |= Q(residential_details_id__in=matching_residential_ids)
         
         prof_detail = UserProfessionalDetails.objects.filter(filters & conditions).first()
 
