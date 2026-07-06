@@ -160,6 +160,11 @@ class AssignedNodeFilterMixin(BaseQueryMixin):
         if not user or not user.is_authenticated:
             return qs.none()
 
+        # Check if the frontend explicitly requested to bypass node assignment filtering
+        ignore_node_assignment = self.request.query_params.get('ignore_node_assignment', '').lower() == 'true'
+        if ignore_node_assignment:
+            return qs
+
         # Only super_admin can view all nodes. Regular admins are restricted.
         if self.bypass_for_super_admins and hasattr(user, 'is_super_admin') and user.is_super_admin():
             return qs
