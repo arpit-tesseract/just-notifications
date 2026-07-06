@@ -23,15 +23,17 @@ urlpatterns = [
     path('business/dropdown/', views.BusinessFamilyDropdownView.as_view(), name='business_familes_dropdown'),
     path('roles/dropdown/', views.UserRoleDropdownView.as_view(), name='roles'),
 
-    path('business/<int:id>/', views.BusinessFamilyDropdownView.as_view(), name='business_familes_dropdown'),
 
     path('delete/', views.DeleteUserView.as_view(), name='delete_user'),
 
     path("family-tree/<int:user_id>/", views.FamilyTreeView.as_view(), name="family_tree"),
     path("family-tree-by-pidhi/<int:user_id>/", views.FamilyTreeByPidhiView.as_view(), name="family_tree_by_pidhi"),
 
+    path('business/', views.BusinessListView.as_view(), name='businesses'),
+    path('business/<int:id>/', views.BusinessFamilyDropdownView.as_view(), name='business_familes_dropdown'),
     path('business/register/', views.BusinessRegisterView.as_view(), name='business_register'),
     path('business/member-suggestions/', views.BusinessMemberSuggestionView.as_view(), name='business_member_suggestions'),
+
     path('admin/register/', views.AdminRegistrationView.as_view(), name='admin_register'),
     path('admin/residential-node-assignments/', views.AdminResidentialNodeAssignmentView.as_view(), name='admin_node_assignments'),
 ]
