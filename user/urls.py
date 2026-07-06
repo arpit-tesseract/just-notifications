@@ -29,9 +29,9 @@ urlpatterns = [
     path("family-tree/<int:user_id>/", views.FamilyTreeView.as_view(), name="family_tree"),
     path("family-tree-by-pidhi/<int:user_id>/", views.FamilyTreeByPidhiView.as_view(), name="family_tree_by_pidhi"),
 
-    path('business/', views.BusinessListView.as_view(), name='businesses'),
-    path('business/<int:id>/', views.BusinessFamilyDropdownView.as_view(), name='business_familes_dropdown'),
-    path('business/register/', views.BusinessRegisterView.as_view(), name='business_register'),
+    path('business/', views.BusinessView.as_view(), name='businesses'),
+    path('business/<int:id>/', views.BusinessView.as_view(), name='business_familes_dropdown'),
+    path('business/register/', views.BusinessView.as_view(), name='business_register'),
     path('business/member-suggestions/', views.BusinessMemberSuggestionView.as_view(), name='business_member_suggestions'),
 
     path('admin/register/', views.AdminRegistrationView.as_view(), name='admin_register'),

@@ -1192,60 +1192,6 @@ class BusinessFamilyDropdownView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class BusinessListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        business_family_qs = BusinessFamily.objects.all().order_by('-id')
-
-        search_name = request.query_params.get("search", "").strip()
-        if search_name:
-            business_family_qs = business_family_qs.filter(name__icontains=search_name)
-            
-        business_type = request.query_params.get("business_type", "").strip()
-        if business_type:
-            business_family_qs = business_family_qs.filter(business_type=business_type)
-            
-        company_type = request.query_params.get("company_type", "").strip()
-        if company_type:
-            business_family_qs = business_family_qs.filter(company_type=company_type)
-            
-        company_size = request.query_params.get("company_size", "").strip()
-        if company_size:
-            business_family_qs = business_family_qs.filter(company_size=company_size)
-            
-        is_verified_str = request.query_params.get("is_verified")
-        if is_verified_str is not None:
-            is_verified = is_verified_str.lower() in ['true', '1', 't', 'y', 'yes']
-            business_family_qs = business_family_qs.filter(is_verified=is_verified)
-
-        for key, value in request.query_params.items():
-            if value.isdigit():
-                parsed_value = int(value)
-            else:
-                parsed_value = value
-
-            if key.startswith("pro_"):
-                json_key = key.replace("pro_", "")
-                business_family_qs = business_family_qs.filter(
-                    professional_node_mappings__level_id=int(json_key),
-                    professional_node_mappings__node_id=parsed_value
-                )
-            
-            elif key.startswith("res_"):
-                json_key = key.replace("res_", "")
-                business_family_qs = business_family_qs.filter(
-                    residents__residential_details__node_mappings__level_id=int(json_key),
-                    residents__residential_details__node_mappings__node_id=parsed_value
-                )
-
-        business_family_qs = business_family_qs.distinct()
-
-        paginator = CommonPagination()
-        paginated_qs = paginator.paginate_queryset(business_family_qs, request, view=self)
-        
-        serializer = BusinessFamilyDropdownSerializer(paginated_qs, many=True)
-        return paginator.get_paginated_response(serializer.data)
 
 from django.utils import timezone    
 
@@ -1400,9 +1346,71 @@ class FamilyTreeByPidhiView(APIView):
         return Response(data, status=200)
     
 
+class BusinessView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id=None):
+        if id:
+            business_family = get_object_or_404(BusinessFamily, id=id)
+            business_family_serializer = BusinessRegisterOutputSerializer(business_family)
+            return Response(business_family_serializer.data, status=status.HTTP_200_OK)
+        
+        role_name = request.query_params.get('role', '').strip()
+        if not role_name:
+            return Response({"error": "Role is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        business_family_qs = BusinessFamily.objects.filter(role__name=role_name).order_by('-id')
+
+        search_name = request.query_params.get("search", "").strip()
+        if search_name:
+            business_family_qs = business_family_qs.filter(name__icontains=search_name)
+            
+        business_type = request.query_params.get("business_type", "").strip()
+        if business_type:
+            business_family_qs = business_family_qs.filter(business_type=business_type)
+            
+        company_type = request.query_params.get("company_type", "").strip()
+        if company_type:
+            business_family_qs = business_family_qs.filter(company_type=company_type)
+            
+        company_size = request.query_params.get("company_size", "").strip()
+        if company_size:
+            business_family_qs = business_family_qs.filter(company_size=company_size)
+            
+        is_verified_str = request.query_params.get("is_verified")
+        if is_verified_str is not None:
+            is_verified = is_verified_str.lower() in ['true', '1', 't', 'y', 'yes']
+            business_family_qs = business_family_qs.filter(is_verified=is_verified)
+
+        for key, value in request.query_params.items():
+            if value.isdigit():
+                parsed_value = int(value)
+            else:
+                parsed_value = value
+
+            if key.startswith("pro_"):
+                json_key = key.replace("pro_", "")
+                business_family_qs = business_family_qs.filter(
+                    professional_node_mappings__level_id=int(json_key),
+                    professional_node_mappings__node_id=parsed_value
+                )
+            
+            elif key.startswith("res_"):
+                json_key = key.replace("res_", "")
+                business_family_qs = business_family_qs.filter(
+                    residents__residential_details__node_mappings__level_id=int(json_key),
+                    residents__residential_details__node_mappings__node_id=parsed_value
+                )
+
+        business_family_qs = business_family_qs.distinct()
+
+        paginator = CommonPagination()
+        paginated_qs = paginator.paginate_queryset(business_family_qs, request, view=self)
+        
+        serializer = BusinessFamilyDropdownSerializer(paginated_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
-class BusinessRegisterView(APIView):
     """
     POST /api/users/business/register/
 
@@ -1458,7 +1466,6 @@ class BusinessRegisterView(APIView):
         ]
     }
     """
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         input_serializer = BusienssRegistrationInputSerializer(data=request.data)
