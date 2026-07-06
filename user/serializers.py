@@ -30,9 +30,18 @@ class LoginInputSerializer(serializers.Serializer):
 
 
 class RoleDropdownSerializer(serializers.ModelSerializer):
+    parent = serializers.SerializerMethodField()
     class Meta:
         model = UserRole
-        fields = ['id', 'name', 'display_name']
+        fields = ['id', 'name', 'display_name', 'parent']
+    
+    def get_parent(self, obj):
+        if obj.parent:
+            return {
+                'id': obj.parent.id,
+                'name': obj.parent.name,
+                'display_name': obj.parent.display_name
+            }
 
 
 # This Serializer Use after loggin success
