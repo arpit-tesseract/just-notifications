@@ -166,7 +166,8 @@ class AssignedNodeFilterMixin(BaseQueryMixin):
             return qs
 
         # Only super_admin can view all nodes. Regular admins are restricted.
-        if self.bypass_for_super_admins and hasattr(user, 'is_super_admin') and user.is_super_admin():
+        is_super = getattr(user, 'is_superuser', False) or (hasattr(user, 'is_super_admin') and user.is_super_admin())
+        if self.bypass_for_super_admins and is_super:
             return qs
             
         from user.models import AdminResidentialNodeAssignment

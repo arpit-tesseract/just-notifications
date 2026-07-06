@@ -1439,6 +1439,7 @@ class NodeSearchAPIView(AssignedNodeFilterMixin, APIView):
     }
     """
     def post(self, request):
+        print("Logged user: ", request.user)
         # 1. Get Params
         dimension_id = request.query_params.get('dimension')
         if not dimension_id:
