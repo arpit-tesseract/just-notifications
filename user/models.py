@@ -142,8 +142,8 @@ class User(AbstractBaseUser, PermissionsMixin, AuditMixin, SoftDeleteMixin):
         timestamp = int(timezone.now().timestamp())
         post_fix = f"_del_{timestamp}"
 
-        if not self.contact_no.endswith(post_fix):
-            self.contact_no = f"{self.contact_no}{post_fix}"
+        if self.contact_no and not str(self.contact_no).endswith(post_fix):
+            self.contact_no = f"{str(self.contact_no)}{post_fix}"
         
         if getattr(self, 'email', None) and not self.email.endswith(post_fix):
             parts = self.email.split('@')
