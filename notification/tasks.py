@@ -46,6 +46,8 @@ from notification.models import (
     NotificationStatusLog,
     
 )
+import uuid
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +214,108 @@ def process_event_task(
 
     return {"notification_id": notification.pk, "channels_dispatched": dispatched}
 
+
+@shared_task(name="notification.bulk_process_event_task", bind=True)
+def bulk_process_event_task(
+    self: Any,
+    event_type: str,
+    user_ids: list[int],
+    context_data: dict[str, Any],
+    idempotency_key: str, 
+) -> dict[str, Any]:
+    """Orchestrate bulk notifications with idempotency and atomic transactions."""
+    from notification.services.renderers import EmailRenderer, PushRenderer
+    
+    logger.info(f"bulk_process_event_task: starting event {event_type} with key {idempotency_key}")
+
+    # 1. Idempotency Check
+    if Notification.objects.filter(idempotency_key=idempotency_key).exists():
+        logger.warning(f"bulk_process_event_task: key {idempotency_key} already processed. Skipping.")
+        return {"status": "skipped", "reason": "already_processed"}
+
+    # 2. Resolve template
+    try:
+        template = NotificationTemplate.objects.get(category__name=event_type, is_active=True)
+    except NotificationTemplate.DoesNotExist:
+        logger.warning(f"bulk_process_event_task: no active template for event_type={event_type}")
+        return {"status": "failed", "reason": "template_missing"}
+
+    renderer = EmailRenderer() if NotificationChannel.EMAIL in template.channels else PushRenderer()
+    rendered_title = renderer.render(template.title, context_data)
+    rendered_content = renderer.render(template.content, context_data)
+
+    dispatched = []
+
+    try:
+        # 3. ATOMIC BLOCK: Ensure all DB writes succeed, or none do.
+        with transaction.atomic():
+            notification = Notification.objects.create(
+                template=template,
+                title=rendered_title,
+                content=rendered_content,
+                icon=template.icon,
+                icon_color=template.icon_color,
+                context_data=context_data,
+                channels=template.channels,
+                status=NotificationStatus.INITIATED,
+                idempotency_key=idempotency_key 
+            )
+
+            NotificationStatusLog.objects.create(
+                notification=notification,
+                status=NotificationStatus.INITIATED,
+            )
+
+            recipients_to_create = []
+            for uid in user_ids:
+                for channel in template.channels:
+                    recipients_to_create.append(
+                        NotificationRecipient(
+                            notification=notification,
+                            user_id=uid,
+                            channel=channel,
+                            status=NotificationRecipientStatus.UNREAD,
+                        )
+                    )
+            
+            created_recipients = NotificationRecipient.objects.bulk_create(recipients_to_create)
+
+        # 4. Dispatch Tier 2 tasks (Outside the atomic block)
+        for recipient in created_recipients:
+            payload = {
+                "notification_id": notification.pk,
+                "recipient_id": recipient.pk,
+                "title": rendered_title,
+                "content": rendered_content,
+                "icon": template.icon,
+                "icon_color": template.icon_color,
+                "context_data": context_data,
+            }
+
+            if recipient.channel == NotificationChannel.EMAIL:
+                send_email_task.delay(user_id=recipient.user_id, payload=payload)
+            elif recipient.channel == NotificationChannel.IN_APP:
+                send_websocket_task.delay(user_id=recipient.user_id, payload=payload)
+            elif recipient.channel == NotificationChannel.SMS:
+                send_sms_task.delay(user_id=recipient.user_id, payload=payload)
+            
+            if recipient.channel not in dispatched:
+                dispatched.append(recipient.channel)
+
+        notification.status = NotificationStatus.SENT
+        notification.save(update_fields=['status'])
+        
+        NotificationStatusLog.objects.create(
+            notification=notification,
+            status=NotificationStatus.SENT,
+        )
+
+        return {"notification_id": notification.pk, "channels_dispatched": dispatched}
+
+    except Exception as e:
+        logger.error(f"bulk_process_event_task: failed for key {idempotency_key}: {e}")
+        # Re-queue the task; since DB rolls back, no duplicate records will exist
+        raise self.retry(exc=e, countdown=60)
 
 # ---------------------------------------------------------------------------
 # Tier 2 — Delivery tasks

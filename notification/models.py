@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from common.models import TimeStampMixin
+import uuid
 # Create your models here.
 
 class NotificationStatus(models.TextChoices):
@@ -62,6 +63,7 @@ class Notification(TimeStampMixin):
     )
     is_active = models.BooleanField(default=True, db_index=True)
 
+    idempotency_key = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
     class Meta:
         ordering = ['-created_at']
 

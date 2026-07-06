@@ -3,12 +3,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        user = self.scope.get('user')
-        if not user or not user.is_authenticated:
-            await self.close()
-            return
-            
-        self.user_id = user.id
+        # Extract the user ID from the URL route
+        self.user_id = self.scope['url_route']['kwargs']['user_id']
         self.group_name = f"user_notifications_{self.user_id}"
 
         # Join room group
@@ -27,7 +23,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
 
-    # Receive message from room group
+    # Receive message from new notification module
     async def notification_alert(self, event):
         data = event['data']
 

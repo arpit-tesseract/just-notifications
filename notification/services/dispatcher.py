@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -93,3 +94,30 @@ def trigger_event(
             event_type,
             user_id,
         )
+
+
+def trigger_bulk_event(
+    event_type: str,
+    user_ids: list[int],
+    context_data: dict[str, Any],
+    idempotency_key: str | None = None,
+) -> str:
+    """Fire a bulk notification event and hand it off to Celery."""
+    from notification.tasks import bulk_process_event_task
+
+    # Generate a key if the client didn't provide one
+    if not idempotency_key:
+        idempotency_key = str(uuid.uuid4())
+
+    try:
+        bulk_process_event_task.delay(
+            event_type=event_type,
+            user_ids=user_ids,
+            context_data=context_data,
+            idempotency_key=idempotency_key,
+        )
+        logger.info(f"trigger_bulk_event: queued {event_type} for {len(user_ids)} users with key {idempotency_key}")
+    except Exception as e:
+        logger.exception(f"trigger_bulk_event: failed to enqueue {event_type}")
+        
+    return idempotency_key
