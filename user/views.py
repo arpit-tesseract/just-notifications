@@ -175,7 +175,6 @@ class RegistrationView(APIView):
 
         validated_data = input_serializer.validated_data
 
-        registration_type = validated_data.get('registration_type')
         registration_user = validated_data.get('registration_user')
         user_category = validated_data.get('user_category')
         residential_type = validated_data.get('residential_type')
@@ -251,7 +250,7 @@ class RegistrationView(APIView):
                         user_category = user_category,
                     )
                 
-                if residential_type.name == "current" and registration_type == "resident":
+                if residential_type.name == "current":
                     user_obj.is_verified = True
 
                 user_obj.current_residential_details = residential_obj
@@ -474,13 +473,13 @@ class RegistrationView(APIView):
                             business_family__name__iexact=company_name
                         )
                         business_family_obj = temp_resident_mapping_obj.business_family
-                        business_family_obj.is_verified = registration_type == "corporate"
+                        business_family_obj.is_verified = False
                         business_family_obj.save()
 
                     except ResidentMapping.DoesNotExist:
                         business_family_obj = BusinessFamily.objects.create(
                             name = company_name, 
-                            is_verified = registration_type == "corporate"
+                            is_verified = False
                         )
 
                         ResidentMapping.objects.create(

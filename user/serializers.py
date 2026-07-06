@@ -255,10 +255,6 @@ class UserDetailsInputSerializer(serializers.Serializer):
 
 
 class RegistrationInputSerializer(serializers.Serializer):
-    registration_type = serializers.ChoiceField(
-        choices=['resident', 'corporate'],
-    )
-
     registration_user = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         required=True,
