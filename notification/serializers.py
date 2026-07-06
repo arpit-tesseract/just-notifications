@@ -57,10 +57,13 @@ class SystemNotificationSerializer(serializers.ModelSerializer):
     recipients = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=True
     )
+    template_code = serializers.CharField(write_only=True, required=False)
+    title = serializers.CharField(required=False)
+    message = serializers.CharField(required=False)
 
     class Meta:
         model = Notification
-        fields = ['recipients', 'title', 'message', 'category', 'priority', 'action_url', 'icon', 'metadata']
+        fields = ['recipients', 'template_code', 'title', 'message', 'category', 'priority', 'action_url', 'icon', 'metadata']
 
 
 

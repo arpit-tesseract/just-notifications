@@ -835,12 +835,43 @@ class SystemNotificationAPIView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         recipients_ids = serializer.validated_data.pop('recipients', [])
+        template_code = serializer.validated_data.pop('template_code', None)
+        title = serializer.validated_data.get('title')
+        message = serializer.validated_data.get('message')
+        metadata = serializer.validated_data.get('metadata', {})
+        template_obj = None
+
+        if template_code:
+            template_obj = NotificationTemplate.objects.filter(code=template_code, is_active=True).first()
+            if template_obj:
+                try:
+                    title = template_obj.title.format(**metadata)
+                    message = template_obj.body.format(**metadata)
+                    serializer.validated_data['title'] = title
+                    serializer.validated_data['message'] = message
+                    
+                    if template_obj.category and not serializer.validated_data.get('category'):
+                        serializer.validated_data['category'] = template_obj.category
+                    if template_obj.priority and not serializer.validated_data.get('priority'):
+                        serializer.validated_data['priority'] = template_obj.priority
+                except KeyError as e:
+                    return Response({"error": f"Missing variable in metadata for template: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"template_code": ["Invalid or inactive template code."]}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not title or not message:
+            return Response({"error": "Either (title and message) or a valid template_code must be provided."}, status=status.HTTP_400_BAD_REQUEST)
+
         users = User.objects.filter(id__in=recipients_ids)
         if not users.exists():
             return Response({"recipients": ["No valid users found for the provided IDs."]}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Force is_system_generated to True
-        notification = serializer.save(is_system_generated=True)
+        # Force is_system_generated to True and save template if used
+        save_kwargs = {'is_system_generated': True}
+        if template_obj:
+            save_kwargs['template'] = template_obj
+            
+        notification = serializer.save(**save_kwargs)
 
         # Create recipient inbox mappings
         for user in users:
@@ -878,5 +909,8 @@ class SystemNotificationAPIView(APIView):
                         status=status_obj
                     )
 
-        return Response(NotificationSerializer(notification).data, status=status.HTTP_201_CREATED)
+        return Response({
+            "notification_id": notification.id,
+            "message": "System notification created successfully."
+        }, status=status.HTTP_201_CREATED)
 

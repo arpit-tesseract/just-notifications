@@ -64,6 +64,20 @@ class LoginPhoneOTPView(APIView):
                     
                 refresh = RefreshToken.for_user(user_obj)
                 serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
+                
+                try:
+                    from notification.utils import send_system_notification
+                    send_system_notification(
+                        users=[user_obj],
+                        title="Login Alert",
+                        message=f"Hello {user_obj.full_name or user_obj.contact_no}, a new login was detected on your account via OTP."
+                    )
+                except Exception as e:
+                    message = {
+                        'error' : f'{e} notification is not sent'
+                    }
+                    return Response(message,status=status.HTTP_400_BAD_REQUEST)
+
                 return Response(
                                 {   
                                     'message' : "Login successfully",
@@ -116,6 +130,17 @@ class LoginView(APIView):
         
         refresh = RefreshToken.for_user(user)
         serializer = UserBasicDetailsOutputSerializer(user)
+        
+        try:
+            from notification.utils import send_system_notification
+            send_system_notification(
+                users=[user],
+                title="Login Alert",
+                message=f"Hello {user.full_name or user.email}, a new login was detected on your account."
+            )
+        except Exception as e:
+            pass # Non-blocking error handling for notifications
+
         return Response(
             {
                 "refresh": str(refresh),
