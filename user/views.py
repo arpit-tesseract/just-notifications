@@ -198,388 +198,393 @@ class RegistrationView(APIView):
         
         residential_obj, _ = get_or_create_residential_details(residential_details_json)
 
-        with transaction.atomic():
-            created_users = []
-            created_user_ids = []
-            main_user_obj = None
-            main_user_residential_obj = None
-            husband_user = None            
-            business_family_obj = None
+        try:
+            with transaction.atomic():
+                created_users = []
+                created_user_ids = []
+                main_user_obj = None
+                main_user_residential_obj = None
+                husband_user = None            
+                business_family_obj = None
 
-            for member in family_members:
-                personal_details_json = member.pop('personal_details', {})
-                professional_details_lst = member.pop('professional_details', [])
-                existing_user_obj = member.pop('user_id')
-                relation_obj = member.pop('relation')
+                for member in family_members:
+                    personal_details_json = member.pop('personal_details', {})
+                    professional_details_lst = member.pop('professional_details', [])
+                    existing_user_obj = member.pop('user_id')
+                    relation_obj = member.pop('relation')
 
-                self_relation = member.pop('self_relation', None)
-                self_designation = member.pop('self_designation', None)
+                    self_relation = member.pop('self_relation', None)
+                    self_designation = member.pop('self_designation', None)
 
-                if self_relation:
-                    try:
-                        self_relation_type_obj = RelationType.objects.get(name=self_relation)
-                    except RelationType.DoesNotExist:
-                        raise ValidationError({
-                            "self_relation": "Invalid self relation."
-                        })
-
-                # User details
-                full_name = member.pop('full_name')
-                email = member.pop('email', None)
-                contact_no = member.pop('contact_no')
-                post_no = member.pop('post_no', None)
-
-                user_defaults = {
-                    "full_name": full_name,
-                    "email": email,
-                    "contact_no": contact_no,
-                    "user_category": user_category,
-                }
-
-                if existing_user_obj:
-                    user_obj, _ = User.objects.update_or_create(
-                        id=existing_user_obj.id,
-                        defaults=user_defaults
-                    )
-                    
-                else:                        
-                    user_obj = User.objects.create(
-                        full_name = full_name,
-                        email = email,
-                        contact_no = contact_no,
-                        user_category = user_category,
-                    )
-                
-                if residential_type.name == "current":
-                    user_obj.is_verified = True
-
-                user_obj.current_residential_details = residential_obj
-                
-                user_obj.save()
-
-                role, _ = UserRole.objects.get_or_create(
-                    name="user",
-                    display_name="User"
-                )
-                user_obj.roles.add(role)
-
-                # User Profile update or create
-                user_profile_obj, _ = UserProfile.objects.update_or_create(
-                    user = user_obj,
-                    defaults=member
-                )
-                
-
-                # Personal Details
-                # user_personal_obj, _ = UserPersonalDetails.objects.update_or_create(
-                #     user = user_obj,
-                #     defaults={
-                #         'nodes': personal_details_json
-                #     }
-                # )
-
-                try:
-                    user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
-                except UserPersonalDetails.DoesNotExist:
-                    user_personal_obj = UserPersonalDetails.objects.create(
-                        user = user_obj
-                    )
-                
-                # Bulk create mapping for personal details
-                user_personal_obj.node_mappings.all().delete()
-                personal_mappings_to_create = []
-                for level_id, node_id in personal_details_json.items():
-                    if level_id and node_id:
-                        personal_mappings_to_create.append(
-                            PersonalNodeMapping(
-                                personal_detail=user_personal_obj, level_id=int(level_id), node_id=int(node_id)
-                            )
-                        )
-                if personal_mappings_to_create:
-                    PersonalNodeMapping.objects.bulk_create(personal_mappings_to_create)
-                
-                print("professional_details_lst", professional_details_lst)
-                for professional_details in professional_details_lst:
-                    company_name = professional_details.get('company')
-                    residential_nodes = professional_details.get('residential_details', {})
-
-                    bussiness_residential_obj, _ = get_or_create_residential_details(residential_nodes)
-
-                    try:
-                        temp_resident_mapping_obj = ResidentMapping.objects.get(
-                            residential_details=bussiness_residential_obj,
-                            residential_type__name="business",
-                            business_family__name__iexact=company_name
-                        )
-                        business_family_obj = temp_resident_mapping_obj.business_family
-                    except ResidentMapping.DoesNotExist:
-                        business_family_obj = BusinessFamily.objects.create(name=company_name)
-                        business_residential_type_obj = ResidentialType.objects.get(name="business")
-
-                        ResidentMapping.objects.create(
-                            residential_details=bussiness_residential_obj,
-                            residential_type=business_residential_type_obj,
-                            business_family=business_family_obj
-                        )
-                    
-
-
-                    designation_obj = professional_details.get('designation')
-                    personal_nodes = professional_details.get('personal_details', {})
-                    professional_nodes = professional_details.get('professional_details', {})
-                    profession_id = professional_details.get('id', None)
-                    is_active = professional_details.get('is_active', True)
-                    
-                    if profession_id:
+                    if self_relation:
                         try:
-                            professional_details_obj = UserProfessionalDetails.objects.get(
-                                id=profession_id,
-                                user=user_obj
-                            )
-                            professional_details_obj.business_family = business_family_obj
-                            professional_details_obj.residential_details = bussiness_residential_obj
-                            professional_details_obj.designation = designation_obj
-                            professional_details_obj.is_active = is_active
-                            professional_details_obj.save()
-                        except UserProfessionalDetails.DoesNotExist:
+                            self_relation_type_obj = RelationType.objects.get(name=self_relation)
+                        except RelationType.DoesNotExist:
                             raise ValidationError({
-                                "error": "Professional details not found"
+                                "self_relation": "Invalid self relation."
                             })
 
-                    else:
-                        professional_details_obj = UserProfessionalDetails.objects.create(
-                            user=user_obj,
-                            business_family = business_family_obj,
-                            residential_details=bussiness_residential_obj,
-                            designation=designation_obj,
-                            is_active=is_active
-                        )
-                        
-                    # Delete and recreate professional mappings
-                    professional_details_obj.professional_node_mappings.all().delete()
-                    prof_mappings_to_create = []
-                    for level_id, node_id in professional_nodes.items():
-                        if level_id and node_id:
-                            prof_mappings_to_create.append(ProfessionalNodeMapping(
-                                professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
-                            ))
-                    if prof_mappings_to_create:
-                        ProfessionalNodeMapping.objects.bulk_create(prof_mappings_to_create)
+                    # User details
+                    full_name = member.pop('full_name')
+                    email = member.pop('email', None)
+                    contact_no = member.pop('contact_no')
+                    post_no = member.pop('post_no', None)
 
-                    # Delete and recreate professional personal mappings
-                    professional_details_obj.personal_node_mappings.all().delete()
-                    prof_pers_mappings_to_create = []
-                    for level_id, node_id in personal_nodes.items():
-                        if level_id and node_id:
-                            prof_pers_mappings_to_create.append(ProfessionalPersonalNodeMapping(
-                                professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
-                            ))
-                    if prof_pers_mappings_to_create:
-                        ProfessionalPersonalNodeMapping.objects.bulk_create(prof_pers_mappings_to_create)
-                    
-                    # Create members for this bussiness 
-                    business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
-                        business_family = business_family_obj,
-                        user = user_obj,
-                        self_designation_type = designation_obj
-                    )
-
-                if self_relation == "husband":
-                    husband_user = user_obj
-
-                # Add to created users
-                created_users.append(
-                    {
-                        "user": user_obj,
-                        "self_relation_type": self_relation_type_obj if self_relation else None,
-                        "self_designation_type": self_designation,
-                        "personal_details": user_personal_obj,
-                        "relation": relation_obj,
-                        "post_no": post_no,
+                    user_defaults = {
+                        "full_name": full_name,
+                        "email": email,
+                        "contact_no": contact_no,
+                        "user_category": user_category,
                     }
-                )
-                created_user_ids.append(user_obj.id)
 
-                if main_user_obj is None and self_relation == 'husband' and member.get('expired_date') is None:
-                    main_user_obj = user_obj
-                    main_user_residential_obj = residential_obj
-
-                elif main_user_obj is None and self_relation == 'wife' and member.get('expired_date') is None:
-                    main_user_obj = user_obj
-                    main_user_residential_obj = residential_obj
-
-
-            if not main_user_obj and residential_type.name != "business":
-                raise ValidationError({
-                    "error": "Main user not found"
-                })
-            
-            if residential_type.name == "current":
-                registration_user = main_user_obj
-             
-                main_user_family_member_obj = FamilyMember.objects.filter(
-                    user = main_user_obj,
-                    is_main_user = True
-                ).first()
-
-                if main_user_family_member_obj:
-                    family_obj = main_user_family_member_obj.family
-                else:
-                    family_obj = Family.objects.create(
-                    )
-
-                family_name = ""
-                for user in created_users:
-                    user_obj = user.get("user")
-                    FamilyMember.objects.get_or_create(
-                        family = family_obj,
-                        user = user_obj,
-                        self_relation_type = user.get("self_relation_type"),
-                        post_no = user.get("post_no"),
-                        is_main_user = user_obj.id == main_user_obj.id
-                    )
-                    family_name += user_obj.full_name[0].upper()
-                
-                family_obj.name = family_name
-                family_obj.save()
-                
-                registration_user_family_obj = family_obj
-
-                try:
-                    with transaction.atomic():
-                        family_resident_obj, _ = ResidentMapping.objects.update_or_create(
-                            family = family_obj,
-                            residential_type = residential_type,
-                            defaults={
-                                'residential_details': residential_obj,
-                                'stay_from': stay_from,
-                                'stay_to': stay_to
-                            }
+                    if existing_user_obj:
+                        user_obj, _ = User.objects.update_or_create(
+                            id=existing_user_obj.id,
+                            defaults=user_defaults
                         )
-                except IntegrityError:
-                    raise ValidationError({
-                        "residential_details": "For this residential details a family already exists."
-                    })
+                    
+                    else:                        
+                        user_obj = User.objects.create(
+                            full_name = full_name,
+                            email = email,
+                            contact_no = contact_no,
+                            user_category = user_category,
+                        )
                 
-            elif residential_type.name == "business":
-                for user in created_users:
-                    user_obj = user.get("user")
-                    self_designation_type = user.get("self_designation_type")
+                    if residential_type.name == "current":
+                        user_obj.is_verified = True
+
+                    user_obj.current_residential_details = residential_obj
+                
+                    user_obj.save()
+
+                    role, _ = UserRole.objects.get_or_create(
+                        name="user",
+                        display_name="User"
+                    )
+                    user_obj.roles.add(role)
+
+                    # User Profile update or create
+                    user_profile_obj, _ = UserProfile.objects.update_or_create(
+                        user = user_obj,
+                        defaults=member
+                    )
+                
+
+                    # Personal Details
+                    # user_personal_obj, _ = UserPersonalDetails.objects.update_or_create(
+                    #     user = user_obj,
+                    #     defaults={
+                    #         'nodes': personal_details_json
+                    #     }
+                    # )
 
                     try:
-                        temp_resident_mapping_obj = ResidentMapping.objects.get(
-                            residential_details=residential_obj,
-                            residential_type=residential_type,
-                            business_family__name__iexact=company_name
+                        user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
+                    except UserPersonalDetails.DoesNotExist:
+                        user_personal_obj = UserPersonalDetails.objects.create(
+                            user = user_obj
                         )
-                        business_family_obj = temp_resident_mapping_obj.business_family
-                        business_family_obj.is_verified = False
-                        business_family_obj.save()
-
-                    except ResidentMapping.DoesNotExist:
-                        business_family_obj = BusinessFamily.objects.create(
-                            name = company_name, 
-                            is_verified = False
-                        )
-
-                        ResidentMapping.objects.create(
-                            residential_details=residential_obj,
-                            residential_type=residential_type,
-                            business_family=business_family_obj,
-                            stay_from=stay_from,
-                            stay_to=stay_to
-                        )
-
-                    business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
-                        business_family = business_family_obj,
-                        user = user_obj,
-                        self_designation_type = self_designation_type
-                    )
-                    
-            else:
-                print("created users", created_users)
-                current_residential_type_obj = ResidentialType.objects.get(name="current")
-
-                main_user_family_members = FamilyMember.objects.filter(
-                    user = main_user_obj,
-                    is_main_user = True
-                )
-
-                if main_user_family_members.exists():
-                    main_user_family_obj = main_user_family_members.first().family
-                else:
-                    main_user_family_obj = Family.objects.create(
-                    )
-
-                family_name = ""
-                for user in created_users:
-                    user_obj = user.get("user")
-                    member = FamilyMember.objects.get_or_create(
-                        family = main_user_family_obj,
-                        user = user_obj,
-                        self_relation_type = user.get("self_relation_type"),
-                        is_main_user = user_obj.id == main_user_obj.id
-                    )
-                    family_name += user_obj.full_name[0].upper()
-                    
-                    print("member", member)
-                    main_user_family_obj.name = family_name
-                    main_user_family_obj.save()
-
-                registration_user_family_member_obj = FamilyMember.objects.filter(
-                    user = registration_user,
-                    is_main_user = True
-                ).first()
-
-                if not registration_user_family_member_obj:
-                    raise ValidationError({
-                        "error": "Registration Family not found"
-                    })
                 
-                registration_user_family_obj = registration_user_family_member_obj.family
+                    # Bulk create mapping for personal details
+                    user_personal_obj.node_mappings.all().delete()
+                    personal_mappings_to_create = []
+                    for level_id, node_id in personal_details_json.items():
+                        if level_id and node_id:
+                            personal_mappings_to_create.append(
+                                PersonalNodeMapping(
+                                    personal_detail=user_personal_obj, level_id=int(level_id), node_id=int(node_id)
+                                )
+                            )
+                    if personal_mappings_to_create:
+                        PersonalNodeMapping.objects.bulk_create(personal_mappings_to_create)
+                
+                    print("professional_details_lst", professional_details_lst)
+                    for professional_details in professional_details_lst:
+                        company_name = professional_details.get('company')
+                        residential_nodes = professional_details.get('residential_details', {})
+
+                        bussiness_residential_obj, _ = get_or_create_residential_details(residential_nodes)
+
+                        try:
+                            temp_resident_mapping_obj = ResidentMapping.objects.get(
+                                residential_details=bussiness_residential_obj,
+                                residential_type__name="business",
+                                business_family__name__iexact=company_name
+                            )
+                            business_family_obj = temp_resident_mapping_obj.business_family
+                        except ResidentMapping.DoesNotExist:
+                            business_family_obj = BusinessFamily.objects.create(name=company_name)
+                            business_residential_type_obj = ResidentialType.objects.get(name="business")
+
+                            ResidentMapping.objects.create(
+                                residential_details=bussiness_residential_obj,
+                                residential_type=business_residential_type_obj,
+                                business_family=business_family_obj
+                            )
+                    
 
 
-                # 1. Check for Main User Family Resident
-                try:
-                    with transaction.atomic():
-                        family_resident_obj, created = ResidentMapping.objects.update_or_create(
-                            family=main_user_family_obj,
-                            residential_type=current_residential_type_obj,
-                            defaults={
-                                'residential_details': main_user_residential_obj,
-                                'stay_from': stay_from,
-                                'stay_to': stay_to
-                            }
+                        designation_obj = professional_details.get('designation')
+                        personal_nodes = professional_details.get('personal_details', {})
+                        professional_nodes = professional_details.get('professional_details', {})
+                        profession_id = professional_details.get('id', None)
+                        is_active = professional_details.get('is_active', True)
+                    
+                        if profession_id:
+                            try:
+                                professional_details_obj = UserProfessionalDetails.objects.get(
+                                    id=profession_id,
+                                    user=user_obj
+                                )
+                                professional_details_obj.business_family = business_family_obj
+                                professional_details_obj.residential_details = bussiness_residential_obj
+                                professional_details_obj.designation = designation_obj
+                                professional_details_obj.is_active = is_active
+                                professional_details_obj.save()
+                            except UserProfessionalDetails.DoesNotExist:
+                                raise ValidationError({
+                                    "error": "Professional details not found"
+                                })
+
+                        else:
+                            professional_details_obj = UserProfessionalDetails.objects.create(
+                                user=user_obj,
+                                business_family = business_family_obj,
+                                residential_details=bussiness_residential_obj,
+                                designation=designation_obj,
+                                is_active=is_active
+                            )
+                        
+                        # Delete and recreate professional mappings
+                        professional_details_obj.professional_node_mappings.all().delete()
+                        prof_mappings_to_create = []
+                        for level_id, node_id in professional_nodes.items():
+                            if level_id and node_id:
+                                prof_mappings_to_create.append(ProfessionalNodeMapping(
+                                    professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                                ))
+                        if prof_mappings_to_create:
+                            ProfessionalNodeMapping.objects.bulk_create(prof_mappings_to_create)
+
+                        # Delete and recreate professional personal mappings
+                        professional_details_obj.personal_node_mappings.all().delete()
+                        prof_pers_mappings_to_create = []
+                        for level_id, node_id in personal_nodes.items():
+                            if level_id and node_id:
+                                prof_pers_mappings_to_create.append(ProfessionalPersonalNodeMapping(
+                                    professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                                ))
+                        if prof_pers_mappings_to_create:
+                            ProfessionalPersonalNodeMapping.objects.bulk_create(prof_pers_mappings_to_create)
+                    
+                        # Create members for this bussiness 
+                        business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
+                            business_family = business_family_obj,
+                            user = user_obj,
+                            self_designation_type = designation_obj
                         )
-                except IntegrityError:
-                    raise ValidationError({
-                        "residential_details": "For this residential details a family already exists."
-                    })
 
-                # 2. Check for Registration User Family Resident
-                try:
-                    with transaction.atomic():
-                        registration_resident_obj, created = ResidentMapping.objects.update_or_create(
-                            family=registration_user_family_obj,
-                            residential_type=residential_type,
-                            defaults={
-                                'residential_details': main_user_residential_obj,
-                                'stay_from': stay_from,
-                                'stay_to': stay_to
-                            }
-                        )
-                except IntegrityError:
+                    if self_relation == "husband":
+                        husband_user = user_obj
+
+                    # Add to created users
+                    created_users.append(
+                        {
+                            "user": user_obj,
+                            "self_relation_type": self_relation_type_obj if self_relation else None,
+                            "self_designation_type": self_designation,
+                            "personal_details": user_personal_obj,
+                            "relation": relation_obj,
+                            "post_no": post_no,
+                        }
+                    )
+                    created_user_ids.append(user_obj.id)
+
+                    if main_user_obj is None and self_relation == 'husband' and member.get('expired_date') is None:
+                        main_user_obj = user_obj
+                        main_user_residential_obj = residential_obj
+
+                    elif main_user_obj is None and self_relation == 'wife' and member.get('expired_date') is None:
+                        main_user_obj = user_obj
+                        main_user_residential_obj = residential_obj
+
+
+                if not main_user_obj and residential_type.name != "business":
                     raise ValidationError({
-                        "residential_details": "For this residential details a family already exists."
+                        "error": "Main user not found"
                     })
             
-            # Map family internal relations
-            if residential_type.name != "business":
-                map_family_internal_relations(created_users)
+                if residential_type.name == "current":
+                    registration_user = main_user_obj
+             
+                    main_user_family_member_obj = FamilyMember.objects.filter(
+                        user = main_user_obj,
+                        is_main_user = True
+                    ).first()
 
-                # Map relations, native, inlaws, maternal
-                map_relations_with_husband_user(registration_user_family_obj, created_users)
+                    if main_user_family_member_obj:
+                        family_obj = main_user_family_member_obj.family
+                    else:
+                        family_obj = Family.objects.create(
+                        )
+
+                    family_name = ""
+                    for user in created_users:
+                        user_obj = user.get("user")
+                        FamilyMember.objects.get_or_create(
+                            family = family_obj,
+                            user = user_obj,
+                            self_relation_type = user.get("self_relation_type"),
+                            post_no = user.get("post_no"),
+                            is_main_user = user_obj.id == main_user_obj.id
+                        )
+                        family_name += user_obj.full_name[0].upper()
+                
+                    family_obj.name = family_name
+                    family_obj.save()
+                
+                    registration_user_family_obj = family_obj
+
+                    try:
+                        with transaction.atomic():
+                            family_resident_obj, _ = ResidentMapping.objects.update_or_create(
+                                family = family_obj,
+                                residential_type = residential_type,
+                                defaults={
+                                    'residential_details': residential_obj,
+                                    'stay_from': stay_from,
+                                    'stay_to': stay_to
+                                }
+                            )
+                    except IntegrityError:
+                        raise ValidationError({
+                            "residential_details": "For this residential details a family already exists."
+                        })
+                
+                elif residential_type.name == "business":
+                    for user in created_users:
+                        user_obj = user.get("user")
+                        self_designation_type = user.get("self_designation_type")
+
+                        try:
+                            temp_resident_mapping_obj = ResidentMapping.objects.get(
+                                residential_details=residential_obj,
+                                residential_type=residential_type,
+                                business_family__name__iexact=company_name
+                            )
+                            business_family_obj = temp_resident_mapping_obj.business_family
+                            business_family_obj.is_verified = False
+                            business_family_obj.save()
+
+                        except ResidentMapping.DoesNotExist:
+                            business_family_obj = BusinessFamily.objects.create(
+                                name = company_name, 
+                                is_verified = False
+                            )
+
+                            ResidentMapping.objects.create(
+                                residential_details=residential_obj,
+                                residential_type=residential_type,
+                                business_family=business_family_obj,
+                                stay_from=stay_from,
+                                stay_to=stay_to
+                            )
+
+                        business_family_member_obj, _ = BusinessFamilyMember.objects.get_or_create(
+                            business_family = business_family_obj,
+                            user = user_obj,
+                            self_designation_type = self_designation_type
+                        )
+                    
+                else:
+                    print("created users", created_users)
+                    current_residential_type_obj = ResidentialType.objects.get(name="current")
+
+                    main_user_family_members = FamilyMember.objects.filter(
+                        user = main_user_obj,
+                        is_main_user = True
+                    )
+
+                    if main_user_family_members.exists():
+                        main_user_family_obj = main_user_family_members.first().family
+                    else:
+                        main_user_family_obj = Family.objects.create(
+                        )
+
+                    family_name = ""
+                    for user in created_users:
+                        user_obj = user.get("user")
+                        member = FamilyMember.objects.get_or_create(
+                            family = main_user_family_obj,
+                            user = user_obj,
+                            self_relation_type = user.get("self_relation_type"),
+                            is_main_user = user_obj.id == main_user_obj.id
+                        )
+                        family_name += user_obj.full_name[0].upper()
+                    
+                        print("member", member)
+                        main_user_family_obj.name = family_name
+                        main_user_family_obj.save()
+
+                    registration_user_family_member_obj = FamilyMember.objects.filter(
+                        user = registration_user,
+                        is_main_user = True
+                    ).first()
+
+                    if not registration_user_family_member_obj:
+                        raise ValidationError({
+                            "error": "Registration Family not found"
+                        })
+                
+                    registration_user_family_obj = registration_user_family_member_obj.family
+
+
+                    # 1. Check for Main User Family Resident
+                    try:
+                        with transaction.atomic():
+                            family_resident_obj, created = ResidentMapping.objects.update_or_create(
+                                family=main_user_family_obj,
+                                residential_type=current_residential_type_obj,
+                                defaults={
+                                    'residential_details': main_user_residential_obj,
+                                    'stay_from': stay_from,
+                                    'stay_to': stay_to
+                                }
+                            )
+                    except IntegrityError:
+                        raise ValidationError({
+                            "residential_details": "For this residential details a family already exists."
+                        })
+
+                    # 2. Check for Registration User Family Resident
+                    try:
+                        with transaction.atomic():
+                            registration_resident_obj, created = ResidentMapping.objects.update_or_create(
+                                family=registration_user_family_obj,
+                                residential_type=residential_type,
+                                defaults={
+                                    'residential_details': main_user_residential_obj,
+                                    'stay_from': stay_from,
+                                    'stay_to': stay_to
+                                }
+                            )
+                    except IntegrityError:
+                        raise ValidationError({
+                            "residential_details": "For this residential details a family already exists."
+                        })
             
+                # Map family internal relations
+                if residential_type.name != "business":
+                    map_family_internal_relations(created_users)
+
+                    # Map relations, native, inlaws, maternal
+                    map_relations_with_husband_user(registration_user_family_obj, created_users)
+            
+        except ValidationError as e:
+            if hasattr(e, 'detail'):
+                return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         # return Response({
         #     "message": "User created successfully",
