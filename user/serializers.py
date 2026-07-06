@@ -11,7 +11,7 @@ class PhoneNumberField(BasePhoneNumberField):
         return str(phone_number) if phone_number else phone_number
 
 from configuration.models import Dimension, Level, Node
-from .utils import get_level_node_mapping, validate_dimension_nodes, get_all_role_descendant_names
+from .utils import get_level_node_mapping, validate_dimension_nodes, get_all_role_descendant_names, get_residential_details_ids_by_code
 from common.validators import validate_dob, validate_marriage_date, validate_expired_date, validate_email_format, validate_gstin
 class LoginPhoneInputSerializer(serializers.Serializer):
     contact_no = PhoneNumberField(required=True)
@@ -1243,7 +1243,10 @@ class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):
         if business_id:
             conditions |= Q(business_family_id=business_id)
         if residential_code:
-            conditions |= Q(residential_details__residential_code=residential_code)
+            # residential_code is a computed @property, not a DB column.
+            # Resolve matching ResidentialDetails IDs first, then filter.
+            matching_residential_ids = get_residential_details_ids_by_code(residential_code)
+            conditions |= Q(residential_details_id__in=matching_residential_ids)
         
         prof_detail = UserProfessionalDetails.objects.filter(filters & conditions).first()
 

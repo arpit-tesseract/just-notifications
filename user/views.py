@@ -26,7 +26,7 @@ from .serializers import (
     BusinessMemberPayloadSuggestionSerializer, BusinessRegisterOutputSerializer
 )
 from .models import *
-from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details, get_all_role_descendant_names)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details, get_all_role_descendant_names, get_residential_details_ids_by_code)
 # Create your views here.
 
 class LoginOTPView(APIView):
@@ -1020,7 +1020,10 @@ class BusinessMemberSuggestionView(APIView):
         if business_id:
             conditions |= Q(business_family_id=business_id)
         if residential_code:
-            conditions |= Q(residential_details__residential_code=residential_code)
+            # residential_code is a computed @property, not a DB column.
+            # Resolve matching ResidentialDetails IDs first, then filter.
+            matching_residential_ids = get_residential_details_ids_by_code(residential_code)
+            conditions |= Q(residential_details_id__in=matching_residential_ids)
         
         filters &= conditions
         
