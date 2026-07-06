@@ -11,7 +11,7 @@ class PhoneNumberField(BasePhoneNumberField):
         return str(phone_number) if phone_number else phone_number
 
 from configuration.models import Dimension, Level, Node
-from .utils import get_level_node_mapping, validate_dimension_nodes
+from .utils import get_level_node_mapping, validate_dimension_nodes, get_all_role_descendant_names
 from common.validators import validate_dob, validate_marriage_date, validate_expired_date, validate_email_format, validate_gstin
 class LoginPhoneInputSerializer(serializers.Serializer):
     contact_no = PhoneNumberField(required=True)
@@ -1217,7 +1217,7 @@ class AdminMemberInputSerializer(serializers.Serializer):
         required=True, allow_null=True
     )
     self_sub_role = serializers.PrimaryKeyRelatedField(
-        queryset = UserRole.objects.filter(parent__name='admin', is_active=True), 
+        queryset = UserRole.objects.filter(is_active=True), 
     )
     email = serializers.EmailField(required=True, allow_null=True, validators=[validate_email_format])
     contact_no = PhoneNumberField(required=True, allow_null=False)
@@ -1375,7 +1375,8 @@ class AdminRegistrationOutputSerializer(serializers.Serializer):
             personal_details = user.personal_details if hasattr(user, 'personal_details') else None
             
             # Find the admin sub-role assigned to this user
-            sub_role = user.roles.filter(parent__name='admin').first()
+            admin_role_names = get_all_role_descendant_names('admin')
+            sub_role = user.roles.filter(name__in=admin_role_names).first()
             
             # Find professional details (assuming first active one for admin)
             prof_detail = UserProfessionalDetails.objects.filter(user=user, is_active=True).first()

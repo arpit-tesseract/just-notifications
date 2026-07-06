@@ -1,6 +1,21 @@
 from django.db.models import Count, Q
 from configuration.models import Dimension, Level, Node
-from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping
+from .models import User, UserPersonalDetails, RelationType, UserRelations, Family, FamilyMember, ResidentialDetails, ResidentialNodeMapping, UserRole
+
+def get_all_role_descendant_names(role_name, include_self=True):
+    descendant_names = set()
+    if include_self:
+        descendant_names.add(role_name)
+    
+    roles_to_check = list(UserRole.objects.filter(parent__name=role_name, is_active=True).values_list('name', flat=True))
+    
+    while roles_to_check:
+        current_name = roles_to_check.pop(0)
+        descendant_names.add(current_name)
+        children = list(UserRole.objects.filter(parent__name=current_name, is_active=True).values_list('name', flat=True))
+        roles_to_check.extend(children)
+        
+    return list(descendant_names)
 
 def get_or_create_residential_details(nodes_json):
     if not nodes_json or not isinstance(nodes_json, dict):

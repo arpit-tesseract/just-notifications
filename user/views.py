@@ -26,7 +26,7 @@ from .serializers import (
     BusinessMemberPayloadSuggestionSerializer, BusinessRegisterOutputSerializer
 )
 from .models import *
-from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details, get_all_role_descendant_names)
 # Create your views here.
 
 class LoginOTPView(APIView):
@@ -1769,7 +1769,8 @@ class AdminRegistrationView(AdminRoleFilterMixin, APIView):
 
                     # Assign the admin role and sub_role to the user
                     if existing_user_obj:
-                        admin_sub_roles = user_obj.roles.filter(parent__name='admin')
+                        admin_role_names = get_all_role_descendant_names('admin')
+                        admin_sub_roles = user_obj.roles.filter(name__in=admin_role_names)
                         if admin_sub_roles.exists():
                             user_obj.roles.remove(*admin_sub_roles)
 
@@ -1892,7 +1893,7 @@ class UserRoleDropdownView(APIView):
     def get(self, request):
         role_name = request.query_params.get('role', '').strip()
 
-        role_qs = UserRole.objects.filter(is_active=True)
+        role_qs = UserRole.objects.filter(is_active=True).exclude(name='super_admin')
         if role_name:
             descendant_ids = self.get_all_descendants(role_name)
             role_qs = role_qs.filter(id__in=descendant_ids).order_by('id')
