@@ -14,7 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 
 from configuration.mixins import AssignedNodeFilterMixin
-from .mixins import AdminRoleFilterMixin
+from .mixins import AdminRoleFilterMixin, IsSuperAdmin, IsAdminRole
 from common.pagination import CommonPagination
 from .serializers import (
     LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
@@ -1664,7 +1664,15 @@ class BusinessRegisterView(APIView):
 from .serializers import AdminRegistrationInputSerializer, AdminRegistrationOutputSerializer
 
 class AdminRegistrationView(AdminRoleFilterMixin, APIView):
-    permission_classes = [IsAuthenticated]
+    """
+    Hierarchical admin management:
+    - Any user in the admin role hierarchy can GET / POST.
+    - POST is scoped: a caller can only assign roles that are
+      descendants of their own admin role.
+      e.g. system_admin → can register group_admin / subgroup_admin
+           group_admin   → can register subgroup_admin only
+    """
+    permission_classes = [IsAuthenticated, IsAdminRole]
 
     def get(self, request):
         admin_role = get_object_or_404(
@@ -1714,7 +1722,21 @@ class AdminRegistrationView(AdminRoleFilterMixin, APIView):
 
 
     def post(self, request):
-        print(request.data)
+        # ------------------------------------------------------------------
+        # Scope check: determine which child roles this caller may assign.
+        # get_allowed_role_ids returns the IDs of all roles that are
+        # descendants of the caller's own admin role.
+        # ------------------------------------------------------------------
+        allowed_role_ids, scope_error = self.get_allowed_role_ids(request, "admin")
+        if scope_error:
+            return scope_error
+
+        if not allowed_role_ids:
+            return Response(
+                {"error": "You do not have permission to register admin users."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = AdminRegistrationInputSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1722,7 +1744,25 @@ class AdminRegistrationView(AdminRoleFilterMixin, APIView):
         validated_data = serializer.validated_data
         role_obj = validated_data.get('role')
         admin_members = validated_data.get('admin_members', [])
-        
+
+        # Validate each member's sub-role is within the caller's allowed scope
+        scope_errors = {}
+        for index, member in enumerate(admin_members):
+            sub_role = member.get('self_sub_role')
+            if sub_role and sub_role.id not in allowed_role_ids:
+                scope_errors[index] = {
+                    "self_sub_role": (
+                        f"You do not have permission to assign the role "
+                        f"'{sub_role.display_name}'. You can only assign roles "
+                        f"below your own level in the admin hierarchy."
+                    )
+                }
+        if scope_errors:
+            return Response(
+                {"admin_members": scope_errors},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         registered_users = []
 
         try:
