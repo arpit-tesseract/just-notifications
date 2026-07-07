@@ -19,6 +19,7 @@ class Command(BaseCommand):
             'seed_residential_types',  # Standalone
             'seed_dimensions',         # Standalone (needed for levels)
             'seed_levels',             # Depends on Dimensions
+            'seed_notification_templates', # Standalone (Notification)
         ]
 
         for command_name in commands_sequence:
