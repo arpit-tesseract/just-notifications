@@ -393,18 +393,20 @@ class NodeViewSet(AssignedNodeFilterMixin, viewsets.ModelViewSet):
         ancestor_ids_param = request.query_params.get("ancestor_ids", "").strip()
         if ancestor_ids_param != "":
             try:
-                # Convert "170,171" -> [170, 171]
                 ancestor_ids = [int(x) for x in ancestor_ids_param.split(',') if x.strip().isdigit()]
                 print("Ancestor IDs:", ancestor_ids)                
                 
                 if ancestor_ids:
-                    # FIX: Use ancestor_id__in to apply an "OR" condition across all provided IDs
-                    # This means: "Get descendants of 170 OR 171"
-                    queryset = queryset.filter(
-                        id__in=NodeClosure.objects.filter(
-                            ancestor_id__in=ancestor_ids
-                        ).values('descendant_id')
-                    )
+                    # By chaining .filter(), we create an "AND" condition. 
+                    # If ancestor_ids=[State, District, Taluka], it ensures the node is a descendant of ALL of them.
+                    # Note: If you need to support selecting multiple siblings (e.g., Taluka 1 OR Taluka 2), 
+                    # the frontend should only send the deepest selected nodes, and you would use the 'OR' condition.
+                    for ancestor_id in ancestor_ids:
+                        queryset = queryset.filter(
+                            id__in=NodeClosure.objects.filter(
+                                ancestor_id=ancestor_id
+                            ).values('descendant_id')
+                        )
             except ValueError:
                 pass
             
@@ -584,7 +586,7 @@ class NodeViewSet(AssignedNodeFilterMixin, viewsets.ModelViewSet):
                         continue
 
                     # 2. Cast the Default Value
-                    typed_default, _ =  (default_val_raw, field_type)
+                    typed_default, _ = cast_value_by_type(default_val_raw, field_type)
                     
                     # 3. Check if user is searching for the default
                     is_searching_default = (typed_default is not None) and (typed_value == typed_default)

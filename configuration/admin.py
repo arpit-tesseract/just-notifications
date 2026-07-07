@@ -9,17 +9,19 @@ class DimensionAdmin(SimpleHistoryAdmin):
     
 @admin.register(Level)
 class LevelAdmin(SimpleHistoryAdmin):
-    list_display = ['dimension', 'name', 'parent', 'single_mode', 'is_mandatory', 'sort_order', 'is_deleted', 'created_at', 'updated_at']
+    list_display = ['id','dimension', 'name', 'parent', 'single_mode', 'is_mandatory', 'sort_order', 'is_deleted', 'created_at', 'updated_at']
     list_filter = ['is_deleted', 'is_mandatory', 'dimension', 'parent']
     sortable_by = ['sort_order']
+    search_fields = ['id', 'name']
     
     def get_queryset(self, request):
         return self.model.all_objects.all()
     
 @admin.register(Node)
 class NodeAdmin(SimpleHistoryAdmin):
-    list_display = ['dimension', 'level', 'parent', 'name', 'code', 'is_deleted', 'created_at', 'updated_at']
+    list_display = ['id', 'dimension', 'level', 'parent', 'name', 'code', 'is_deleted', 'created_at', 'updated_at']
     list_filter = ['is_deleted', 'dimension', 'level']
+    search_fields = ['id', 'name']
     
     def get_queryset(self, request):
         return self.model.all_objects.all()
