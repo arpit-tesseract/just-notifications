@@ -1542,7 +1542,7 @@ class AdminResidentialNodeAssignmentInputSerializer(serializers.Serializer):
     assignments = AdminResidentialResidentialNodeAssignmentItemSerializer(many=True, required=True)
 
     def validate_user_id(self, value):
-        if not value.roles.filter(parent__name="admin").exists():
+        if not value.roles.filter(parent__name__icontains="admin").exists():
             raise serializers.ValidationError(
                 "Invalid User."
             )
