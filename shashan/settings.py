@@ -13,9 +13,13 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env
+load_dotenv(dotenv_path=BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -54,6 +58,7 @@ CSRF_TRUSTED_ORIGINS = [
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,6 +69,7 @@ INSTALLED_APPS = [
     'configuration',
     'common',
     'wallet',
+    'notification',
 
     'channels',
     'simple_history',
@@ -274,3 +280,13 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't', 'y', 'yes')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER') or 'your-email@gmail.com'
+# IMPORTANT: Use an "App Password" here if using Gmail, NOT your real password!
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD') or 'your-app-password-or-smtp-key'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or f"Shashan Notifications <{EMAIL_HOST_USER}>"
+

@@ -43,3 +43,6 @@ Shashan_Technical_Design_Specification.docx
 
 # SRS file
 *.pdf
+
+# env file
+.env

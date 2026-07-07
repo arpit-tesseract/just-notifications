@@ -1,0 +1,116 @@
+{% extends 'common/base.html' %}
+{% load static %}
+
+{% block title %}Notifications — NFS RCM Portal{% endblock %}
+
+{% block main_content %}
+<main class="main-content">
+  <div class="content-header">
+    <div class="header-title">
+      <h1>Notifications</h1>
+      <p>View all your recent activity, alerts, and payment updates.</p>
+    </div>
+    <div class="header-actions">
+        <form method="POST" action="{% url 'notification:mark_all_read' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary d-flex align-items-center gap-2">
+                <i class="bi bi-check2-all"></i> Mark all as read
+            </button>
+        </form>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-12 col-lg-8 mx-auto">
+      <div class="card card-custom">
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush" id="notificationFullList">
+            {% for recipient in page_obj %}
+            <li class="list-group-item p-4 d-flex align-items-start gap-3 {% if recipient.status == 'unread' %}bg-light{% endif %}" id="notif-{{ recipient.pk }}">
+              <div class="notif-icon-lg {{ recipient.notification.icon_color }} rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px; font-size: 1.5rem; background-color: var(--color-{{ recipient.notification.icon_color }}-light, #f8f9fa);">
+                <i class="bi {{ recipient.notification.icon }} text-{{ recipient.notification.icon_color }}"></i>
+              </div>
+              <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <h6 class="mb-0 fw-bold">{{ recipient.notification.title }}</h6>
+                  <small class="text-muted">{{ recipient.created_at|timesince }} ago</small>
+                </div>
+                <p class="mb-0 text-muted">{{ recipient.notification.content }}</p>
+              </div>
+              {% if recipient.status == 'unread' %}
+              <button class="btn btn-sm btn-light border-0 text-primary flex-shrink-0 mark-read-btn" data-id="{{ recipient.pk }}" title="Mark as read">
+                  <i class="bi bi-circle-fill" style="font-size: 10px;"></i>
+              </button>
+              {% endif %}
+            </li>
+            {% empty %}
+            <li class="list-group-item p-5 text-center text-muted">
+                <i class="bi bi-bell-slash fs-1 text-light mb-3"></i>
+                <h5>No notifications yet</h5>
+                <p>When you get updates, they'll show up here.</p>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        
+        <!-- Pagination Controls -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white p-3 border-top-0 d-flex justify-content-center">
+          <nav aria-label="Notification pagination">
+            <ul class="pagination mb-0 pagination-sm">
+              {% if page_obj.has_previous %}
+              <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+              {% else %}
+              <li class="page-item disabled"><span class="page-link">Previous</span></li>
+              {% endif %}
+              
+              {% for i in page_obj.paginator.page_range %}
+                {% if page_obj.number == i %}
+                <li class="page-item active" aria-current="page"><span class="page-link">{{ i }}</span></li>
+                {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ i }}">{{ i }}</a></li>
+                {% endif %}
+              {% endfor %}
+              
+              {% if page_obj.has_next %}
+              <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+              {% else %}
+              <li class="page-item disabled"><span class="page-link">Next</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}{% endblock %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const markReadBtns = document.querySelectorAll('.mark-read-btn');
+    markReadBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const notifId = this.dataset.id;
+            fetch(`/notifications/mark-read/${notifId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            }).then(response => response.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    // Visually mark as read
+                    const li = document.getElementById(`notif-${notifId}`);
+                    li.classList.remove('bg-light');
+                    this.remove(); // Remove the unread dot button
+                }
+            });
+        });
+    });
+});
+</script>

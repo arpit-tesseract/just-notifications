@@ -66,6 +66,22 @@ class LoginPhoneOTPView(APIView):
                     
                 refresh = RefreshToken.for_user(user_obj)
                 serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
+                
+                try:
+                    from notification.services.dispatcher import trigger_event
+                    trigger_event(
+                        event_type="user.login",
+                        user_id=user_obj.id,
+                        context_data={
+                            "full_name": user_obj.full_name or user_obj.email or "User"
+                        }
+                    )
+                except Exception as e:
+                    message = {
+                        'error' : f'{e} notification is not sent'
+                    }
+                    return Response(message,status=status.HTTP_400_BAD_REQUEST)
+
                 return Response(
                                 {   
                                     'message' : "Login successfully",
@@ -118,6 +134,19 @@ class LoginView(APIView):
         
         refresh = RefreshToken.for_user(user)
         serializer = UserBasicDetailsOutputSerializer(user)
+        
+        try:
+            from notification.services.dispatcher import trigger_event
+            trigger_event(
+                event_type="user.login",
+                user_id=user.id,
+                context_data={
+                    "full_name": user.full_name or user.email or "User"
+                }
+            )
+        except Exception as e:
+            pass # Non-blocking error handling for notifications
+
         return Response(
             {
                 "refresh": str(refresh),

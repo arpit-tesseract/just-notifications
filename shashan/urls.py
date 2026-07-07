@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/config/', include('configuration.urls')),
     path('api/users/', include('user.urls')),
     path('api/wallets/', include('wallet.urls',)),
+    path('api/notification/', include('notification.urls')),
 ]
 
 # urls.py
