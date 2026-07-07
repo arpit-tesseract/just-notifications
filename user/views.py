@@ -71,7 +71,7 @@ class LoginPhoneOTPView(APIView):
                 try:
                     from notification.services.dispatcher import trigger_event
                     trigger_event(
-                        event_type="user.login",
+                        template_name="user.login",
                         user_id=user_obj.id,
                         context_data={
                             "full_name": user_obj.full_name or user_obj.email or "User"
@@ -136,7 +136,7 @@ class LoginView(APIView):
         try:
             from notification.services.dispatcher import trigger_event
             trigger_event(
-                event_type="user.login",
+                template_name="user.login",
                 user_id=user.id,
                 context_data={
                     "full_name": user.full_name or user.email or "User"

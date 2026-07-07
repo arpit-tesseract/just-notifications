@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def trigger_event(
-    event_type: str,
+    template_name: str,
     user_id: int,
     context_data: dict[str, Any],
 ) -> None:
@@ -39,11 +39,9 @@ def trigger_event(
 
     Parameters
     ----------
-    event_type:
-        A dot-separated string that identifies the business event, e.g.
-        ``"subscription.renewed"`` or ``"invoice.overdue"``.  This value is
-        used by ``process_event_task`` to look up the matching
-        ``NotificationTemplate`` (via its ``NotificationCategory.name``).
+    template_name:
+        A string that identifies the notification template to use, e.g.
+        ``"user.login"`` or ``"invoice.overdue"``.
     user_id:
         Primary key of the ``User`` who triggered (or is the target of) the
         event.
@@ -68,7 +66,7 @@ def trigger_event(
     --------
     >>> from notification.services import trigger_event
     >>> trigger_event(
-    ...     event_type="subscription.renewed",
+    ...     template_name="subscription.renewed",
     ...     user_id=42,
     ...     context_data={"plan_name": "Pro", "next_billing_date": "2026-06-27"},
     ... )
@@ -79,25 +77,25 @@ def trigger_event(
 
     try:
         process_event_task.delay(
-            event_type=event_type,
+            template_name=template_name,
             user_id=user_id,
             context_data=context_data,
         )
         logger.info(
-            "trigger_event: queued event_type=%r for user_id=%d",
-            event_type,
+            "trigger_event: queued template_name=%r for user_id=%d",
+            template_name,
             user_id,
         )
     except Exception:  # noqa: BLE001
         logger.exception(
-            "trigger_event: failed to enqueue event_type=%r for user_id=%d",
-            event_type,
+            "trigger_event: failed to enqueue template_name=%r for user_id=%d",
+            template_name,
             user_id,
         )
 
 
 def trigger_bulk_event(
-    event_type: str,
+    template_name: str,
     user_ids: list[int],
     context_data: dict[str, Any],
     idempotency_key: str | None = None,
@@ -111,13 +109,13 @@ def trigger_bulk_event(
 
     try:
         bulk_process_event_task.delay(
-            event_type=event_type,
+            template_name=template_name,
             user_ids=user_ids,
             context_data=context_data,
             idempotency_key=idempotency_key,
         )
-        logger.info(f"trigger_bulk_event: queued {event_type} for {len(user_ids)} users with key {idempotency_key}")
+        logger.info(f"trigger_bulk_event: queued {template_name} for {len(user_ids)} users with key {idempotency_key}")
     except Exception as e:
-        logger.exception(f"trigger_bulk_event: failed to enqueue {event_type}")
+        logger.exception(f"trigger_bulk_event: failed to enqueue {template_name}")
         
     return idempotency_key

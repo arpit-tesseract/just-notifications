@@ -217,37 +217,50 @@ class Command(BaseCommand):
 
                     self.stdout.write(self.style.SUCCESS("Created Test Kinws User (User 3) with node mappings"))
 
-                # Seed the login alert notification template
-                login_category, _ = NotificationCategory.objects.get_or_create(
-                    name="user.login",
-                    defaults={"display_name": "User Login"}
+                # Seed the notification category (acts as a folder/group for templates)
+                auth_category, _ = NotificationCategory.objects.get_or_create(
+                    name="authentication",
+                    defaults={"display_name": "Authentication Alerts"}
                 )
+
+                # Template 1: Login Alert
                 NotificationTemplate.objects.get_or_create(
-                    category=login_category,
+                    name="user.login",
                     defaults={
+                        "category": auth_category,
                         "title": "Login Alert",
                         "content": "Hello {{ full_name }}, a new login was detected on your account.",
                         "channels": ["in_app", "email"],
                         "is_active": True
                     }
                 )
-                self.stdout.write(self.style.SUCCESS("Seeded 'user.login' notification template"))
+                self.stdout.write(self.style.SUCCESS("Seeded 'user.login' notification template under 'authentication' category"))
 
-                # Seed the login OTP notification template (in-app only)
-                login_otp_category, _ = NotificationCategory.objects.get_or_create(
-                    name="user.login_otp",
-                    defaults={"display_name": "User Login OTP"}
-                )
+                # Template 2: Login OTP
                 NotificationTemplate.objects.get_or_create(
-                    category=login_otp_category,
+                    name="user.login_otp",
                     defaults={
+                        "category": auth_category,
                         "title": "OTP Login Alert",
                         "content": "Hello {{ full_name }}, a new login via OTP was detected.",
                         "channels": ["in_app"],
                         "is_active": True
                     }
                 )
-                self.stdout.write(self.style.SUCCESS("Seeded 'user.login_otp' notification template"))
+                self.stdout.write(self.style.SUCCESS("Seeded 'user.login_otp' notification template under 'authentication' category"))
+                
+                # Template 3: Password Reset
+                NotificationTemplate.objects.get_or_create(
+                    name="user.password_reset",
+                    defaults={
+                        "category": auth_category,
+                        "title": "Password Reset Request",
+                        "content": "Hello {{ full_name }}, your password reset link is: {{ reset_link }}.",
+                        "channels": ["in_app", "email"],
+                        "is_active": True
+                    }
+                )
+                self.stdout.write(self.style.SUCCESS("Seeded 'user.password_reset' notification template under 'authentication' category"))
 
             self.stdout.write(self.style.SUCCESS("Database seeding completed successfully!"))
 

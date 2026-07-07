@@ -33,6 +33,7 @@ class NotificationCategory(TimeStampMixin):
 
 class NotificationTemplate(TimeStampMixin):
     category = models.ForeignKey(NotificationCategory, on_delete=models.CASCADE, related_name='templates')
+    name = models.CharField(max_length=255, unique=True)
     title = models.CharField(max_length=255)
     content = models.TextField()
     icon = models.CharField(max_length=50, default='bi-info-circle-fill')
@@ -41,7 +42,7 @@ class NotificationTemplate(TimeStampMixin):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return self.title
+        return f"{self.name} - {self.title}"
     
 
 class Notification(TimeStampMixin):

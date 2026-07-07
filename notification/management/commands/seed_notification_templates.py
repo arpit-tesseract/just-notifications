@@ -26,6 +26,7 @@ class Command(BaseCommand):
 
         templates_data = [
             {
+                "name": "user.login",
                 "category": security_category,
                 "title": "New Login Alert",
                 "content": "We noticed a recent login to your account from IP address {{ ip_address }} on {{ device_info }} at {{ login_time }}. If this was you, you can ignore this alert. If you don't recognize this activity, please change your password immediately.",
@@ -35,6 +36,7 @@ class Command(BaseCommand):
                 "is_active": True,
             },
             {
+                "name": "user.welcome",
                 "category": account_category,
                 "title": "Welcome to Shashan!",
                 "content": "Hi {{ user_name }}, welcome to Shashan! We are thrilled to have you on board. Please explore your dashboard and complete your profile to get the most out of our platform.",
@@ -47,18 +49,20 @@ class Command(BaseCommand):
 
         self.stdout.write("Starting to seed Notification Templates...")
         for tpl_data in templates_data:
+            name = tpl_data.pop("name")
             category = tpl_data.pop("category")
-            title = tpl_data["title"]
             
             template, created = NotificationTemplate.objects.update_or_create(
-                category=category,
-                title=title,
-                defaults=tpl_data
+                name=name,
+                defaults={
+                    "category": category,
+                    **tpl_data
+                }
             )
             
             if created:
-                self.stdout.write(self.style.SUCCESS(f"Created template: {template.title}"))
+                self.stdout.write(self.style.SUCCESS(f"Created template: {template.name} ({template.title})"))
             else:
-                self.stdout.write(self.style.WARNING(f"Updated/Verified template: {template.title}"))
+                self.stdout.write(self.style.WARNING(f"Updated/Verified template: {template.name} ({template.title})"))
 
         self.stdout.write(self.style.SUCCESS('Successfully seeded Notification Templates!'))

@@ -68,7 +68,7 @@ User = get_user_model()
 @shared_task(name="notification.process_event_task", bind=True)
 def process_event_task(
     self: Any,
-    event_type: str,
+    template_name: str,
     user_id: int,
     context_data: dict[str, Any],
 ) -> dict[str, Any]:
@@ -76,8 +76,7 @@ def process_event_task(
 
     This task is the hub of the fan-out pattern.  It performs three actions:
 
-    1. Resolves the ``NotificationTemplate`` whose category name matches
-       ``event_type``.
+    1. Resolves the ``NotificationTemplate`` by its ``name``.
     2. Renders the template title/content and persists a ``Notification`` +
        ``NotificationRecipient`` row for every active channel the user has
        enabled.
@@ -86,9 +85,8 @@ def process_event_task(
 
     Parameters
     ----------
-    event_type:
-        Dot-separated business event identifier, matched against
-        ``NotificationCategory.name``.
+    template_name:
+        The name of the template to use.
     user_id:
         Primary key of the target ``User``.
     context_data:
@@ -103,8 +101,8 @@ def process_event_task(
     from notification.services.renderers import EmailRenderer, PushRenderer  # noqa: PLC0415
 
     logger.info(
-        "process_event_task: processing event_type=%r for user_id=%d",
-        event_type,
+        "process_event_task: processing template_name=%r for user_id=%d",
+        template_name,
         user_id,
     )
 
@@ -112,26 +110,13 @@ def process_event_task(
     try:
         template: NotificationTemplate = NotificationTemplate.objects.select_related(
             "category"
-        ).get(category__name=event_type, is_active=True)
+        ).get(name=template_name, is_active=True)
     except NotificationTemplate.DoesNotExist:
         logger.warning(
-            "process_event_task: no active template for event_type=%r; aborting.",
-            event_type,
+            "process_event_task: no active template for template_name=%r; aborting.",
+            template_name,
         )
         return {"notification_id": None, "channels_dispatched": []}
-    except NotificationTemplate.MultipleObjectsReturned:
-        template = (
-            NotificationTemplate.objects.select_related("category")
-            .filter(category__name=event_type, is_active=True)
-            .order_by("-created_at")
-            .first()
-        )
-        logger.warning(
-            "process_event_task: multiple templates for event_type=%r; "
-            "using most recent (pk=%d).",
-            event_type,
-            template.pk,
-        )
 
     # ── 2. Render title & content ────────────────────────────────────────────
     # Use the appropriate renderer based on the template's primary channel.
@@ -157,9 +142,9 @@ def process_event_task(
     )
 
     logger.info(
-        "process_event_task: created Notification pk=%d for event_type=%r",
+        "process_event_task: created Notification pk=%d for template_name=%r",
         notification.pk,
-        event_type,
+        template_name,
     )
 
     # ── 4. Fan-out per channel ────────────────────────────────────────────────
@@ -218,7 +203,7 @@ def process_event_task(
 @shared_task(name="notification.bulk_process_event_task", bind=True)
 def bulk_process_event_task(
     self: Any,
-    event_type: str,
+    template_name: str,
     user_ids: list[int],
     context_data: dict[str, Any],
     idempotency_key: str, 
@@ -226,7 +211,7 @@ def bulk_process_event_task(
     """Orchestrate bulk notifications with idempotency and atomic transactions."""
     from notification.services.renderers import EmailRenderer, PushRenderer
     
-    logger.info(f"bulk_process_event_task: starting event {event_type} with key {idempotency_key}")
+    logger.info(f"bulk_process_event_task: starting template_name={template_name} with key {idempotency_key}")
 
     # 1. Idempotency Check
     if Notification.objects.filter(idempotency_key=idempotency_key).exists():
@@ -235,9 +220,9 @@ def bulk_process_event_task(
 
     # 2. Resolve template
     try:
-        template = NotificationTemplate.objects.get(category__name=event_type, is_active=True)
+        template = NotificationTemplate.objects.get(name=template_name, is_active=True)
     except NotificationTemplate.DoesNotExist:
-        logger.warning(f"bulk_process_event_task: no active template for event_type={event_type}")
+        logger.warning(f"bulk_process_event_task: no active template for template_name={template_name}")
         return {"status": "failed", "reason": "template_missing"}
 
     renderer = EmailRenderer() if NotificationChannel.EMAIL in template.channels else PushRenderer()
