@@ -66,11 +66,13 @@ class LoginPhoneOTPView(APIView):
                 serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
                 
                 try:
-                    from notification.utils import send_system_notification
-                    send_system_notification(
-                        users=[user_obj],
-                        title="Login Alert",
-                        message=f"Hello {user_obj.full_name or user_obj.contact_no}, a new login was detected on your account via OTP."
+                    from notification.services.dispatcher import trigger_event
+                    trigger_event(
+                        event_type="user.login",
+                        user_id=user_obj.id,
+                        context_data={
+                            "full_name": user_obj.full_name or user_obj.email or "User"
+                        }
                     )
                 except Exception as e:
                     message = {
@@ -132,11 +134,13 @@ class LoginView(APIView):
         serializer = UserBasicDetailsOutputSerializer(user)
         
         try:
-            from notification.utils import send_system_notification
-            send_system_notification(
-                users=[user],
-                title="Login Alert",
-                message=f"Hello {user.full_name or user.email}, a new login was detected on your account."
+            from notification.services.dispatcher import trigger_event
+            trigger_event(
+                event_type="user.login",
+                user_id=user.id,
+                context_data={
+                    "full_name": user.full_name or user.email or "User"
+                }
             )
         except Exception as e:
             pass # Non-blocking error handling for notifications

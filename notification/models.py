@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from common.models import TimeStampMixin
+from common.models import TimeStampMixin, SoftDeleteMixin
 import uuid
 # Create your models here.
 
@@ -71,7 +71,7 @@ class Notification(TimeStampMixin):
         return self.title
 
 
-class NotificationRecipient(TimeStampMixin):
+class NotificationRecipient(TimeStampMixin, SoftDeleteMixin):
     notification = models.ForeignKey(Notification, on_delete=models.CASCADE)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 

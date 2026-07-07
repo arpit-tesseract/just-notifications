@@ -34,7 +34,7 @@ import logging
 from typing import Any
 
 from django.conf import settings
-
+from django.core.mail import send_mail
 logger = logging.getLogger(__name__)
 
 
@@ -123,11 +123,29 @@ class EmailChannelDispatcher:
             to_address,
             subject,
         )
-        # ── Replace the block below with your real email SDK call ────────────
-        print(
-            f"[EMAIL] From: {self.sender} | To: {to_address} | Subject: {subject}\n"
-            f"        Body: {body[:120]}{'...' if len(body) > 120 else ''}"
-        )
+
+        try:
+            send_mail(
+                subject=subject,
+                message=body,           # Plain text fallback
+                from_email=self.sender,
+                recipient_list=[to_address],
+                fail_silently=False,    # Let it fail so Celery can catch & retry it
+                html_message=body       # (Optional) If your templates use HTML
+            )
+            logger.info(
+                "EmailChannelDispatcher.send: Successfully sent email to %s with subject %r",
+                to_address,
+                subject,
+            )
+        except Exception as exc:
+            logger.error(
+                "EmailChannelDispatcher.send: Failed to send email to %s with subject %r. Error: %s",
+                to_address,
+                subject,
+                exc,
+            )
+            raise
         # ────────────────────────────────────────────────────────────────────
 
 

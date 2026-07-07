@@ -26,9 +26,20 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     # Receive message from new notification module
     async def notification_alert(self, event):
         data = event['data']
-
         # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'type': 'notification',
             'data': data
+        }))
+
+    # Receive message from legacy configuration module
+    async def send_notification(self, event):
+        message = event['message']
+        notification_type = event.get('type_status', 'info')
+        print(f"[WS DEBUG] Received send_notification event: {event}")
+
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps({
+            'message': message,
+            'status': notification_type
         }))
