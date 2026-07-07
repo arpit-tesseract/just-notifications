@@ -67,6 +67,7 @@ class LoginPhoneOTPView(APIView):
                 refresh = RefreshToken.for_user(user_obj)
                 serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
                 
+                # Sample testing notification
                 try:
                     from notification.services.dispatcher import trigger_event
                     trigger_event(
@@ -77,10 +78,7 @@ class LoginPhoneOTPView(APIView):
                         }
                     )
                 except Exception as e:
-                    message = {
-                        'error' : f'{e} notification is not sent'
-                    }
-                    return Response(message,status=status.HTTP_400_BAD_REQUEST)
+                    pass
 
                 return Response(
                                 {   
