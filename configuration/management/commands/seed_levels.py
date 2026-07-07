@@ -34,7 +34,7 @@ class Command(BaseCommand):
             {"dimension": "Professional", "display_name": "Brand", "name": "brand", "single_mode": False},
             
             # Residential Dimension
-            {"dimension": "Residential", "display_name": "Gob", "name": "gob", "single_mode": False},
+            {"dimension": "Residential", "display_name": "Glob", "name": "glob", "single_mode": False},
             {"dimension": "Residential", "display_name": "Continent", "name": "continent", "single_mode": False},
             {"dimension": "Residential", "display_name": "Country", "name": "country", "single_mode": False},
             {"dimension": "Residential", "display_name": "State", "name": "state", "single_mode": False},
