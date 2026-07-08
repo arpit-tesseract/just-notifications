@@ -600,7 +600,7 @@ class ResidentMapping(AuditMixin):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['family', 'residential_details'],
+                fields=['family', 'residential_details', 'residential_type'],
                 name='unique_family_residential_details',
                 violation_error_message="This family is already mapped to this residential details."
             ),
