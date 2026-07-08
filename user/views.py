@@ -2132,14 +2132,13 @@ class NodeSummaryView(APIView):
 
                 # Total users which exist in a family, and that family uses this node (or descendants) in their current residential address
                 total_users = User.objects.filter(
-                    familymember__family__residents__is_current=True,
-                    familymember__family__residents__is_deleted=False,
+                    familymember__family__residents__residential_type__name__iexact='current',
                     familymember__family__residents__residential_details__node_mappings__node__in=descendant_nodes,
-                    is_deleted=False,
-                    familymember__is_deleted=False,
-                    familymember__family__is_deleted=False
+                    is_deleted=False
                 ).distinct().count()
+                print("count perform")
             else:
+                print("count not perform")
                 total_users = 0
 
             response_data[str(node_id)] = {
