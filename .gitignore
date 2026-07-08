@@ -46,3 +46,7 @@ Shashan_Technical_Design_Specification.docx
 
 # env file
 .env
+
+ECOMMERCE_ARCHITECTURE.md
+postman_collection.json
+*.docx
