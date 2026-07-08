@@ -79,11 +79,16 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, contact_no, password=None, **extra_fields):
-        role, _ = UserRole.objects.get_or_create(
+        admin_role_obj, created = UserRole.objects.get_or_create(
             name="admin",
             display_name="Admin"
         )
-        extra_fields.setdefault("user_roles", [role])
+        super_admin_role_obj, created = UserRole.objects.get_or_create(
+            name="super_admin",
+            display_name="Super Admin",
+            parent=admin_role_obj
+        )
+        extra_fields.setdefault("user_roles", [super_admin_role_obj])
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_verified", True)
