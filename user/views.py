@@ -546,6 +546,7 @@ class RegistrationView(APIView):
                             family = main_user_family_obj,
                             user = user_obj,
                             self_relation_type = user.get("self_relation_type"),
+                            post_no = user.get("post_no"),
                             is_main_user = user_obj.id == main_user_obj.id
                         )
                         family_name += user_obj.full_name[0].upper()
