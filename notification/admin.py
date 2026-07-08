@@ -15,12 +15,13 @@ class NotificationCategoryAdmin(admin.ModelAdmin):
     list_filter = ("is_active",)
     search_fields = ("name", "display_name")
 
-
 @admin.register(NotificationTemplate)
 class NotificationTemplateAdmin(admin.ModelAdmin):
-    list_display = ("title", "category", "is_active", "created_at")
+    list_display = ("name", "title", "category", "templatefile", "is_active", "created_at")
+    
     list_filter = ("is_active", "category")
-    search_fields = ("title", "content", "category__name")
+    
+    search_fields = ("name", "title", "content", "category__name")
 
 
 @admin.register(Notification)

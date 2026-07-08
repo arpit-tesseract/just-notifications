@@ -180,7 +180,7 @@ class PushRenderer(BaseRenderer):
     """
 
     #: Maximum character length for push notification bodies.
-    MAX_LENGTH: int = 200
+    # MAX_LENGTH: int = 200
 
     def _do_render(self, template_str: str, context_data: dict[str, Any]) -> str:
         """Render and truncate to :attr:`MAX_LENGTH` characters.
@@ -208,13 +208,15 @@ class PushRenderer(BaseRenderer):
             )
             result = template_str
 
-        if len(result) > self.MAX_LENGTH:
-            logger.debug(
-                "PushRenderer._do_render: truncating rendered string from "
-                "%d to %d chars.",
-                len(result),
-                self.MAX_LENGTH,
-            )
-            return result[: self.MAX_LENGTH - 1] + "…"
+        #PUSH len limitation logic 
+
+        # if len(result) > self.MAX_LENGTH:
+        #     logger.debug(
+        #         "PushRenderer._do_render: truncating rendered string from "
+        #         "%d to %d chars.",
+        #         len(result),
+        #         self.MAX_LENGTH,
+        #     )
+        #     return result[: self.MAX_LENGTH - 1] + "…"
 
         return result
