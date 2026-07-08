@@ -32,6 +32,16 @@ def build_grouping_key(template_id, name):
     return f"{template_id}:{slugify(name or '')}"
 
 
+def build_variant_concept_key(template_id, parts):
+    """
+    Identity of "the same variant across vendors" so the admin can find every vendor who
+    stocks it. ``parts`` = iterable of (attribute_code, value, unit_name-or-None) for the
+    variant-defining attributes only. Two vendors' Blue / US-8 produce the same key.
+    """
+    sig = "|".join(sorted(f"{code}={value}@{unit or ''}" for code, value, unit in parts))
+    return f"{template_id}::{sig}"
+
+
 def build_form_schema(template):
     """
     Dynamic form definition for a template. React / React Native render the merchant's
@@ -61,12 +71,15 @@ def build_form_schema(template):
             'units': [],
         }
         if attr.has_options:
+            # Options carry their unit (or null = all units). The merchant UI filters the
+            # dropdown to the selected unit's options + the all-unit options.
             field['options'] = [
                 {
                     'id': o.id,
                     'value': o.value,
                     'display_value': o.display_value or o.value,
                     'color_hex': o.color_hex,
+                    'unit_id': o.unit_id,
                 }
                 for o in attr.options.filter(is_deleted=False, is_active=True).order_by('sort_order', 'id')
             ]

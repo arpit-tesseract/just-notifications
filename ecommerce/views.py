@@ -1,8 +1,9 @@
 """E-Commerce API views."""
 from decimal import Decimal
 
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -10,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.pagination import CommonPagination
+from ecommerce.pagination import DropdownPagination
 from ecommerce.models import (
     Attribute, AttributeOption, Cart, CartItem, Delivery, MerchantStoreSetting, Order,
     OrderStatusLog, Product, ProductImage, ProductPromotion, ProductReview, ProductTemplate,
@@ -20,20 +22,42 @@ from ecommerce.permissions import (
 )
 from ecommerce.serializers import (
     AddCartItemSerializer, AgentDeliverySerializer, AssignVendorSerializer,
-    AttributeOptionSerializer, AttributeSerializer, BuyerOrderSerializer, CartSerializer,
-    MerchantStoreSettingSerializer, OrderSerializer, PlaceOrderSerializer, ProductDetailSerializer,
-    ProductImageSerializer, ProductListSerializer, ProductPromotionSerializer,
-    ProductReviewSerializer, ProductTemplateDetailSerializer, ProductTemplateSerializer,
-    ProductVariantSerializer, ProductWriteSerializer, StockAdjustSerializer, StockMovementSerializer,
-    TemplateAttributeSerializer, UnitSerializer, UnitTypeSerializer, WishlistItemSerializer,
+    AttributeCreateSerializer, AttributeDetailSerializer, AttributeListSerializer,
+    AttributeOptionCreateSerializer, AttributeOptionDetailSerializer, AttributeOptionListSerializer,
+    AttributeOptionUpdateSerializer, AttributeUpdateSerializer, BuyerOrderListSerializer,
+    BuyerOrderSerializer, CartSerializer, MerchantStoreSettingCreateSerializer,
+    MerchantStoreSettingDetailSerializer, MerchantStoreSettingListSerializer,
+    MerchantStoreSettingUpdateSerializer, OrderListSerializer, OrderSerializer, PlaceOrderSerializer,
+    ProductCreateSerializer, ProductDetailSerializer, ProductImageCreateSerializer,
+    ProductImageDetailSerializer, ProductImageListSerializer, ProductImageUpdateSerializer,
+    ProductListSerializer, ProductPromotionCreateSerializer, ProductPromotionDetailSerializer,
+    ProductPromotionListSerializer, ProductPromotionUpdateSerializer, ProductReviewCreateSerializer,
+    ProductReviewDetailSerializer, ProductReviewListSerializer, ProductReviewUpdateSerializer,
+    ProductTemplateCreateSerializer, ProductTemplateDetailSerializer, ProductTemplateListSerializer,
+    ProductTemplateUpdateSerializer, ProductUpdateSerializer, ProductVariantSerializer,
+    StockAdjustSerializer, StockMovementSerializer, TemplateAttributeCreateSerializer,
+    TemplateAttributeDetailSerializer, TemplateAttributeListSerializer,
+    TemplateAttributeUpdateSerializer, UnitCreateSerializer, UnitDetailSerializer,
+    UnitListSerializer, UnitTypeCreateSerializer, UnitTypeDetailSerializer, UnitTypeListSerializer,
+    UnitTypeUpdateSerializer, UnitUpdateSerializer, WishlistItemSerializer,
 )
 from ecommerce.services import catalog as catalog_service
 from ecommerce.services import orders as order_service
+from ecommerce.services import product_type as product_type_service
 from ecommerce.services.inventory import apply_movement
 
 
 class SoftDeleteModelViewSet(viewsets.ModelViewSet):
-    """ModelViewSet whose destroy performs a soft delete (matches existing modules)."""
+    """
+    ModelViewSet with soft-delete + per-operation serializers.
+
+    Set ``serializer_action_classes`` = {'list':..., 'retrieve':..., 'create':...,
+    'update':..., 'partial_update':...}; anything unset falls back to ``serializer_class``.
+    """
+    serializer_action_classes = {}
+
+    def get_serializer_class(self):
+        return self.serializer_action_classes.get(self.action, self.serializer_class)
 
     def perform_destroy(self, instance):
         if hasattr(instance, 'soft_delete'):
@@ -48,15 +72,31 @@ class SoftDeleteModelViewSet(viewsets.ModelViewSet):
 class UnitTypeViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
     queryset = UnitType.objects.all()
-    serializer_class = UnitTypeSerializer
+    serializer_class = UnitTypeDetailSerializer
+    serializer_action_classes = {
+        'list': UnitTypeListSerializer, 'retrieve': UnitTypeDetailSerializer,
+        'create': UnitTypeCreateSerializer, 'update': UnitTypeUpdateSerializer,
+        'partial_update': UnitTypeUpdateSerializer,
+    }
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code']
+    ordering_fields = ['name', 'created_at']
 
 
 class UnitViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
     queryset = Unit.objects.select_related('unit_type').all()
-    serializer_class = UnitSerializer
+    serializer_class = UnitDetailSerializer
+    serializer_action_classes = {
+        'list': UnitListSerializer, 'retrieve': UnitDetailSerializer,
+        'create': UnitCreateSerializer, 'update': UnitUpdateSerializer,
+        'partial_update': UnitUpdateSerializer,
+    }
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'symbol']
+    ordering_fields = ['name', 'sort_order']
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -67,32 +107,61 @@ class UnitViewSet(SoftDeleteModelViewSet):
 class AttributeViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
     queryset = Attribute.objects.prefetch_related('options').all()
-    serializer_class = AttributeSerializer
+    serializer_class = AttributeDetailSerializer
+    serializer_action_classes = {
+        'list': AttributeListSerializer, 'retrieve': AttributeDetailSerializer,
+        'create': AttributeCreateSerializer, 'update': AttributeUpdateSerializer,
+        'partial_update': AttributeUpdateSerializer,
+    }
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code']
+    ordering_fields = ['name', 'created_at']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        input_type = self.request.query_params.get('input_type')
+        return qs.filter(input_type=input_type) if input_type else qs
 
 
 class AttributeOptionViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
-    queryset = AttributeOption.objects.select_related('attribute').all()
-    serializer_class = AttributeOptionSerializer
+    queryset = AttributeOption.objects.select_related('attribute', 'unit').all()
+    serializer_class = AttributeOptionDetailSerializer
+    serializer_action_classes = {
+        'list': AttributeOptionListSerializer, 'retrieve': AttributeOptionDetailSerializer,
+        'create': AttributeOptionCreateSerializer, 'update': AttributeOptionUpdateSerializer,
+        'partial_update': AttributeOptionUpdateSerializer,
+    }
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['value', 'display_value']
+    ordering_fields = ['sort_order', 'value']
 
     def get_queryset(self):
         qs = super().get_queryset()
         attribute = self.request.query_params.get('attribute')
-        return qs.filter(attribute_id=attribute) if attribute else qs
+        unit = self.request.query_params.get('unit')
+        if attribute:
+            qs = qs.filter(attribute_id=attribute)
+        if unit:
+            qs = qs.filter(Q(unit_id=unit) | Q(unit__isnull=True))
+        return qs
 
 
 class ProductTemplateViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
     queryset = ProductTemplate.objects.prefetch_related('template_attributes__attribute').all()
-    serializer_class = ProductTemplateSerializer
+    serializer_class = ProductTemplateDetailSerializer
+    serializer_action_classes = {
+        'list': ProductTemplateListSerializer, 'retrieve': ProductTemplateDetailSerializer,
+        'create': ProductTemplateCreateSerializer, 'update': ProductTemplateUpdateSerializer,
+        'partial_update': ProductTemplateUpdateSerializer,
+    }
     pagination_class = CommonPagination
-
-    def get_serializer_class(self):
-        if self.action in ('list', 'retrieve'):
-            return ProductTemplateDetailSerializer
-        return ProductTemplateSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code']
+    ordering_fields = ['name', 'created_at']
 
     @action(detail=True, methods=['get'], url_path='form-schema',
             permission_classes=[IsAuthenticated])
@@ -105,8 +174,8 @@ class ProductTemplateViewSet(SoftDeleteModelViewSet):
         template = self.get_object()
         if request.method == 'GET':
             qs = template.template_attributes.filter(is_deleted=False)
-            return Response(TemplateAttributeSerializer(qs, many=True).data)
-        serializer = TemplateAttributeSerializer(data=request.data)
+            return Response(TemplateAttributeDetailSerializer(qs, many=True).data)
+        serializer = TemplateAttributeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(template=template)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -115,23 +184,114 @@ class ProductTemplateViewSet(SoftDeleteModelViewSet):
 class TemplateAttributeViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
     queryset = TemplateAttribute.objects.select_related('attribute', 'template').all()
-    serializer_class = TemplateAttributeSerializer
+    serializer_class = TemplateAttributeDetailSerializer
+    serializer_action_classes = {
+        'list': TemplateAttributeListSerializer, 'retrieve': TemplateAttributeDetailSerializer,
+        'create': TemplateAttributeCreateSerializer, 'update': TemplateAttributeUpdateSerializer,
+        'partial_update': TemplateAttributeUpdateSerializer,
+    }
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['sort_order']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        template = self.request.query_params.get('template')
+        return qs.filter(template_id=template) if template else qs
 
 
-class UnitTypeDropdownView(APIView):
+class BaseDropdownView(APIView):
+    """Searchable dropdown returning 10-per-chunk {id, name} results."""
     permission_classes = [IsAuthenticated]
+    model = None
+    search_fields = ['name']
+    base_filter = {'is_active': True}
+
+    def get_queryset(self):
+        return self.model.objects.filter(**self.base_filter)
+
+    def label(self, obj):
+        return obj.name
 
     def get(self, request):
-        data = [{'id': ut.id, 'name': ut.name} for ut in UnitType.objects.filter(is_active=True)]
-        return Response(data)
+        qs = self.get_queryset()
+        search = request.query_params.get('search', '').strip()
+        if search:
+            q = Q()
+            for field in self.search_fields:
+                q |= Q(**{f"{field}__icontains": search})
+            qs = qs.filter(q)
+        paginator = DropdownPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        data = [{'id': obj.id, 'name': self.label(obj)} for obj in page]
+        return paginator.get_paginated_response(data)
 
 
-class ProductTemplateDropdownView(APIView):
-    permission_classes = [IsAuthenticated]
+class UnitTypeDropdownView(BaseDropdownView):
+    model = UnitType
+    search_fields = ['name', 'code']
 
-    def get(self, request):
-        data = [{'id': t.id, 'name': t.name} for t in ProductTemplate.objects.filter(is_active=True)]
-        return Response(data)
+
+class UnitDropdownView(BaseDropdownView):
+    model = Unit
+    search_fields = ['name', 'symbol']
+
+    def get_queryset(self):
+        qs = Unit.objects.filter(is_active=True)
+        unit_type = self.request.query_params.get('unit_type')
+        return qs.filter(unit_type_id=unit_type) if unit_type else qs
+
+    def label(self, obj):
+        return f"{obj.name} ({obj.unit_type.name})"
+
+
+class AttributeDropdownView(BaseDropdownView):
+    model = Attribute
+    search_fields = ['name', 'code']
+
+
+class ProductTemplateDropdownView(BaseDropdownView):
+    model = ProductTemplate
+    search_fields = ['name', 'code']
+
+
+class ProductTypeView(APIView):
+    """
+    Single-call 'Create Product Type' upsert (business logic -> APIView).
+
+    GET  /product-types/            -> paginated, searchable lightweight list
+    GET  /product-types/<id>/       -> full nested detail (same shape as POST body)
+    POST /product-types/            -> create or update (id in body) template + attributes +
+                                       unit types + units + options in one request
+    DELETE /product-types/<id>/     -> soft delete the template
+    """
+    permission_classes = [IsAdminIdentity]
+
+    def get(self, request, pk=None):
+        if pk:
+            template = get_object_or_404(ProductTemplate, pk=pk)
+            return Response(product_type_service.serialize_product_type(template))
+
+        qs = ProductTemplate.objects.all()
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
+        paginator = CommonPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        data = ProductTemplateListSerializer(page, many=True).data
+        return paginator.get_paginated_response(data)
+
+    def post(self, request):
+        try:
+            template = product_type_service.upsert_product_type(request.data, request.user)
+        except (ValueError, KeyError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(product_type_service.serialize_product_type(template),
+                        status=status.HTTP_200_OK if request.data.get('id') else status.HTTP_201_CREATED)
+
+    def delete(self, request, pk=None):
+        template = get_object_or_404(ProductTemplate, pk=pk)
+        template.soft_delete(user=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # =====================================================================================
@@ -140,22 +300,32 @@ class ProductTemplateDropdownView(APIView):
 class ProductViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAuthenticatedBusinessOrAdmin]
     queryset = Product.objects.select_related('template', 'business_family').all()
+    serializer_class = ProductDetailSerializer
+    serializer_action_classes = {
+        'list': ProductListSerializer, 'retrieve': ProductDetailSerializer,
+        'create': ProductCreateSerializer, 'update': ProductUpdateSerializer,
+        'partial_update': ProductUpdateSerializer,
+    }
     pagination_class = CommonPagination
-
-    def get_serializer_class(self):
-        if self.action in ('create', 'update', 'partial_update'):
-            return ProductWriteSerializer
-        if self.action == 'list':
-            return ProductListSerializer
-        return ProductDetailSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'sku']
+    ordering_fields = ['name', 'base_price', 'created_at']
 
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
+        # Merchants see only their own catalog; admins may scope by ?business_family.
         if is_platform_admin(user):
             business = self.request.query_params.get('business_family')
-            return qs.filter(business_family_id=business) if business else qs
-        return qs.filter(business_family_id__in=user_business_family_ids(user))
+            if business:
+                qs = qs.filter(business_family_id=business)
+        else:
+            qs = qs.filter(business_family_id__in=user_business_family_ids(user))
+        for field in ('status', 'template', 'category'):
+            value = self.request.query_params.get(field)
+            if value:
+                qs = qs.filter(**{f"{field}_id" if field in ('template', 'category') else field: value})
+        return qs
 
     def perform_create(self, serializer):
         business_family = serializer.validated_data.get('business_family')
@@ -179,15 +349,28 @@ class ProductViewSet(SoftDeleteModelViewSet):
         return Response(ProductVariantSerializer(qs, many=True).data)
 
 
-class ProductImageViewSet(viewsets.ModelViewSet):
+class ProductImageViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAuthenticatedBusinessOrAdmin]
     queryset = ProductImage.objects.all()
-    serializer_class = ProductImageSerializer
+    serializer_class = ProductImageDetailSerializer
+    serializer_action_classes = {
+        'list': ProductImageListSerializer, 'retrieve': ProductImageDetailSerializer,
+        'create': ProductImageCreateSerializer, 'update': ProductImageUpdateSerializer,
+        'partial_update': ProductImageUpdateSerializer,
+    }
+    pagination_class = CommonPagination
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['sort_order']
 
     def get_queryset(self):
         qs = super().get_queryset()
         product = self.request.query_params.get('product')
-        return qs.filter(product_id=product) if product else qs
+        variant_group = self.request.query_params.get('variant_group')
+        if product:
+            qs = qs.filter(product_id=product)
+        if variant_group:
+            qs = qs.filter(variant_group_id=variant_group)
+        return qs
 
 
 class VariantStockView(APIView):
@@ -218,31 +401,71 @@ class VariantStockView(APIView):
 # =====================================================================================
 # C. STOREFRONT & DISCOVERY
 # =====================================================================================
-class MerchantStoreSettingViewSet(viewsets.ModelViewSet):
+class MerchantStoreSettingViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAuthenticatedBusinessOrAdmin]
     queryset = MerchantStoreSetting.objects.select_related('business_family').all()
-    serializer_class = MerchantStoreSettingSerializer
+    serializer_class = MerchantStoreSettingDetailSerializer
+    serializer_action_classes = {
+        'list': MerchantStoreSettingListSerializer, 'retrieve': MerchantStoreSettingDetailSerializer,
+        'create': MerchantStoreSettingCreateSerializer, 'update': MerchantStoreSettingUpdateSerializer,
+        'partial_update': MerchantStoreSettingUpdateSerializer,
+    }
+    pagination_class = CommonPagination
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_platform_admin(user):
+            return qs
+        return qs.filter(business_family_id__in=user_business_family_ids(user))
 
 
-class ProductPromotionViewSet(viewsets.ModelViewSet):
+class ProductPromotionViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAdminIdentity]
     queryset = ProductPromotion.objects.all()
-    serializer_class = ProductPromotionSerializer
+    serializer_class = ProductPromotionDetailSerializer
+    serializer_action_classes = {
+        'list': ProductPromotionListSerializer, 'retrieve': ProductPromotionDetailSerializer,
+        'create': ProductPromotionCreateSerializer, 'update': ProductPromotionUpdateSerializer,
+        'partial_update': ProductPromotionUpdateSerializer,
+    }
+    pagination_class = CommonPagination
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['priority_boost', 'start_at']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        for field in ('product', 'business_family', 'promotion_type', 'is_active'):
+            value = self.request.query_params.get(field)
+            if value is not None and value != '':
+                qs = qs.filter(**{field: value})
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
 
-class ProductReviewViewSet(viewsets.ModelViewSet):
+class ProductReviewViewSet(SoftDeleteModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = ProductReview.objects.select_related('user', 'product').all()
-    serializer_class = ProductReviewSerializer
+    serializer_class = ProductReviewDetailSerializer
+    serializer_action_classes = {
+        'list': ProductReviewListSerializer, 'retrieve': ProductReviewDetailSerializer,
+        'create': ProductReviewCreateSerializer, 'update': ProductReviewUpdateSerializer,
+        'partial_update': ProductReviewUpdateSerializer,
+    }
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'comment']
+    ordering_fields = ['rating', 'created_at']
 
     def get_queryset(self):
         qs = super().get_queryset()
-        product = self.request.query_params.get('product')
-        return qs.filter(product_id=product) if product else qs
+        for field in ('product', 'rating'):
+            value = self.request.query_params.get(field)
+            if value:
+                qs = qs.filter(**{field: value})
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -358,23 +581,23 @@ class WishlistView(APIView):
 # D. CART
 # =====================================================================================
 class CartView(APIView):
+    """One active, vendor-agnostic cart per buyer (the vendor is chosen later by the admin)."""
     permission_classes = [IsAuthenticated]
 
-    def _active_cart(self, user, business_family):
-        cart, _ = Cart.objects.get_or_create(
-            user=user, business_family=business_family, status=Cart.STATUS_ACTIVE)
+    def _active_cart(self, user):
+        cart, _ = Cart.objects.get_or_create(user=user, status=Cart.STATUS_ACTIVE)
         return cart
 
     def get(self, request):
-        carts = Cart.objects.filter(user=request.user, status=Cart.STATUS_ACTIVE).prefetch_related('items')
-        return Response(CartSerializer(carts, many=True).data)
+        cart = self._active_cart(request.user)
+        return Response(CartSerializer(cart).data)
 
     def post(self, request):
         serializer = AddCartItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         variant = serializer.validated_data['variant']
         quantity = serializer.validated_data['quantity']
-        cart = self._active_cart(request.user, variant.product.business_family)
+        cart = self._active_cart(request.user)
         item, created = CartItem.objects.get_or_create(
             cart=cart, variant=variant,
             defaults={'quantity': quantity, 'unit_price': variant.price})
@@ -416,9 +639,17 @@ class BuyerOrderViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BuyerOrderSerializer
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['order_no']
+    ordering_fields = ['placed_at', 'created_at']
+
+    def get_serializer_class(self):
+        return BuyerOrderListSerializer if self.action == 'list' else BuyerOrderSerializer
 
     def get_queryset(self):
-        return Order.objects.filter(buyer=self.request.user).prefetch_related('items', 'status_logs')
+        qs = Order.objects.filter(buyer=self.request.user).prefetch_related('items', 'status_logs')
+        status_filter = self.request.query_params.get('status')
+        return qs.filter(status=status_filter) if status_filter else qs
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -436,21 +667,36 @@ class AdminOrderViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAdminIdentity]
     serializer_class = OrderSerializer
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['order_no']
+    ordering_fields = ['placed_at', 'created_at']
+
+    def get_serializer_class(self):
+        return OrderListSerializer if self.action == 'list' else OrderSerializer
 
     def get_queryset(self):
         qs = Order.objects.prefetch_related('items', 'status_logs', 'vendor_assignments')
-        status_filter = self.request.query_params.get('status')
-        return qs.filter(status=status_filter) if status_filter else qs
+        for field in ('status', 'business_family', 'area_node'):
+            value = self.request.query_params.get(field)
+            if value:
+                qs = qs.filter(**{field: value})
+        return qs
 
     @action(detail=False, methods=['get'], url_path='pending')
     def pending(self, request):
         qs = self.get_queryset().filter(
             status__in=[Order.STATUS_PLACED, Order.STATUS_PENDING_ASSIGNMENT])
         page = self.paginate_queryset(qs)
-        serializer = OrderSerializer(page if page is not None else qs, many=True)
+        serializer = OrderListSerializer(page if page is not None else qs, many=True)
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='candidate-vendors')
+    def candidate_vendors(self, request, pk=None):
+        """Vendors who stock every line of this order, with price / delivery-time / priority."""
+        order = self.get_object()
+        return Response(order_service.candidate_vendors(order))
 
     @action(detail=True, methods=['post'], url_path='assign-vendor')
     def assign_vendor(self, request, pk=None):
@@ -471,15 +717,23 @@ class VendorOrderViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticatedBusinessOrAdmin]
     serializer_class = OrderSerializer
     pagination_class = CommonPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['order_no']
+    ordering_fields = ['placed_at', 'created_at']
+
+    def get_serializer_class(self):
+        return OrderListSerializer if self.action == 'list' else OrderSerializer
 
     def get_queryset(self):
         business_ids = user_business_family_ids(self.request.user)
-        return (
+        qs = (
             Order.objects
             .filter(vendor_assignments__business_family_id__in=business_ids)
             .distinct()
             .prefetch_related('items', 'status_logs', 'vendor_assignments')
         )
+        status_filter = self.request.query_params.get('status')
+        return qs.filter(status=status_filter) if status_filter else qs
 
     def _resolve_business(self, request):
         from user.models import BusinessFamily

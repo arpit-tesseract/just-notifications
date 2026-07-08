@@ -63,12 +63,22 @@ class Command(BaseCommand):
         return biz
 
     def _product(self, business, sku, price, template, ta_color, ta_size, opt, us_unit, created_by):
-        if Product.objects.filter(business_family=business, sku=sku).exists():
-            return Product.objects.get(business_family=business, sku=sku)
+        concept_key = catalog_service.build_variant_concept_key(template.id, [
+            (ta_color.attribute.code, 'Blue', None),
+            (ta_size.attribute.code, opt.value, us_unit.name),
+        ])
+        existing = Product.objects.filter(business_family=business, sku=sku).first()
+        if existing:
+            # Self-heal rows created before concept_key / delivery_time existed.
+            if not existing.delivery_time_minutes:
+                existing.delivery_time_minutes = 45
+                existing.save(update_fields=['delivery_time_minutes'])
+            existing.variants.filter(concept_key__isnull=True).update(concept_key=concept_key)
+            return existing
         product = Product.objects.create(
             business_family=business, template=template, name='Nike Air', sku=sku,
             base_price=Decimal('1000.00'), tax_rate=Decimal('0'), delivery_fee=Decimal('40.00'),
-            preparation_time_minutes=30, area_code=AREA_CODE,
+            preparation_time_minutes=30, delivery_time_minutes=45, area_code=AREA_CODE,
             grouping_key=catalog_service.build_grouping_key(template.id, 'Nike Air'),
             created_by=created_by,
         )
@@ -78,7 +88,8 @@ class Command(BaseCommand):
             value_text='Blue')
         variant = ProductVariant.objects.create(
             product=product, variant_group=group, sku=f'{sku}-BL-8', price=Decimal(price),
-            compare_at_price=Decimal('1500.00'), stock_qty=0, low_stock_threshold=2, is_default=True)
+            compare_at_price=Decimal('1500.00'), stock_qty=0, low_stock_threshold=2,
+            is_default=True, concept_key=concept_key)
         VariantAttributeValue.objects.create(
             variant=variant, template_attribute=ta_color, attribute=ta_color.attribute, value_text='Blue')
         VariantAttributeValue.objects.create(

@@ -110,8 +110,18 @@ class Attribute(AuditMixin, SoftDeleteMixin):
 
 
 class AttributeOption(AuditMixin, SoftDeleteMixin):
-    """Choices for dropdown/color attributes, e.g. Size -> 7, 8, 9."""
+    """
+    Choices for dropdown attributes, e.g. Size -> 7, 8, 9.
+
+    Values may be scoped to a Unit: e.g. UK sizes 7/8/9/10 vs US sizes 8/9/10.
+    ``unit = NULL`` means the value applies to all units (e.g. Color = Black/White/Red).
+    When a merchant selects a unit, only that unit's options (+ all-unit options) show.
+    """
     attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE, related_name='options')
+    unit = models.ForeignKey(
+        Unit, on_delete=models.CASCADE, null=True, blank=True, related_name='options',
+        help_text="Null = applies to all units.",
+    )
     value = models.CharField(max_length=100)
     display_value = models.CharField(max_length=100, null=True, blank=True)
     color_hex = models.CharField(max_length=7, null=True, blank=True, help_text="e.g. #1E63FF for swatches")
@@ -124,14 +134,15 @@ class AttributeOption(AuditMixin, SoftDeleteMixin):
         ordering = ['attribute', 'sort_order', 'id']
         constraints = [
             models.UniqueConstraint(
-                fields=['attribute', 'value'],
+                fields=['attribute', 'unit', 'value'],
                 condition=models.Q(is_deleted=False),
-                name='uq_option_value_per_attribute',
+                name='uq_option_value_per_attribute_unit',
             )
         ]
 
     def __str__(self):
-        return f"{self.attribute.name}: {self.display_value or self.value}"
+        unit = f" {self.unit.name}" if self.unit_id else ""
+        return f"{self.attribute.name}: {self.display_value or self.value}{unit}"
 
 
 class ProductTemplate(AuditMixin, SoftDeleteMixin):
@@ -245,6 +256,8 @@ class Product(AuditMixin, SoftDeleteMixin):
     min_order_qty = models.PositiveIntegerField(default=1)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     preparation_time_minutes = models.PositiveIntegerField(default=0)
+    # Delivery time for THIS product (0 = fall back to the store's default_delivery_time_minutes).
+    delivery_time_minutes = models.PositiveIntegerField(default=0)
     # Cached from the merchant's business residential_code -> fast same-area feed filter.
     area_code = models.CharField(max_length=120, null=True, blank=True, db_index=True)
     # template + variant-defining attribute values -> groups identical products for price range.
@@ -338,6 +351,9 @@ class ProductVariant(AuditMixin, SoftDeleteMixin):
     variant_group = models.ForeignKey(
         ProductVariantGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='variants'
     )
+    # Identifies "the same variant across vendors": template + sorted variant-defining values.
+    # Lets the admin find every vendor who stocks this exact variant when routing an order.
+    concept_key = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     sku = models.CharField(max_length=100)
     price = models.DecimalField(
         max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0'))]
@@ -482,9 +498,14 @@ class MerchantStoreSetting(AuditMixin):
     is_online = models.BooleanField(default=True, help_text="Vendor's products eligible for area listings.")
     is_open = models.BooleanField(default=True, help_text="Accepting orders now.")
     min_order_value = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    # Store-wide default delivery time; a product's own delivery_time_minutes overrides it.
+    default_delivery_time_minutes = models.PositiveIntegerField(default=0)
     return_policy = models.TextField(null=True, blank=True)
 
     history = HistoricalRecords()
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"Store settings: {self.business_family.name}"
@@ -584,8 +605,9 @@ class Cart(AuditMixin):
     ]
 
     user = models.ForeignKey('user.User', on_delete=models.CASCADE, related_name='carts')
+    # Vendor-agnostic: the buyer shops product concepts (vendor is chosen later by the admin).
     business_family = models.ForeignKey(
-        'user.BusinessFamily', on_delete=models.CASCADE, related_name='carts'
+        'user.BusinessFamily', on_delete=models.SET_NULL, null=True, blank=True, related_name='carts'
     )
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
 
@@ -594,9 +616,9 @@ class Cart(AuditMixin):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['user', 'business_family'],
+                fields=['user'],
                 condition=models.Q(status='active'),
-                name='uq_active_cart_per_user_business',
+                name='uq_active_cart_per_user',
             )
         ]
 
@@ -687,7 +709,12 @@ class Order(AuditMixin, SoftDeleteMixin):
     delivery_latitude = models.FloatField(null=True, blank=True)
     delivery_longitude = models.FloatField(null=True, blank=True)
 
-    # Money-flow breakdown (no wallet yet, but fully modelled).
+    # Price is a RANGE at placement (many vendors, different prices); finalized on assignment.
+    estimated_min_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    estimated_max_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    is_price_final = models.BooleanField(default=False)
+
+    # Money-flow breakdown (filled when a vendor is assigned; no wallet yet, but fully modelled).
     vendor_subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
     commission_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
@@ -753,19 +780,29 @@ class OrderVendorAssignment(AuditMixin):
 class OrderItem(AuditMixin):
     """Line items with historical snapshots + per-line commission breakdown."""
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
-    variant = models.ForeignKey(ProductVariant, on_delete=models.PROTECT, related_name='order_items')
+    # Bound to the actual fulfilling vendor's variant on assignment (null until then).
+    variant = models.ForeignKey(
+        ProductVariant, on_delete=models.PROTECT, null=True, blank=True, related_name='order_items')
+    template = models.ForeignKey(
+        ProductTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_items')
+    concept_key = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     product_name = models.CharField(max_length=200)
-    variant_sku = models.CharField(max_length=100)
+    variant_sku = models.CharField(max_length=100, null=True, blank=True)
     attributes_snapshot = models.JSONField(default=dict, blank=True)
     image_url = models.CharField(max_length=300, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
 
-    vendor_unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    # Estimated range at placement (per line, incl. commission).
+    estimated_min_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    estimated_max_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+
+    # Finalized on assignment.
+    vendor_unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
     commission_type = models.CharField(max_length=10, null=True, blank=True)
     commission_value = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
     commission_unit_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
-    final_unit_price = models.DecimalField(max_digits=12, decimal_places=2)
-    line_total = models.DecimalField(max_digits=12, decimal_places=2)
+    final_unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
 
     history = HistoricalRecords()
 

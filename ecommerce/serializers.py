@@ -1,8 +1,17 @@
-"""E-Commerce serializers: admin config, catalog (nested create), storefront, cart, orders."""
+"""
+E-Commerce serializers.
+
+Per-operation split (matching the existing codebase style): every CRUD resource exposes
+distinct ``<Model>ListSerializer`` / ``<Model>DetailSerializer`` / ``<Model>CreateSerializer``
+/ ``<Model>UpdateSerializer`` classes, selected by the viewset's ``get_serializer_class``.
+Update subclasses Create so it can diverge later without touching create. List is the
+lightweight table view; Detail is the full record.
+"""
 from decimal import Decimal
 
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator
 
 from ecommerce.models import (
     Attribute, AttributeOption, Cart, CartItem, Delivery, MerchantStoreSetting, Order,
@@ -16,38 +25,129 @@ from ecommerce.services.inventory import apply_movement
 from user.models import BusinessFamily, ResidentialDetails
 
 
+class IdNameSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
 # =====================================================================================
 # A. ADMIN CONFIG
 # =====================================================================================
-class UnitTypeSerializer(serializers.ModelSerializer):
+# ---- UnitType ----
+class UnitTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UnitType
+        fields = ['id', 'name', 'code', 'is_active']
+
+
+class UnitTypeDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UnitType
+        fields = ['id', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at']
+
+
+class UnitTypeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UnitType
         fields = ['id', 'name', 'code', 'description', 'is_active']
 
 
-class UnitSerializer(serializers.ModelSerializer):
+class UnitTypeUpdateSerializer(UnitTypeCreateSerializer):
+    pass
+
+
+# ---- Unit ----
+class UnitListSerializer(serializers.ModelSerializer):
+    unit_type_name = serializers.CharField(source='unit_type.name', read_only=True)
+
+    class Meta:
+        model = Unit
+        fields = ['id', 'unit_type', 'unit_type_name', 'name', 'symbol', 'is_base', 'is_active']
+
+
+class UnitDetailSerializer(serializers.ModelSerializer):
     unit_type_name = serializers.CharField(source='unit_type.name', read_only=True)
 
     class Meta:
         model = Unit
         fields = ['id', 'unit_type', 'unit_type_name', 'name', 'symbol', 'is_base',
-                  'conversion_factor', 'sort_order', 'is_active']
+                  'conversion_factor', 'sort_order', 'is_active', 'created_at', 'updated_at']
 
 
-class AttributeOptionSerializer(serializers.ModelSerializer):
+class UnitCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Unit
+        fields = ['id', 'unit_type', 'name', 'symbol', 'is_base', 'conversion_factor',
+                  'sort_order', 'is_active']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Unit.objects.all(), fields=['unit_type', 'name'],
+                message="A unit with this name already exists for this unit type.")
+        ]
+
+
+class UnitUpdateSerializer(UnitCreateSerializer):
+    pass
+
+
+# ---- AttributeOption ----
+class AttributeOptionListSerializer(serializers.ModelSerializer):
+    unit_name = serializers.CharField(source='unit.name', read_only=True)
+
     class Meta:
         model = AttributeOption
-        fields = ['id', 'attribute', 'value', 'display_value', 'color_hex', 'sort_order', 'is_active']
-        extra_kwargs = {'attribute': {'required': False}}
+        fields = ['id', 'attribute', 'unit', 'unit_name', 'value', 'display_value', 'is_active']
 
 
-class AttributeSerializer(serializers.ModelSerializer):
-    options = AttributeOptionSerializer(many=True, required=False)
+class AttributeOptionDetailSerializer(serializers.ModelSerializer):
+    unit_name = serializers.CharField(source='unit.name', read_only=True)
+
+    class Meta:
+        model = AttributeOption
+        fields = ['id', 'attribute', 'unit', 'unit_name', 'value', 'display_value', 'color_hex',
+                  'sort_order', 'is_active']
+
+
+class AttributeOptionCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttributeOption
+        fields = ['id', 'attribute', 'unit', 'value', 'display_value', 'color_hex',
+                  'sort_order', 'is_active']
+
+
+class AttributeOptionUpdateSerializer(AttributeOptionCreateSerializer):
+    pass
+
+
+class _AttributeOptionNestedSerializer(serializers.ModelSerializer):
+    """Options embedded in an Attribute payload (attribute set by the parent)."""
+    class Meta:
+        model = AttributeOption
+        fields = ['id', 'unit', 'value', 'display_value', 'color_hex', 'sort_order', 'is_active']
+
+
+# ---- Attribute ----
+class AttributeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attribute
+        fields = ['id', 'name', 'code', 'input_type', 'is_active']
+
+
+class AttributeDetailSerializer(serializers.ModelSerializer):
+    options = AttributeOptionDetailSerializer(many=True, read_only=True)
 
     class Meta:
         model = Attribute
-        fields = ['id', 'name', 'code', 'input_type', 'unit_type', 'help_text',
-                  'is_active', 'options']
+        fields = ['id', 'name', 'code', 'input_type', 'unit_type', 'help_text', 'is_active',
+                  'options', 'created_at', 'updated_at']
+
+
+class AttributeCreateSerializer(serializers.ModelSerializer):
+    options = _AttributeOptionNestedSerializer(many=True, required=False)
+
+    class Meta:
+        model = Attribute
+        fields = ['id', 'name', 'code', 'input_type', 'unit_type', 'help_text', 'is_active', 'options']
 
     @transaction.atomic
     def create(self, validated_data):
@@ -70,7 +170,22 @@ class AttributeSerializer(serializers.ModelSerializer):
         return instance
 
 
-class TemplateAttributeSerializer(serializers.ModelSerializer):
+class AttributeUpdateSerializer(AttributeCreateSerializer):
+    pass
+
+
+# ---- TemplateAttribute ----
+class TemplateAttributeListSerializer(serializers.ModelSerializer):
+    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
+    input_type = serializers.CharField(source='attribute.input_type', read_only=True)
+
+    class Meta:
+        model = TemplateAttribute
+        fields = ['id', 'template', 'attribute', 'attribute_name', 'input_type', 'is_required',
+                  'is_variant_defining', 'is_image_defining', 'sort_order']
+
+
+class TemplateAttributeDetailSerializer(serializers.ModelSerializer):
     attribute_name = serializers.CharField(source='attribute.name', read_only=True)
     input_type = serializers.CharField(source='attribute.input_type', read_only=True)
 
@@ -78,17 +193,51 @@ class TemplateAttributeSerializer(serializers.ModelSerializer):
         model = TemplateAttribute
         fields = ['id', 'template', 'attribute', 'attribute_name', 'input_type', 'is_required',
                   'is_variant_defining', 'is_image_defining', 'default_unit', 'sort_order']
+
+
+class TemplateAttributeCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TemplateAttribute
+        fields = ['id', 'template', 'attribute', 'is_required', 'is_variant_defining',
+                  'is_image_defining', 'default_unit', 'sort_order']
         extra_kwargs = {'template': {'required': False}}
 
 
-class ProductTemplateSerializer(serializers.ModelSerializer):
-    """Write serializer; supports nested template_attributes on create/update."""
-    template_attributes = TemplateAttributeSerializer(many=True, required=False)
+class TemplateAttributeUpdateSerializer(TemplateAttributeCreateSerializer):
+    pass
+
+
+# ---- ProductTemplate ----
+class ProductTemplateListSerializer(serializers.ModelSerializer):
+    """Lightweight row for table/list views."""
+    attribute_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductTemplate
-        fields = ['id', 'name', 'code', 'category', 'description', 'image',
-                  'commission_type', 'commission_value', 'is_active', 'template_attributes']
+        fields = ['id', 'name', 'code', 'commission_type', 'commission_value', 'is_active',
+                  'attribute_count']
+
+    def get_attribute_count(self, obj):
+        return obj.template_attributes.filter(is_deleted=False).count()
+
+
+class ProductTemplateDetailSerializer(serializers.ModelSerializer):
+    template_attributes = TemplateAttributeDetailSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductTemplate
+        fields = ['id', 'name', 'code', 'category', 'description', 'image', 'commission_type',
+                  'commission_value', 'is_active', 'template_attributes']
+
+
+class ProductTemplateCreateSerializer(serializers.ModelSerializer):
+    """Supports nested template_attributes on create/update."""
+    template_attributes = TemplateAttributeCreateSerializer(many=True, required=False)
+
+    class Meta:
+        model = ProductTemplate
+        fields = ['id', 'name', 'code', 'category', 'description', 'image', 'commission_type',
+                  'commission_value', 'is_active', 'template_attributes']
 
     @transaction.atomic
     def create(self, validated_data):
@@ -111,23 +260,94 @@ class ProductTemplateSerializer(serializers.ModelSerializer):
         return instance
 
 
-class ProductTemplateDetailSerializer(serializers.ModelSerializer):
-    template_attributes = TemplateAttributeSerializer(many=True, read_only=True)
+class ProductTemplateUpdateSerializer(ProductTemplateCreateSerializer):
+    pass
+
+
+# =====================================================================================
+# B. CATALOG — read serializers + nested product creation
+# =====================================================================================
+class ProductVariantValueSerializer(serializers.ModelSerializer):
+    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
+    display = serializers.CharField(read_only=True)
 
     class Meta:
-        model = ProductTemplate
-        fields = ['id', 'name', 'code', 'category', 'description', 'image',
-                  'commission_type', 'commission_value', 'is_active', 'template_attributes']
+        model = VariantAttributeValue
+        fields = ['id', 'attribute', 'attribute_name', 'option', 'unit', 'value_text',
+                  'value_number', 'value_bool', 'value_date', 'display']
 
 
-class IdNameSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    name = serializers.CharField()
+class ProductVariantSerializer(serializers.ModelSerializer):
+    attribute_values = ProductVariantValueSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductVariant
+        fields = ['id', 'variant_group', 'sku', 'price', 'compare_at_price', 'stock_qty',
+                  'low_stock_threshold', 'weight_grams', 'status', 'is_default', 'concept_key',
+                  'attribute_values']
 
 
-# =====================================================================================
-# B. CATALOG — nested product creation
-# =====================================================================================
+# ---- ProductImage ----
+class ProductImageListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'product', 'variant_group', 'image', 'is_primary', 'sort_order']
+
+
+class ProductImageDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'product', 'variant_group', 'image', 'alt_text', 'is_primary', 'sort_order']
+
+
+class ProductImageCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'product', 'variant_group', 'image', 'alt_text', 'is_primary', 'sort_order']
+
+
+class ProductImageUpdateSerializer(ProductImageCreateSerializer):
+    pass
+
+
+class ProductVariantGroupSerializer(serializers.ModelSerializer):
+    images = ProductImageDetailSerializer(many=True, read_only=True)
+    variants = ProductVariantSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductVariantGroup
+        fields = ['id', 'label', 'sort_order', 'images', 'variants']
+
+
+# ---- Product ----
+class ProductListSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source='template.name', read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'sku', 'template', 'template_name', 'category', 'base_price',
+                  'status', 'delivery_fee', 'delivery_time_minutes', 'created_at']
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source='template.name', read_only=True)
+    variant_groups = ProductVariantGroupSerializer(many=True, read_only=True)
+    images = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'business_family', 'template', 'template_name', 'category', 'name', 'sku',
+                  'slug', 'description', 'base_price', 'tax_rate', 'hsn_code', 'min_order_qty',
+                  'delivery_fee', 'preparation_time_minutes', 'delivery_time_minutes', 'status',
+                  'variant_groups', 'images']
+
+    def get_images(self, obj):
+        # Product-level (generic) images only; group images live under each variant_group.
+        qs = obj.images.filter(variant_group__isnull=True)
+        return ProductImageDetailSerializer(qs, many=True).data
+
+
+# Nested input serializers for product create.
 class VariantAttributeValueInputSerializer(serializers.Serializer):
     template_attribute = serializers.PrimaryKeyRelatedField(queryset=TemplateAttribute.objects.all())
     option = serializers.PrimaryKeyRelatedField(
@@ -165,16 +385,28 @@ class VariantGroupInputSerializer(serializers.Serializer):
     variants = VariantInputSerializer(many=True)
 
 
-class ProductWriteSerializer(serializers.ModelSerializer):
+class ProductCreateSerializer(serializers.ModelSerializer):
     variant_groups = VariantGroupInputSerializer(many=True, write_only=True, required=False)
 
     class Meta:
         model = Product
         fields = ['id', 'business_family', 'template', 'category', 'name', 'sku', 'slug',
                   'description', 'base_price', 'tax_rate', 'hsn_code', 'min_order_qty',
-                  'delivery_fee', 'preparation_time_minutes', 'status', 'variant_groups']
+                  'delivery_fee', 'preparation_time_minutes', 'delivery_time_minutes', 'status',
+                  'variant_groups']
+
+    def _validate_sku_unique(self, attrs):
+        business = attrs.get('business_family') or getattr(self.instance, 'business_family', None)
+        sku = attrs.get('sku') or getattr(self.instance, 'sku', None)
+        if business and sku:
+            clash = Product.objects.filter(business_family=business, sku=sku)
+            if self.instance:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError({'sku': "You already have a product with this SKU."})
 
     def validate(self, attrs):
+        self._validate_sku_unique(attrs)
         template = attrs.get('template') or getattr(self.instance, 'template', None)
         groups = attrs.get('variant_groups', [])
         valid_ta_ids = set(
@@ -193,16 +425,17 @@ class ProductWriteSerializer(serializers.ModelSerializer):
                             f"Attribute '{ta.attribute.name}' requires an option.")
         return attrs
 
-    def _build_value(self, target_kwargs, av, template_attribute):
-        target_kwargs['attribute'] = template_attribute.attribute
-        target_kwargs['template_attribute'] = template_attribute
-        target_kwargs['option'] = av.get('option')
-        target_kwargs['unit'] = av.get('unit')
-        target_kwargs['value_text'] = av.get('value_text')
-        target_kwargs['value_number'] = av.get('value_number')
-        target_kwargs['value_bool'] = av.get('value_bool')
-        target_kwargs['value_date'] = av.get('value_date')
-        return target_kwargs
+    def _build_value(self, av, template_attribute):
+        return {
+            'attribute': template_attribute.attribute,
+            'template_attribute': template_attribute,
+            'option': av.get('option'),
+            'unit': av.get('unit'),
+            'value_text': av.get('value_text'),
+            'value_number': av.get('value_number'),
+            'value_bool': av.get('value_bool'),
+            'value_date': av.get('value_date'),
+        }
 
     @transaction.atomic
     def create(self, validated_data):
@@ -218,92 +451,57 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         product = Product.objects.create(**validated_data)
 
         for group in groups:
-            values = group.get('values', [])
-            variants = group['variants']
             vg = ProductVariantGroup.objects.create(
                 product=product, label=group['label'], sort_order=group.get('sort_order', 1))
-            for val in values:
+            for val in group.get('values', []):
                 ta = val['template_attribute']
                 ProductVariantGroupValue.objects.create(
                     variant_group=vg, template_attribute=ta, attribute=ta.attribute,
                     option=val.get('option'), value_text=val.get('value_text'))
-            for v in variants:
+            for v in group['variants']:
                 initial_stock = v.get('stock_qty', 0) or 0
                 variant = ProductVariant.objects.create(
                     product=product, variant_group=vg, sku=v['sku'], price=v['price'],
                     compare_at_price=v.get('compare_at_price'), stock_qty=0,
                     low_stock_threshold=v.get('low_stock_threshold', 0) or 0,
                     weight_grams=v.get('weight_grams'), is_default=v.get('is_default', False))
+                concept_parts = []
                 for av in v['attribute_values']:
                     ta = av['template_attribute']
-                    VariantAttributeValue.objects.create(
-                        variant=variant, **self._build_value({}, av, ta))
+                    VariantAttributeValue.objects.create(variant=variant, **self._build_value(av, ta))
+                    if ta.is_variant_defining:
+                        opt = av.get('option')
+                        unit = av.get('unit')
+                        value = opt.value if opt else av.get('value_text')
+                        concept_parts.append((ta.attribute.code, value, unit.name if unit else None))
+                variant.concept_key = catalog_service.build_variant_concept_key(
+                    product.template_id, concept_parts)
+                variant.save(update_fields=['concept_key', 'updated_at'])
                 if initial_stock:
                     apply_movement(variant, StockMovement.PURCHASE, initial_stock,
                                    reason="Initial stock", user=user)
         return product
 
 
-class ProductVariantValueSerializer(serializers.ModelSerializer):
-    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
-    display = serializers.CharField(read_only=True)
-
-    class Meta:
-        model = VariantAttributeValue
-        fields = ['id', 'attribute', 'attribute_name', 'option', 'unit', 'value_text',
-                  'value_number', 'value_bool', 'value_date', 'display']
-
-
-class ProductVariantSerializer(serializers.ModelSerializer):
-    attribute_values = ProductVariantValueSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = ProductVariant
-        fields = ['id', 'variant_group', 'sku', 'price', 'compare_at_price', 'stock_qty',
-                  'low_stock_threshold', 'weight_grams', 'status', 'is_default', 'attribute_values']
-
-
-class ProductImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductImage
-        fields = ['id', 'product', 'variant_group', 'image', 'alt_text', 'is_primary', 'sort_order']
-
-
-class ProductVariantGroupSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
-    variants = ProductVariantSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = ProductVariantGroup
-        fields = ['id', 'label', 'sort_order', 'images', 'variants']
-
-
-class ProductListSerializer(serializers.ModelSerializer):
-    template_name = serializers.CharField(source='template.name', read_only=True)
-
+class ProductUpdateSerializer(serializers.ModelSerializer):
+    """Scalar-field update only; variants/images are managed via their own endpoints."""
     class Meta:
         model = Product
-        fields = ['id', 'name', 'sku', 'template', 'template_name', 'category', 'base_price',
-                  'status', 'delivery_fee', 'preparation_time_minutes', 'created_at']
+        fields = ['id', 'category', 'name', 'sku', 'slug', 'description', 'base_price', 'tax_rate',
+                  'hsn_code', 'min_order_qty', 'delivery_fee', 'preparation_time_minutes',
+                  'delivery_time_minutes', 'status']
+
+    def validate(self, attrs):
+        sku = attrs.get('sku') or getattr(self.instance, 'sku', None)
+        business = getattr(self.instance, 'business_family', None)
+        if business and sku:
+            clash = Product.objects.filter(business_family=business, sku=sku).exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError({'sku': "You already have a product with this SKU."})
+        return attrs
 
 
-class ProductDetailSerializer(serializers.ModelSerializer):
-    template_name = serializers.CharField(source='template.name', read_only=True)
-    variant_groups = ProductVariantGroupSerializer(many=True, read_only=True)
-    images = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Product
-        fields = ['id', 'business_family', 'template', 'template_name', 'category', 'name', 'sku',
-                  'slug', 'description', 'base_price', 'tax_rate', 'hsn_code', 'min_order_qty',
-                  'delivery_fee', 'preparation_time_minutes', 'status', 'variant_groups', 'images']
-
-    def get_images(self, obj):
-        # Product-level (generic) images only; group images live under each variant_group.
-        qs = obj.images.filter(variant_group__isnull=True)
-        return ProductImageSerializer(qs, many=True).data
-
-
+# ---- Inventory ----
 class StockMovementSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockMovement
@@ -320,27 +518,85 @@ class StockAdjustSerializer(serializers.Serializer):
 # =====================================================================================
 # D. STOREFRONT
 # =====================================================================================
-class MerchantStoreSettingSerializer(serializers.ModelSerializer):
+# ---- MerchantStoreSetting ----
+class MerchantStoreSettingListSerializer(serializers.ModelSerializer):
+    business_name = serializers.CharField(source='business_family.name', read_only=True)
+
     class Meta:
         model = MerchantStoreSetting
-        fields = ['id', 'business_family', 'is_online', 'is_open', 'min_order_value', 'return_policy']
+        fields = ['id', 'business_family', 'business_name', 'is_online', 'is_open',
+                  'default_delivery_time_minutes']
 
 
-class ProductPromotionSerializer(serializers.ModelSerializer):
+class MerchantStoreSettingDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MerchantStoreSetting
+        fields = ['id', 'business_family', 'is_online', 'is_open', 'min_order_value',
+                  'default_delivery_time_minutes', 'return_policy']
+
+
+class MerchantStoreSettingCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MerchantStoreSetting
+        fields = ['id', 'business_family', 'is_online', 'is_open', 'min_order_value',
+                  'default_delivery_time_minutes', 'return_policy']
+
+
+class MerchantStoreSettingUpdateSerializer(MerchantStoreSettingCreateSerializer):
+    pass
+
+
+# ---- ProductPromotion ----
+class ProductPromotionListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductPromotion
+        fields = ['id', 'product', 'business_family', 'promotion_type', 'priority_boost', 'is_active']
+
+
+class ProductPromotionDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductPromotion
+        fields = ['id', 'product', 'business_family', 'promotion_type', 'priority_boost',
+                  'start_at', 'end_at', 'is_active', 'created_at']
+
+
+class ProductPromotionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductPromotion
         fields = ['id', 'product', 'business_family', 'promotion_type', 'priority_boost',
                   'start_at', 'end_at', 'is_active']
 
 
-class ProductReviewSerializer(serializers.ModelSerializer):
+class ProductPromotionUpdateSerializer(ProductPromotionCreateSerializer):
+    pass
+
+
+# ---- ProductReview ----
+class ProductReviewListSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+
+    class Meta:
+        model = ProductReview
+        fields = ['id', 'product', 'user', 'user_name', 'rating', 'title', 'is_approved', 'created_at']
+
+
+class ProductReviewDetailSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.full_name', read_only=True)
 
     class Meta:
         model = ProductReview
         fields = ['id', 'product', 'user', 'user_name', 'order_item', 'rating', 'title',
                   'comment', 'is_approved', 'created_at']
-        read_only_fields = ['user', 'is_approved']
+
+
+class ProductReviewCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductReview
+        fields = ['id', 'product', 'order_item', 'rating', 'title', 'comment']
+
+
+class ProductReviewUpdateSerializer(ProductReviewCreateSerializer):
+    pass
 
 
 class WishlistItemSerializer(serializers.ModelSerializer):
@@ -352,7 +608,7 @@ class WishlistItemSerializer(serializers.ModelSerializer):
 
 
 # =====================================================================================
-# E. CART & ORDERS
+# E. CART & ORDERS (service-driven; read serializers + small input serializers)
 # =====================================================================================
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='variant.product.name', read_only=True)
@@ -372,7 +628,7 @@ class CartSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cart
-        fields = ['id', 'business_family', 'status', 'items']
+        fields = ['id', 'status', 'items']
 
 
 class AddCartItemSerializer(serializers.Serializer):
@@ -383,9 +639,10 @@ class AddCartItemSerializer(serializers.Serializer):
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
-        fields = ['id', 'product_name', 'variant_sku', 'attributes_snapshot', 'image_url',
-                  'quantity', 'vendor_unit_price', 'commission_unit_amount', 'final_unit_price',
-                  'line_total']
+        fields = ['id', 'template', 'concept_key', 'product_name', 'variant_sku',
+                  'attributes_snapshot', 'image_url', 'quantity',
+                  'estimated_min_price', 'estimated_max_price',
+                  'vendor_unit_price', 'commission_unit_amount', 'final_unit_price', 'line_total']
 
 
 class OrderStatusLogSerializer(serializers.ModelSerializer):
@@ -424,6 +681,15 @@ class AgentDeliverySerializer(serializers.ModelSerializer):
                   'delivered_at', 'proof_image', 'otp_verified']
 
 
+class OrderListSerializer(serializers.ModelSerializer):
+    """Lightweight order row for admin/vendor tables."""
+    class Meta:
+        model = Order
+        fields = ['id', 'order_no', 'buyer', 'business_family', 'status', 'payment_status',
+                  'is_price_final', 'estimated_min_total', 'estimated_max_total', 'total_amount',
+                  'placed_at']
+
+
 class OrderSerializer(serializers.ModelSerializer):
     """Full order view (admin/vendor). Buyer-facing view hides the vendor via the view layer."""
     items = OrderItemSerializer(many=True, read_only=True)
@@ -435,9 +701,17 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ['id', 'order_no', 'buyer', 'area_node', 'listing_business_family',
                   'business_family', 'assigned_admin', 'assigned_at', 'delivery_address',
+                  'estimated_min_total', 'estimated_max_total', 'is_price_final',
                   'vendor_subtotal', 'commission_amount', 'subtotal', 'tax_amount',
                   'delivery_fee', 'discount_amount', 'total_amount', 'status', 'payment_status',
                   'placed_at', 'note', 'items', 'status_logs', 'vendor_assignments', 'delivery']
+
+
+class BuyerOrderListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['id', 'order_no', 'status', 'payment_status', 'is_price_final',
+                  'estimated_min_total', 'estimated_max_total', 'total_amount', 'placed_at']
 
 
 class BuyerOrderSerializer(serializers.ModelSerializer):
@@ -447,9 +721,10 @@ class BuyerOrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['id', 'order_no', 'delivery_address', 'subtotal', 'tax_amount', 'delivery_fee',
-                  'discount_amount', 'total_amount', 'status', 'payment_status', 'placed_at',
-                  'note', 'items', 'status_logs']
+        fields = ['id', 'order_no', 'delivery_address', 'estimated_min_total', 'estimated_max_total',
+                  'is_price_final', 'subtotal', 'tax_amount', 'delivery_fee', 'discount_amount',
+                  'total_amount', 'status', 'payment_status', 'placed_at', 'note', 'items',
+                  'status_logs']
 
 
 class PlaceOrderSerializer(serializers.Serializer):

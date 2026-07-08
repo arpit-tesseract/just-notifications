@@ -24,11 +24,17 @@ router.register(r'admin-orders', views.AdminOrderViewSet, basename='admin-orders
 router.register(r'vendor-orders', views.VendorOrderViewSet, basename='vendor-orders')
 router.register(r'my-deliveries', views.AgentDeliveryViewSet, basename='my-deliveries')
 
+# NOTE: specific paths MUST precede the router include, otherwise the router's
+# `<resource>/<pk>/` pattern shadows `<resource>/dropdown/`.
 urlpatterns = [
-    path('', include(router.urls)),
+    # Single-call Create Product Type (upsert) — one API for template + attributes + units + options
+    path('product-types/', views.ProductTypeView.as_view(), name='product-types'),
+    path('product-types/<int:pk>/', views.ProductTypeView.as_view(), name='product-type-detail'),
 
-    # Dropdowns
+    # Dropdowns (searchable, 10-per-chunk)
     path('unit-types/dropdown/', views.UnitTypeDropdownView.as_view()),
+    path('units/dropdown/', views.UnitDropdownView.as_view()),
+    path('attributes/dropdown/', views.AttributeDropdownView.as_view()),
     path('templates/dropdown/', views.ProductTemplateDropdownView.as_view()),
 
     # Inventory
@@ -42,4 +48,7 @@ urlpatterns = [
     # Cart & checkout
     path('cart/', views.CartView.as_view(), name='cart'),
     path('orders/place/', views.PlaceOrderView.as_view(), name='place-order'),
+
+    # Router (generic CRUD) last so the specific routes above win.
+    path('', include(router.urls)),
 ]
