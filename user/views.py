@@ -2085,3 +2085,67 @@ class AdminResidentialNodeAssignmentView(APIView):
         updated_assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user.id)
         out_serializer = AdminResidentialNodeAssignmentOutputSerializer(updated_assignments, many=True)
         return Response({"message": "Admin node assignments updated successfully.", "user_id": user.id, "assignments": out_serializer.data}, status=status.HTTP_200_OK)
+
+class NodeSummaryView(APIView):
+    def get(self, request, *args, **kwargs):
+        dimension = request.query_params.get('dimension', '').strip()
+        node_ids_str = request.query_params.get('node_ids')
+
+        if not dimension or not node_ids_str:
+            return Response({"error": "Both 'dimension' and 'node_ids' are required parameters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            node_ids = [int(n.strip()) for n in node_ids_str.split(',') if n.strip().isdigit()]
+        except ValueError:
+            return Response({"error": "Invalid node_ids format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not node_ids:
+            return Response({"error": "No valid node_ids provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        node_objs = Node.objects.filter(id__in=node_ids)
+        node_map = {node_obj.id: node_obj for node_obj in node_objs}
+
+        response_data = {}
+
+        for node_id in node_ids:
+            if node_id not in node_map:
+                response_data[str(node_id)] = {
+                    "error": "Node not found"
+                }
+                continue
+
+            node_obj = node_map[node_id]
+
+            # Immediate child nodes only (e.g. Talukas directly under a District)
+            total_child_nodes = Node.objects.filter(
+                parent_id=node_obj.id,
+                is_deleted=False
+            ).count()
+
+            if dimension == 'residential':
+                # Find all descendant nodes including itself to match address correctly
+                descendant_nodes = Node.objects.filter(
+                    Q(hierarchy_path=node_obj.hierarchy_path) | Q(hierarchy_path__startswith=f"{node_obj.hierarchy_path}/"),
+                    dimension=node_obj.dimension,
+                    is_deleted=False
+                )
+
+                # Total users which exist in a family, and that family uses this node (or descendants) in their current residential address
+                total_users = User.objects.filter(
+                    familymember__family__residents__is_current=True,
+                    familymember__family__residents__is_deleted=False,
+                    familymember__family__residents__residential_details__node_mappings__node__in=descendant_nodes,
+                    is_deleted=False,
+                    familymember__is_deleted=False,
+                    familymember__family__is_deleted=False
+                ).distinct().count()
+            else:
+                total_users = 0
+
+            response_data[str(node_id)] = {
+                "total_users": total_users,
+                "total_child_nodes": total_child_nodes
+            }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+

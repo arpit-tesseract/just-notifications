@@ -36,4 +36,5 @@ urlpatterns = [
 
     path('admin/register/', views.AdminRegistrationView.as_view(), name='admin_register'),
     path('admin/residential-node-assignments/', views.AdminResidentialNodeAssignmentView.as_view(), name='admin_node_assignments'),
+    path('node-summary/', views.NodeSummaryView.as_view(), name='node_summary'),
 ]
