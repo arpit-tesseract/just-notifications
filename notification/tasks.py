@@ -122,7 +122,20 @@ def process_event_task(
     # Use the appropriate renderer based on the template's primary channel.
     renderer = EmailRenderer() if NotificationChannel.EMAIL in template.channels else PushRenderer()
     rendered_title: str = renderer.render(template.title, context_data)
-    rendered_content: str = renderer.render(template.content, context_data)
+
+    # loading html content
+    raw_content = template.content
+    if NotificationChannel.EMAIL in template.channels and template.templatefile:
+        try:
+            template.templatefile.open('r')
+            raw_content = template.templatefile.read()
+            if isinstance(raw_content, bytes):
+                raw_content = raw_content.decode('utf-8')
+            template.templatefile.close()
+        except Exception as e:
+            logger.error(f"process_event_task: Failed to read templatefile for {template_name}: {e}")
+            
+    rendered_content: str = renderer.render(raw_content, context_data)
 
     # ── 3. Persist Notification record ──────────────────────────────────────
     notification: Notification = Notification.objects.create(
@@ -227,7 +240,20 @@ def bulk_process_event_task(
 
     renderer = EmailRenderer() if NotificationChannel.EMAIL in template.channels else PushRenderer()
     rendered_title = renderer.render(template.title, context_data)
-    rendered_content = renderer.render(template.content, context_data)
+
+    # loading html content
+    raw_content = template.content
+    if NotificationChannel.EMAIL in template.channels and template.templatefile:
+        try:
+            template.templatefile.open('r')
+            raw_content = template.templatefile.read()
+            if isinstance(raw_content, bytes):
+                raw_content = raw_content.decode('utf-8')
+            template.templatefile.close()
+        except Exception as e:
+            logger.error(f"bulk_process_event_task: Failed to read templatefile for {template_name}: {e}")
+
+    rendered_content = renderer.render(raw_content, context_data)
 
     dispatched = []
 

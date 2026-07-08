@@ -35,14 +35,23 @@ class NotificationTemplate(TimeStampMixin):
     category = models.ForeignKey(NotificationCategory, on_delete=models.CASCADE, related_name='templates')
     name = models.CharField(max_length=255, unique=True)
     title = models.CharField(max_length=255)
-    content = models.TextField()
+    content = models.TextField(blank=True) # Made blank=True since emails might only use the file
     icon = models.CharField(max_length=50, default='bi-info-circle-fill')
     icon_color = models.CharField(max_length=50, default='info')
     channels = models.JSONField(default=list)
+    
+    # NEW FIELD
+    templatefile = models.FileField(upload_to='notification_templates/email/', blank=True, null=True)
+    
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.name} - {self.title}"
+
+    # OPTIONAL: Enforce that email channels have a templatefile
+    def clean(self):
+        if NotificationChannel.EMAIL in self.channels and not self.templatefile:
+            raise ValidationError("Email templates must have a 'templatefile' attached.")
     
 
 class Notification(TimeStampMixin):
