@@ -118,30 +118,38 @@ def process_event_task(
         )
         return {"notification_id": None, "channels_dispatched": []}
 
-    # ── 2. Render title & content ────────────────────────────────────────────
-    # Use the appropriate renderer based on the template's primary channel.
-    renderer = EmailRenderer() if NotificationChannel.EMAIL in template.channels else PushRenderer()
-    rendered_title: str = renderer.render(template.title, context_data)
+# ── 2. Render title & separate contents ──────────────────────────────────
+    email_renderer = EmailRenderer()
+    push_renderer = PushRenderer()
+    
+    # We can use push_renderer for the title as it's just plain text
+    rendered_title: str = push_renderer.render(template.title, context_data)
+    
+    # Render Push/In-App/SMS Content (Always uses the database text field)
+    push_rendered_content: str = push_renderer.render(template.content, context_data)
 
-    # loading html content
-    raw_content = template.content
+    # Render Email Content (Uses templatefile if available, otherwise fallback to database)
+    raw_email_content = template.content
     if NotificationChannel.EMAIL in template.channels and template.templatefile:
         try:
-            template.templatefile.open('r')
-            raw_content = template.templatefile.read()
-            if isinstance(raw_content, bytes):
-                raw_content = raw_content.decode('utf-8')
-            template.templatefile.close()
+            with template.templatefile.open('r') as f:
+                raw_email_content = f.read()
+                if isinstance(raw_email_content, bytes):
+                    raw_email_content = raw_email_content.decode('utf-8')
         except Exception as e:
             logger.error(f"process_event_task: Failed to read templatefile for {template_name}: {e}")
             
-    rendered_content: str = renderer.render(raw_content, context_data)
+    email_rendered_content: str = email_renderer.render(raw_email_content, context_data)
 
     # ── 3. Persist Notification record ──────────────────────────────────────
+    # Save the push content to the DB for history (so your frontend doesn't load massive HTML),
+    # unless it's strictly an email-only notification.
+    db_content = push_rendered_content if template.content else email_rendered_content
+    
     notification: Notification = Notification.objects.create(
         template=template,
         title=rendered_title,
-        content=rendered_content,
+        content=db_content,
         icon=template.icon,
         icon_color=template.icon_color,
         context_data=context_data,
@@ -161,13 +169,10 @@ def process_event_task(
     )
 
     # ── 4. Fan-out per channel ────────────────────────────────────────────────
-    # Fetch channels directly from the template (e.g. ["in_app", "email"])
     active_channels: list[str] = template.channels or []
-
     dispatched: list[str] = []
 
     for channel in active_channels:
-        # Create the recipient record that tracks per-channel delivery state.
         recipient: NotificationRecipient = NotificationRecipient.objects.create(
             notification=notification,
             user_id=user_id,
@@ -175,12 +180,14 @@ def process_event_task(
             status=NotificationRecipientStatus.UNREAD,
         )
 
-        recipient_id: int = recipient.pk
+        # CHOOSE THE CORRECT CONTENT BASED ON THE CHANNEL
+        channel_content = email_rendered_content if channel == NotificationChannel.EMAIL else push_rendered_content
+
         payload: dict[str, Any] = {
             "notification_id": notification.pk,
-            "recipient_id": recipient_id,
+            "recipient_id": recipient.pk,
             "title": rendered_title,
-            "content": rendered_content,
+            "content": channel_content, 
             "icon": template.icon,
             "icon_color": template.icon_color,
             "context_data": context_data,
@@ -197,7 +204,7 @@ def process_event_task(
         logger.info(
             "process_event_task: dispatched channel=%r for recipient_id=%d",
             channel,
-            recipient_id,
+            recipient.pk,
         )
 
     # ── 5. Mark Notification as SENT if at least one channel was dispatched ─
