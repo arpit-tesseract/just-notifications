@@ -545,7 +545,7 @@ class RegistrationView(APIView):
                     for user in created_users:
                         user_obj = user.get("user")
                         FamilyMember.objects.update_or_create(
-                            family=family_obj,
+                            family=main_user_family_obj,
                             user=user_obj,
                             defaults={
                                 "self_relation_type": user.get("self_relation_type"),
