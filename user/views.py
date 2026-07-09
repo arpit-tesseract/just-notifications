@@ -374,6 +374,8 @@ class RegistrationView(APIView):
                                 professional_details_obj.residential_details = bussiness_residential_obj
                                 professional_details_obj.designation = designation_obj
                                 professional_details_obj.is_active = is_active
+                                professional_details_obj.owner_name = professional_details.get('owner_name')
+                                professional_details_obj.owner_contact_no = professional_details.get('owner_contact_no')
                                 professional_details_obj.save()
                             except UserProfessionalDetails.DoesNotExist:
                                 raise ValidationError({
@@ -386,7 +388,9 @@ class RegistrationView(APIView):
                                 business_family = business_family_obj,
                                 residential_details=bussiness_residential_obj,
                                 designation=designation_obj,
-                                is_active=is_active
+                                is_active=is_active,
+                                owner_name = professional_details.get('owner_name'),
+                                owner_contact_no = professional_details.get('owner_contact_no'),
                             )
 
                         if company_name and business_family_obj:
@@ -1648,7 +1652,8 @@ class BusinessView(APIView):
                 prof_left_date = prof_details_data.get('left_date')
                 prof_experience = prof_details_data.get('experience')
                 prof_is_active = prof_details_data.get('is_active', True)
-
+                prof_owner_name = prof_details_data.get('owner_name')
+                prof_owner_contact_no = prof_details_data.get('owner_contact_no')
                 # Use prof_designation if provided, otherwise fall back to self_designation_type
                 effective_designation = prof_designation or designation_type_obj
 
@@ -1722,6 +1727,8 @@ class BusinessView(APIView):
                     'left_date': prof_left_date,
                     'experience': prof_experience,
                     'is_active': prof_is_active,
+                    'owner_name': prof_owner_name,
+                    'owner_contact_no': prof_owner_contact_no,
                 }
 
                 if prof_id:

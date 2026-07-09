@@ -420,7 +420,9 @@ class UserProfessionalDetails(AuditMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='professional_details')
     residential_details = models.ForeignKey(ResidentialDetails, on_delete=models.SET_NULL, null=True, blank=True)
     designation = models.ForeignKey('DesignationType', on_delete=models.SET_NULL, null=True, blank=True)
-    # Duration of employment / engagement
+    # Duration of employment / engagement;
+    owner_name = models.CharField(max_length=50, null = True, blank=True)
+    owner_contact_no = PhoneNumberField(max_length=50, unique=True)
     joined_date = models.DateField(blank=True, null=True, help_text="Date the person joined this role")
     left_date = models.DateField(blank=True, null=True, help_text="Date the person left (null = currently active)")
     experience = models.CharField(

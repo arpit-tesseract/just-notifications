@@ -85,6 +85,8 @@ class UserProfessionalDetailsInputSerializer(serializers.Serializer):
         queryset = DesignationType.objects.filter(is_active=True),
         required=True, allow_null=True 
     )
+    owner_name = serializers.CharField(max_length=50, required=False, allow_null=True)
+    owner_contact_no = PhoneNumberField(max_length=50, required=True, allow_null=False)
     joined_date = serializers.DateField(required=True, allow_null=True)
     left_date = serializers.DateField(required=False, allow_null=True)
     experience = serializers.CharField(required=False, allow_null=True)
@@ -659,6 +661,8 @@ class UserDetailsOutputSerializer(serializers.ModelSerializer):
                         "name": detail.designation.display_name
                     } if detail.designation else None,
                     "professional_code": detail.professional_code,
+                    "owner_name": detail.owner_name,
+                    "owner_contact_no": str(detail.owner_contact_no) if detail.owner_contact_no else None,
                     "joined_date": detail.joined_date,
                     "left_date": detail.left_date,
                     "experience": detail.experience,
@@ -807,6 +811,8 @@ class BusinessMemberProfessionalDetailsInputSerializer(serializers.Serializer):
         queryset = DesignationType.objects.filter(is_active=True),
         required=True, allow_null=True 
     )
+    owner_name = serializers.CharField(max_length=50, required=False, allow_null=True)
+    owner_contact_no = PhoneNumberField(max_length=50, required=True, allow_null=False)
     joined_date = serializers.DateField(required=True, allow_null=True)
     left_date = serializers.DateField(required=False, allow_null=True)
     experience = serializers.CharField(required=False, allow_null=True)
@@ -1180,6 +1186,8 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
                     "id": prof_detail.id,
                     "designation": prof_detail.designation.id if prof_detail.designation else None,
                     "professional_details": get_level_node_mapping(prof_detail.professional_node_mappings.all()),
+                    "owner_name": prof_detail.owner_name,
+                    "owner_contact_no": str(prof_detail.owner_contact_no) if prof_detail.owner_contact_no else None,
                     "joined_date": prof_detail.joined_date,
                     "left_date": prof_detail.left_date,
                     "experience": prof_detail.experience,
@@ -1485,6 +1493,8 @@ class AdminRegistrationOutputSerializer(serializers.Serializer):
                     "id": prof_detail.id,
                     "designation": prof_detail.designation.id if prof_detail.designation else None,
                     "professional_details": get_level_node_mapping(prof_detail.professional_node_mappings.all()),
+                    "owner_name": prof_detail.owner_name,
+                    "owner_contact_no": str(prof_detail.owner_contact_no) if prof_detail.owner_contact_no else None,
                     "joined_date": prof_detail.joined_date,
                     "left_date": prof_detail.left_date,
                     "experience": prof_detail.experience,
