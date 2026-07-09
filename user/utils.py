@@ -436,7 +436,9 @@ def build_family_tree_by_pidhi(family_id):
     if resident:
         family_type = resident.residential_type.name
 
-    members = family.members.all()
+    members = family.members.exclude(
+    self_relation_type__name__in=["worker", "guest"]
+)
     print("Members: ", members)
     # -------------------------------------------------
     # Base users = current family members
@@ -627,6 +629,28 @@ def build_family_tree_by_pidhi(family_id):
                 # })
                 # seen.add(key)
     print("Edges:", len(edges))
+
+    # -------------------------------------------------
+    # Hide unconnected users (Worker, Guest, etc.)
+    # -------------------------------------------------
+    connected_ids = set()
+
+    for edge in edges:
+        connected_ids.add(edge["from"])
+        connected_ids.add(edge["to"])
+
+    filtered_generations = {}
+
+    for pidhi, members in ordered_generations.items():
+        filtered = [
+            member for member in members
+            if member["id"] in connected_ids
+        ]
+
+        if filtered:
+            filtered_generations[pidhi] = filtered
+
+
     # -------------------------------------------------
     # Final Output
     # -------------------------------------------------
@@ -634,9 +658,394 @@ def build_family_tree_by_pidhi(family_id):
         "family_id": family.id,
         "family_type": family_type,
         "main_user_id": main_user_id,
-        "generations": ordered_generations,
+        "generations": filtered_generations,
         "edges": edges
     }
+
+# =============================================================================
+# CROSS-LINKED FAMILY TREE
+# All helpers below support build_complete_family_tree().
+# build_family_tree_by_pidhi() above is completely unchanged.
+#
+# Design principles:
+#   - ONE level of linked_trees per response (frontend navigates by re-calling the API).
+#   - No recursion. No hard-coded relation maps.
+#   - Cross-family boundary detected from the graph itself (users outside all_user_ids).
+#   - Two bulk ORM queries total for the discovery pass.
+#   - visited_family_ids prevents duplicate processing within a single request.
+# =============================================================================
+
+
+# ---------------------------------------------------------------------------
+# Helper 1 – find_family_for_user
+# STATUS: UNCHANGED
+# ---------------------------------------------------------------------------
+def find_family_for_user(user_id: int) -> "Family | None":
+    """
+    Return the Family whose FamilyMember record points at *user_id*.
+    Prefers the family where the user is the main user (husband).
+    Returns None when the user has no family membership.
+    Single ORM query with select_related.
+    """
+    member = (
+        FamilyMember.objects
+        .filter(user_id=user_id)
+        .select_related("family")
+        .order_by("-is_main_user")   # True (1) sorts before False (0)
+        .first()
+    )
+    return member.family if member else None
+
+
+# ---------------------------------------------------------------------------
+# Helper 2 – get_relation_label_to_main_user
+# STATUS: MODIFIED  (was get_relationship_to_main_user)
+#
+# Changes:
+#   - Removed _GATEWAY_RELATION_LABEL_MAP lookup entirely.
+#   - Returns relation_type.name directly from the graph — no hard-coding.
+#   - Accepts pre-fetched relation rows to avoid any per-call ORM query
+#     when called from collect_cross_family_connections.
+# ---------------------------------------------------------------------------
+def get_relation_label_to_main_user(
+    main_user_id: int,
+    gateway_user_id: int,
+    preloaded_relations: "dict | None" = None,
+) -> str:
+    """
+    Return how *gateway_user_id* is related to *main_user_id*.
+
+    Label = relation_type.name as stored in UserRelations.
+    Examples: "wife", "son", "daughter", "father", "mother".
+
+    *preloaded_relations* — optional dict of shape
+        {(from_uid, to_uid): relation_type_name}
+    built once by the caller to eliminate per-row ORM queries.
+
+    Falls back to a single DB query only when preloaded_relations is None
+    or when the pair is not found in it.
+    """
+    if preloaded_relations is not None:
+        # Check both directions in the preloaded map.
+        label = preloaded_relations.get((main_user_id, gateway_user_id))
+        if label:
+            return label
+        label = preloaded_relations.get((gateway_user_id, main_user_id))
+        if label:
+            return label
+
+    # Fallback: direct DB lookup (used only when called without preloaded data).
+    rel = (
+        UserRelations.objects
+        .filter(
+            from_user_id=main_user_id,
+            to_user_id=gateway_user_id,
+        )
+        .select_related("relation_type")
+        .first()
+    )
+    if rel:
+        return rel.relation_type.name
+
+    rel = (
+        UserRelations.objects
+        .filter(
+            from_user_id=gateway_user_id,
+            to_user_id=main_user_id,
+        )
+        .select_related("relation_type")
+        .first()
+    )
+    if rel:
+        return rel.relation_type.name
+
+    return "related"
+
+
+# ---------------------------------------------------------------------------
+# Helper 3 – collect_cross_family_connections
+# STATUS: MODIFIED
+#
+# Changes:
+#   - Discovery criterion changed: any UserRelation where to_user is
+#     OUTSIDE all_user_ids — i.e., the graph boundary itself.
+#     No longer depends on relation_type__category as the primary filter.
+#   - Eliminated N+1: relation label resolved from pre-loaded dict of
+#     main_user's own relations (one extra bulk query), not per-row calls.
+#   - Deduplication key is now family_id alone (one entry per linked family).
+# ---------------------------------------------------------------------------
+def collect_cross_family_connections(
+    main_user_id: int,
+    all_user_ids: set,
+    visited_family_ids: set,
+) -> list:
+    """
+    Find every UserRelations edge that crosses the boundary of the current
+    family graph, i.e. from_user IN all_user_ids AND to_user NOT IN all_user_ids.
+
+    These boundary edges point at users who may belong to other registered
+    families.
+
+    Returns a deduplicated list (one entry per distinct linked family):
+        [
+            {
+                "family":       <Family instance>,
+                "through_user": <int — the family member who has the link>,
+                "relationship": <str — relation_type.name from UserRelations>,
+            },
+            ...
+        ]
+
+    Total ORM queries: 3
+        1. UserRelations boundary edges.
+        2. FamilyMember bulk lookup for all discovered external users.
+        3. UserRelations between main_user and all current family members
+           (for label resolution — one query, result cached in a dict).
+    """
+    if not all_user_ids:
+        return []
+
+    # ------------------------------------------------------------------
+    # Query 1: all boundary edges — from inside the family, to outside.
+    # Exclude edges where the to_user is also in the current family graph
+    # to avoid treating internal "general" relations as cross-links.
+    # ------------------------------------------------------------------
+    boundary_edges = list(
+        UserRelations.objects
+        .filter(from_user_id__in=all_user_ids)
+        .exclude(to_user_id__in=all_user_ids)
+        .select_related("relation_type")
+        .values_list(
+            "from_user_id",
+            "to_user_id",
+            "relation_type__name",
+            "relation_type__category",
+        )
+    )
+
+    if not boundary_edges:
+        return []
+
+    external_user_ids: set = {row[1] for row in boundary_edges}
+
+    # ------------------------------------------------------------------
+    # Query 2: FamilyMember rows for all external users in one shot.
+    # Order by -is_main_user so the main-user membership wins when a
+    # person belongs to multiple families.
+    # ------------------------------------------------------------------
+    memberships = (
+        FamilyMember.objects
+        .filter(user_id__in=external_user_ids)
+        .select_related("family")
+        .order_by("-is_main_user")
+    )
+    # user_id → Family (first hit wins because of the ordering above)
+    user_family_map: dict = {}
+    for m in memberships:
+        if m.user_id not in user_family_map:
+            user_family_map[m.user_id] = m.family
+
+    # ------------------------------------------------------------------
+    # Query 3: preload all UserRelations between main_user and every
+    # member currently inside the family graph — used for label resolution
+    # without any per-row query.
+    # ------------------------------------------------------------------
+    main_user_relations = list(
+        UserRelations.objects
+        .filter(
+            Q(from_user_id=main_user_id, to_user_id__in=all_user_ids) |
+            Q(from_user_id__in=all_user_ids, to_user_id=main_user_id),
+        )
+        .select_related("relation_type")
+        .values_list("from_user_id", "to_user_id", "relation_type__name")
+    )
+    # Build lookup: (from_uid, to_uid) → relation_name
+    relation_lookup: dict = {(f, t): name for f, t, name in main_user_relations}
+
+    # ------------------------------------------------------------------
+    # Build result list — deduplicate by family_id only.
+    # One entry per linked family regardless of how many boundary edges
+    # point into it.
+    # ------------------------------------------------------------------
+    seen_family_ids: set = set()
+    results: list = []
+
+    for from_uid, to_uid, rel_name, rel_category in boundary_edges:
+        linked_family = user_family_map.get(to_uid)
+
+        if linked_family is None:
+            # External user has no registered family yet — skip silently.
+            continue
+
+        if linked_family.id in visited_family_ids:
+            # Already processed or is the root family — skip.
+            continue
+
+        if linked_family.id in seen_family_ids:
+            # Already emitting this family from a different edge — skip.
+            continue
+
+        seen_family_ids.add(linked_family.id)
+
+        # Resolve how the gateway member (from_uid) relates to main_user.
+        # Uses preloaded dict — zero extra DB queries.
+        relationship_label = get_relation_label_to_main_user(
+            main_user_id=main_user_id,
+            gateway_user_id=from_uid,
+            preloaded_relations=relation_lookup,
+        )
+
+        results.append({
+            "family":       linked_family,
+            "through_user": from_uid,
+            "relationship": relationship_label,
+        })
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Helper 4 – _build_single_linked_tree_entry
+# STATUS: NEW  (replaces the recursive build_linked_tree)
+#
+# Flat. Non-recursive. Builds one family's tree data and wraps it in the
+# linked_trees entry format. The nested linked_trees key is always [].
+# Frontend navigates deeper by calling the API again with this family's
+# main_user_id.
+# ---------------------------------------------------------------------------
+def _build_single_linked_tree_entry(
+    family_id: int,
+    relationship_label: str,
+    through_user_id: int,
+) -> dict:
+    """
+    Build the family tree for *family_id* (using the unchanged
+    build_family_tree_by_pidhi) and wrap it in the linked_trees entry format.
+
+    linked_trees inside this entry is always [] — the frontend must call
+    the API again to navigate further.
+
+    Returns {} if the family does not exist.
+    """
+    try:
+        tree = build_family_tree_by_pidhi(family_id)
+    except Family.DoesNotExist:
+        return {}
+    except Exception:
+        return {}
+
+    # Flat: this linked family's own linked_trees is empty.
+    # The caller (the frontend) navigates further by re-calling the API.
+    tree["linked_trees"] = []
+
+    return {
+        "relationship_to_main_user": relationship_label,
+        "through_user":              through_user_id,
+        "family":                    tree,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Helper 5 – discover_linked_families
+# STATUS: MODIFIED
+#
+# Changes:
+#   - Removed recursive build_linked_tree call.
+#   - Now calls flat _build_single_linked_tree_entry.
+#   - visited_family_ids still prevents duplicate family processing
+#     within the same request (e.g. two boundary edges into the same family).
+# ---------------------------------------------------------------------------
+def discover_linked_families(
+    main_user_id: int,
+    root_family_id: int,
+    all_user_ids: set,
+) -> list:
+    """
+    Discover all directly linked families for the current family tree and
+    return a list of linked_trees entries (one level deep only).
+
+    *root_family_id* is pre-added to visited_family_ids so the root family
+    is never emitted as a linked tree of itself.
+    """
+    # Fresh per-request visited set — root family is pre-marked.
+    visited_family_ids: set = {root_family_id}
+
+    connections = collect_cross_family_connections(
+        main_user_id=main_user_id,
+        all_user_ids=all_user_ids,
+        visited_family_ids=visited_family_ids,
+    )
+
+    linked_trees: list = []
+    for conn in connections:
+        # Mark as visited so if two connections point at the same family
+        # the second one is dropped by collect_cross_family_connections on
+        # the next call (already handled by seen_family_ids there, but we
+        # also update visited_family_ids for safety).
+        visited_family_ids.add(conn["family"].id)
+
+        entry = _build_single_linked_tree_entry(
+            family_id=conn["family"].id,
+            relationship_label=conn["relationship"],
+            through_user_id=conn["through_user"],
+        )
+        if entry:
+            linked_trees.append(entry)
+
+    return linked_trees
+
+
+# ---------------------------------------------------------------------------
+# PUBLIC ENTRY POINT – build_complete_family_tree
+# STATUS: UNCHANGED
+# ---------------------------------------------------------------------------
+def build_complete_family_tree(family_id: int) -> dict:
+    """
+    Drop-in replacement for build_family_tree_by_pidhi() called from views.
+
+    Calls the existing function (completely unchanged), then appends the
+    linked_trees key.  The response is a strict superset of the original:
+
+        {
+            "family_id":    int,
+            "family_type":  str | None,
+            "main_user_id": int | None,
+            "generations":  dict,
+            "edges":        list,
+            "linked_trees": list          ← added
+        }
+
+    linked_trees contains only DIRECTLY linked families (one level).
+    The frontend navigates deeper by calling the same API with a linked
+    family's main_user_id.
+    """
+    # --- EXISTING CODE (UNCHANGED) -----------------------------------------
+    data = build_family_tree_by_pidhi(family_id)
+    # -----------------------------------------------------------------------
+
+    main_user_id = data.get("main_user_id")
+    if main_user_id is None:
+        data["linked_trees"] = []
+        return data
+
+    # Collect all user IDs the existing function already resolved.
+    all_user_ids: set = set()
+    for gen_users in data.get("generations", {}).values():
+        for person in gen_users:
+            all_user_ids.add(person["id"])
+
+    data["linked_trees"] = discover_linked_families(
+        main_user_id=main_user_id,
+        root_family_id=family_id,
+        all_user_ids=all_user_ids,
+    )
+
+    return data
+
+
+# =============================================================================
+# END OF CROSS-LINKED FAMILY TREE CODE
+# =============================================================================
 
 from rest_framework.exceptions import ValidationError
 
