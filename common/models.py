@@ -85,3 +85,10 @@ class SoftDeleteMixin(models.Model):
         self.deleted_at = None
         self.deleted_by = None
         self.save()
+
+class TimeStampMixin(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True

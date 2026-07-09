@@ -13,9 +13,13 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env
+load_dotenv(dotenv_path=BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -31,25 +35,30 @@ ALLOWED_HOSTS = ["*"]
 
 # This is cors header setup for ngrok to solve cors header error...
 
-CORS_ALLOW_ALL_ORIGINS = False
-
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
-CORS_ALLOW_CREDENTIALS = True
 
 from corsheaders.defaults import default_headers
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = False
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
     "ngrok-skip-browser-warning",
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://shashanapi.tesseracttechnolabs.com",
+]
+
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -57,10 +66,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'user',
-    'user_management',
     'configuration',
     'common',
     'wallet',
+    'notification',
 
     'channels',
     'simple_history',
@@ -83,7 +92,6 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'shashan.urls'
-CORS_ALLOW_ALL_ORIGINS = True
 AUTH_USER_MODEL = 'user.User'
 
 TEMPLATES = [
@@ -126,7 +134,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
-    "ROTATE_REFRESH_TOKENS": True,
+    "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": True,
     
     "AUTH_HEADER_TYPES": ("Bearer",),
@@ -249,6 +257,7 @@ LOGGING = {
 
 # Celery Configuration Options
 # Command: celery -A shashan worker -l info --pool=solo
+# Command: python -m daphne -b 0.0.0.0 -p 8000 shashan.asgi:application
 CELERY_BROKER_URL = 'redis://localhost:6379/0' # Points to your Redis server
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Stores the results of tasks
 CELERY_ACCEPT_CONTENT = ['application/json']
@@ -271,3 +280,13 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't', 'y', 'yes')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER') or 'your-email@gmail.com'
+# IMPORTANT: Use an "App Password" here if using Gmail, NOT your real password!
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD') or 'your-app-password-or-smtp-key'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or f"Shashan Notifications <{EMAIL_HOST_USER}>"
+

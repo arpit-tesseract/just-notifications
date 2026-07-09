@@ -11,14 +11,16 @@ from django.utils.dateparse import parse_date
 from .models import *
 from .serializers import *
 from rest_framework.decorators import action
-from django.db.models import Count, Window, F
-from .pagination import ConfigurationPagination
+from django.db.models import Count, Window, F, Q
+from common.pagination import CommonPagination
 from .utils import cast_value_by_type, check_bool_value, validate_value_type
+from .services import reassign_user_node_references, count_user_node_references
+from .tasks import process_level_deletion
+from .mixins import BaseHistoryDiffAPIViewMixin, AssignedNodeFilterMixin
+
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 import threading
-from .tasks import process_level_deletion, process_excel_import
-from .mixins import BaseHistoryDiffAPIViewMixin
 from simple_history.utils import update_change_reason
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -74,55 +76,6 @@ class LevelViewSet(viewsets.ModelViewSet):
             status=status.HTTP_202_ACCEPTED
         )      
 
-    # def perform_destroy(self, instance):
-    #     try:
-    #         with transaction.atomic():
-    #             # Assuming you have a node_logger defined
-    #             # node_logger.info(f"Try to delete(archived) node {instance.name}")
-                
-    #             # 1. FIND ALL IMMEDIATE CHILDREN
-    #             # We select_for_update() to lock these rows while we modify their parent
-    #             nodes_in_level = Node.objects.select_for_update().filter(level=instance)
-                
-    #             # 2. BRIDGE THE GAP (Re-link to the deleted node's parent)
-    #             for node in nodes_in_level:
-    #                 Node.objects.filter(parent=node).update(parent=node.parent)
-
-    #                 node.soft_delete(user=self.request.user)
-    #             # 3. ACTUAL DELETE (Soft delete)
-    #             # Assuming `soft_delete` is provided by your SoftDeleteMixin
-    #             instance.soft_delete(user=self.request.user)
-                
-    #     except Exception as e:
-    #         print(e)
-    #         # node_logger.exception("Failed to delete node:", e)
-    #         raise ValidationError({"error": "Failed to delete node. Please try again."})
-
-    # def perform_destroy(self, instance):
-    #     try:
-    #         with transaction.atomic():
-    #             level_logger.info(f"Try to delete(archived) level {instance.name}")
-    #             qs = Level.objects.select_for_update().filter(
-    #                 dimension=instance.dimension,
-    #             )
-                
-    #             # update children
-    #             child = qs.filter(parent=instance).first()
-    #             if child:
-    #                 child.parent = instance.parent
-    #                 child.save(update_fields=['parent'])
-                
-    #             # CLOSE THE GAP (Shift everyone up)
-    #             qs.filter(sort_order__gt=instance.sort_order).update(sort_order=F('sort_order') - 1)
-
-    #             # ACTUAL DELETE
-    #             instance.soft_delete(user=self.request.user)
-                
-    #     except Exception as e:
-    #         level_logger.exception("Failed to delete level:", e)
-    #         raise ValidationError({"error": "Failed to delete. Please try again."})
-                
-    #     # return super().perform_destroy(instance)
 
 class LevelListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -143,12 +96,13 @@ class LevelListView(APIView):
 from collections import defaultdict
 from django.db.models import F
 
-class NodeViewSet(viewsets.ModelViewSet):
+class NodeViewSet(AssignedNodeFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-
+    include_ancestors = True
+    
     queryset = Node.objects.select_related("dimension", "level", "parent")
     serializer_class = NodeSerializer
-    pagination_class = ConfigurationPagination
+    pagination_class = CommonPagination
     
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -158,11 +112,13 @@ class NodeViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # 1. Check for Dependencies (Only count active, non-deleted items)
         child_nodes_count = Node.objects.filter(parent=instance, is_deleted=False).count()
+        user_nodes_count = count_user_node_references(instance.id)
 
         dependencies = []
         if child_nodes_count > 0:
-            dependencies.append(f"{child_nodes_count} child rows(s)")
-
+            dependencies.append(f"{child_nodes_count} child node(s)")
+        if user_nodes_count > 0:
+            dependencies.append(f"{user_nodes_count} user record(s)")
 
         # 2. Block Deletion if dependencies exist
         if dependencies:
@@ -189,6 +145,118 @@ class NodeViewSet(viewsets.ModelViewSet):
             level_logger.exception(f"Failed to delete node: {e}")
             raise DRFValidationError({"error": "Failed to delete. Please try again."})
         
+    @action(detail=True, methods=['get'], url_path='delete-preview')
+    def delete_preview(self, request, pk=None):
+        instance = self.get_object()
+        child_nodes_count = Node.objects.filter(parent=instance, is_deleted=False).count()
+        user_nodes_count = count_user_node_references(instance.id)
+        return Response({
+            "node_id": instance.id,
+            "node_name": instance.name,
+            "child_nodes_count": child_nodes_count,
+            "user_references_count": user_nodes_count,
+            "total_dependencies": child_nodes_count + user_nodes_count
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='delete-with-reassignment')
+    def delete_with_reassignment(self, request, pk=None):
+        instance = self.get_object()
+        replacement_node_id = request.data.get('replacement_node_id')
+
+        if not replacement_node_id:
+            return Response({"error": "replacement_node_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            replacement_node = Node.objects.get(id=replacement_node_id, is_deleted=False)
+        except Node.DoesNotExist:
+            return Response({"error": "Replacement node not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if replacement_node.level_id != instance.level_id:
+            return Response({"error": "Replacement node must be at the same level."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if replacement_node.parent_id != instance.parent_id:
+            return Response({"error": "Replacement node must have the same parent."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if replacement_node.id == instance.id:
+            return Response({"error": "Replacement node cannot be the same as the node being deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # 1. Reparent children
+                children = Node.objects.filter(parent=instance, is_deleted=False)
+                for child in children:
+                    child.parent = replacement_node
+                    child.save() # Triggers closure table update
+
+                # 2. Reassign users
+                reassign_user_node_references([instance], replacement_node)
+
+                # 3. Log event
+                NodeEventLog.objects.create(
+                    event_type='MERGE', # Conceptually a merge since it's reassigned
+                    source_node=instance,
+                    target_node=replacement_node,
+                    performed_by=request.user,
+                    details=f"Deleted and reassigned dependencies to node {replacement_node.id}"
+                )
+
+                # 4. Soft delete
+                instance._change_reason = f"Deleted and reassigned to '{replacement_node.name}'"
+                instance.soft_delete(user=request.user)
+
+            return Response({
+                "message": f"Successfully deleted '{instance.name}' and reassigned all dependencies to '{replacement_node.name}'."
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            level_logger.exception(f"Failed to delete with reassignment: {e}")
+            return Response({"error": "Failed to reassign and delete. Please try again."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        node_ids = request.data.get('node_ids', [])
+        if not node_ids or not isinstance(node_ids, list):
+            return Response({"error": "A list of 'node_ids' is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        nodes = Node.objects.filter(id__in=node_ids, is_deleted=False)
+        if not nodes:
+            return Response({"error": "No valid nodes found to delete."}, status=status.HTTP_404_NOT_FOUND)
+            
+        nodes_with_dependencies = []
+        
+        for node in nodes:
+            child_nodes_count = Node.objects.filter(parent=node, is_deleted=False).count()
+            user_nodes_count = count_user_node_references(node.id)
+            
+            if child_nodes_count > 0 or user_nodes_count > 0:
+                nodes_with_dependencies.append({
+                    "node_id": node.id,
+                    "name": node.name,
+                    "child_nodes_count": child_nodes_count,
+                    "user_references_count": user_nodes_count
+                })
+                
+        if nodes_with_dependencies:
+            return Response({
+                "error": "Bulk deletion blocked due to active dependencies.",
+                "nodes_with_dependencies": nodes_with_dependencies,
+                "requires_resolution": True
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            with transaction.atomic():
+                for node in nodes:
+                    node._change_reason = "Deleted via Bulk API"
+                    node.soft_delete(user=request.user)
+                    
+            return Response({
+                "message": f"Successfully deleted {len(nodes)} node(s)."
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            level_logger.exception(f"Failed to execute bulk delete: {e}")
+            return Response({"error": "Failed to bulk delete. Please try again."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -229,7 +297,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         ).values('descendant_id')
 
         # 1. Filter Target Nodes (Base Queryset)
-        queryset = Node.objects.filter(
+        queryset = self.get_queryset().filter(
             dimension_id=int(dimension),
             level_id=int(level),
         ).exclude(
@@ -325,18 +393,20 @@ class NodeViewSet(viewsets.ModelViewSet):
         ancestor_ids_param = request.query_params.get("ancestor_ids", "").strip()
         if ancestor_ids_param != "":
             try:
-                # Convert "170,171" -> [170, 171]
                 ancestor_ids = [int(x) for x in ancestor_ids_param.split(',') if x.strip().isdigit()]
                 print("Ancestor IDs:", ancestor_ids)                
                 
                 if ancestor_ids:
-                    # FIX: Use ancestor_id__in to apply an "OR" condition across all provided IDs
-                    # This means: "Get descendants of 170 OR 171"
-                    queryset = queryset.filter(
-                        id__in=NodeClosure.objects.filter(
-                            ancestor_id__in=ancestor_ids
-                        ).values('descendant_id')
-                    )
+                    # By chaining .filter(), we create an "AND" condition. 
+                    # If ancestor_ids=[State, District, Taluka], it ensures the node is a descendant of ALL of them.
+                    # Note: If you need to support selecting multiple siblings (e.g., Taluka 1 OR Taluka 2), 
+                    # the frontend should only send the deepest selected nodes, and you would use the 'OR' condition.
+                    for ancestor_id in ancestor_ids:
+                        queryset = queryset.filter(
+                            id__in=NodeClosure.objects.filter(
+                                ancestor_id=ancestor_id
+                            ).values('descendant_id')
+                        )
             except ValueError:
                 pass
             
@@ -348,8 +418,17 @@ class NodeViewSet(viewsets.ModelViewSet):
         level_obj = Level.objects.filter(id=level).first()
         defined_schema = level_obj.extra_fields_schema if level_obj else []
         
+        import json
+        if isinstance(defined_schema, str):
+            try:
+                defined_schema = json.loads(defined_schema)
+            except:
+                defined_schema = []
+        if not isinstance(defined_schema, list):
+            defined_schema = []
+            
         # Map schema for easy lookup: {'isgenz': {'type': 'boolean', ...}}
-        schema_map = {col['name']: col for col in defined_schema} 
+        schema_map = {col['name']: col for col in defined_schema if isinstance(col, dict) and 'name' in col}
 
         # B. Loop through request parameters
         # We explicitly exclude standard params to avoid collisions
@@ -507,7 +586,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                         continue
 
                     # 2. Cast the Default Value
-                    typed_default, _ =  (default_val_raw, field_type)
+                    typed_default, _ = cast_value_by_type(default_val_raw, field_type)
                     
                     # 3. Check if user is searching for the default
                     is_searching_default = (typed_default is not None) and (typed_value == typed_default)
@@ -561,7 +640,7 @@ class NodeViewSet(viewsets.ModelViewSet):
                         grouped_paths[c.descendant_id][level_name] = {
                             "id": c.ancestor.id,
                             "name": c.ancestor.name,
-                            "code": c.ancestor.code,
+                            "code": str(c.ancestor.code).zfill(c.ancestor.level.code_digits if c.ancestor.level else 2),
                             "sort_order": c.ancestor.level.sort_order
                         }
 
@@ -716,7 +795,6 @@ class NodeViewSet(viewsets.ModelViewSet):
         
     
     # In views.py, inside NodeViewSet class
-
     @action(detail=False, methods=['post'], url_path='merge-to-existing')
     def merge_nodes(self, request):
         """
@@ -744,6 +822,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                 target._change_reason = f"Merged with: {source_names}, Merge Date: {merge_date}"
                 target.merge_date = merge_date
                 target.save(update_fields=['updated_at', 'merge_date']) # Touch the node to create a history record
+
+                # Reassign user node references
+                reassign_user_node_references(sources, target)
 
                 for source in sources:
                     # A. Create Alias
@@ -776,6 +857,14 @@ class NodeViewSet(viewsets.ModelViewSet):
                     # C. Delete Source
                     # (Optional: You could set is_archived=True instead of deleting)
                     source._change_reason = f"Merged into '{target.name}' (ID: {target.id})"
+                    NodeEventLog.objects.create(
+                        event_type='MERGE',
+                        source_node=source,
+                        target_node=target,
+                        effective_date=merge_date,
+                        performed_by=request.user,
+                        details=f"Merged into existing node {target.id}"
+                    )
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -836,6 +925,9 @@ class NodeViewSet(viewsets.ModelViewSet):
                 source_names = ", ".join([s.name for s in sources])
                 update_change_reason(new_node, f"Created by merging: {source_names}, Merge Date: {merge_date}")
 
+                # Reassign user node references
+                reassign_user_node_references(sources, new_node)
+
                 # 2. Merge Logic (Aliases & Children)
                 summary = {"children_moved": 0, "aliases_created": 0}
 
@@ -867,6 +959,14 @@ class NodeViewSet(viewsets.ModelViewSet):
                     # Delete Source
                     # NEW: Document the deletion reason
                     source._change_reason = f"Merged into new '{new_node.name}' (ID: {new_node.id})"
+                    NodeEventLog.objects.create(
+                        event_type='MERGE',
+                        source_node=source,
+                        target_node=new_node,
+                        effective_date=merge_date,
+                        performed_by=request.user,
+                        details=f"Merged into newly created node {new_node.id}"
+                    )
                     source.soft_delete(user=request.user)
 
             return Response({
@@ -885,121 +985,7 @@ class NodeViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
-    
-    # @action(detail=False, methods=['get'], url_path='export-selected')
-    # def export_selected(self, request):
-    #     level_id = request.query_params.get('level_id')
-    #     all_ids = request.query_params.get('all_ids', False)
-    #     ids_param = request.query_params.get('ids')
-        
-    #     target_level = None
-    #     nodes = []
 
-    #     if all_ids and all_ids in ["true", "True", True]:
-    #         if not level_id:
-    #             return Response({"error": "level_id is required"}, status=400)
-            
-    #         try:
-    #             target_level = Level.objects.get(id=level_id)
-    #         except Level.DoesNotExist:
-    #             return Response({"error": "Level not found"}, status=404)
-
-    #         nodes = Node.objects.filter(level_id=level_id).select_related('parent', 'parent__parent', 'parent__parent__parent')
-
-    #     # Case A: Export Selected Nodes by ID
-    #     elif ids_param:
-    #         try:
-    #             ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
-    #         except ValueError:
-    #             return Response({"error": "Invalid ids format"}, status=400)
-            
-    #         if not ids:
-    #             return Response({"error": "No ids provided"}, status=400)
-                
-    #         nodes = Node.objects.filter(id__in=ids).select_related('level', 'parent', 'parent__parent', 'parent__parent__parent')
-            
-    #         if not nodes.exists():
-    #             return Response({"error": "No nodes found for the provided IDs"}, status=404)
-            
-    #         # Validation: Ensure all nodes are from the SAME level
-    #         first_node = nodes.first()
-    #         target_level = first_node.level
-            
-    #         if nodes.exclude(level=target_level).exists():
-    #             return Response({
-    #                 "error": "Export failed: All selected nodes must belong to the same Level to maintain consistent Excel columns."
-    #             }, status=400)
-        
-    #     else:
-    #         return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=400)
-
-    #     # ---------------------------------------------------------
-    #     # GENERATE EXCEL DATA (Same logic as before)
-    #     # ---------------------------------------------------------
-        
-    #     dimension = target_level.dimension
-        
-    #     # 1. Identify Ancestor Levels (for columns like Glob | Continent | ...)
-    #     ancestor_levels = Level.objects.filter(
-    #         dimension=dimension,
-    #         sort_order__lt=target_level.sort_order
-    #     ).order_by('sort_order')
-        
-    #     ancestor_col_names = [lvl.name for lvl in ancestor_levels]
-
-    #     data = []
-    #     for node in nodes:
-    #         row = {}
-            
-    #         # A. Fill Ancestor Columns (Walk up the parent chain)
-    #         curr = node
-    #         for ancestor_name in reversed(ancestor_col_names):
-    #             if curr.parent:
-    #                 row[ancestor_name] = curr.parent.name
-    #                 curr = curr.parent
-    #             else:
-    #                 row[ancestor_name] = "" 
-
-    #         # B. Fill Self Data
-    #         row[target_level.name] = node.name
-    #         row['Code'] = node.code
-    #         row['Hidden'] = node.is_hidden
-    #         row['On Hold'] = node.on_hold
-    #         row['Hold Date'] = node.hold_date
-
-    #         # C. Fill Custom Columns (Attributes)
-    #         attributes = node.attributes or {}
-    #         for key, value in attributes.items():
-    #             row[key] = value
-                
-    #         data.append(row)
-
-    #     if not data:
-    #         return Response({"message": "No data to export"}, status=200)
-
-    #     # 2. Build DataFrame
-    #     df = pd.DataFrame(data)
-        
-    #     # 3. Order Columns
-    #     custom_schema_keys = [col['name'] for col in (target_level.extra_fields_schema or [])]
-    #     final_columns = ancestor_col_names + [target_level.name, 'Code', 'Hidden', 'On Hold'] + custom_schema_keys
-        
-    #     # Ensure all columns exist (fill missing with None)
-    #     for col in final_columns:
-    #         if col not in df.columns:
-    #             df[col] = None
-
-    #     df = df[final_columns]
-
-    #     # 4. Return Response
-    #     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    #     filename = f"{target_level.name}_Export.xlsx"
-    #     response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
-    #     with pd.ExcelWriter(response, engine='openpyxl') as writer:
-    #         df.to_excel(writer, index=False, sheet_name=target_level.name)
-            
-    #     return response
 
     @action(detail=False, methods=['get'], url_path='export-selected')
     def export_selected(self, request):
@@ -1157,469 +1143,14 @@ class NodeViewSet(viewsets.ModelViewSet):
 
         return response                
     
-    # @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser, FormParser])
-    # def upload_excel(self, request):
-    #     """
-    #     Uploads Excel with dynamic full-hierarchy mapping.
-        
-    #     Payload:
-    #     - file: (Binary Excel)
-    #     - level_id: (ID of the level we are importing items INTO, e.g., Country Level ID)
-    #     - mapping: JSON String. Example for Country Import:
-    #         {
-    #             "Glob": "Glob Column Name",       <-- Ancestor (Context)
-    #             "Continent": "Continent Column",  <-- Parent (Required for lookup)
-    #             "Country": "Country Name Column", <-- Target Item (Matches Target Level Name)
-    #             "code": "Code",
-    #             "is_hidden": "Hidden?",
-    #             "attributes": { "area": "Area Column" }
-    #         }
-    #     """
-    #     file_obj = request.FILES.get('file')
-    #     level_id = request.data.get('level_id')
-    #     mapping_str = request.data.get('mapping')
-
-    #     print("File:", file_obj)
-    #     print("Level ID:", level_id)
-    #     print("Mapping:", mapping_str)
-
-    #     if not file_obj:
-    #         print("Missing file")
-    #         return Response({"file": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     if not level_id:
-    #         print("Missing level_id")
-    #         return Response({"level_id": "Level is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     if not mapping_str:
-    #         print("Missing mapping")
-    #         return Response({"mapping": "Mapping is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     try:
-    #         mapping = json.loads(mapping_str)
-    #     except json.JSONDecodeError:
-    #         return Response({"mapping": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     # 1. Fetch Target Level
-    #     try:
-    #         target_level = Level.objects.get(pk=level_id)
-    #     except Level.DoesNotExist:
-    #         return Response({"level_id": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
-
-    #     # 2. Read Excel
-    #     try:
-    #         file_name = file_obj.name.lower()
-    #         if file_name.endswith(".csv"):
-    #             df = pd.read_csv(file_obj, encoding="utf-8")
-    #         elif file_name.endswith(".xlsx"):
-    #             df = pd.read_excel(file_obj)
-    #         elif file_name.endswith(".xls"):
-    #             df = pd.read_excel(file_obj)
-    #         else:
-    #             return Response({"file": "Invalid file format."}, status=status.HTTP_400_BAD_REQUEST)
-            
-    #         # FIX: Cast to 'object' dtype so Pandas actually allows 'None' 
-    #         # instead of reverting it back to 'NaN' for numeric columns.
-    #         df = df.astype(object).where(pd.notnull(df), None) 
-            
-    #         df.columns = df.columns.str.strip() # Strip whitespace from headers
-    #         print("Excel headers:", list(df.columns))
-    #     except Exception as e:
-    #         return Response({"file": f"Invalid Excel file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     # 3. Identify Key Columns from Mapping
-    #     # We assume the mapping keys match the Level Names (e.g., "Country")
-        
-    #     # A. Target Name Column
-    #     target_level_name_key = target_level.name # e.g., "Country"
-        
-    #     if target_level_name_key in mapping:
-    #         col_target_name = mapping[target_level_name_key]
-    #     else:
-    #          # If the mapping doesn't contain the Level Name, we can't find the new item's name
-    #          return Response({
-    #              "mapping": f"Mapping missing key for '{target_level_name_key}'."
-    #          }, status=status.HTTP_400_BAD_REQUEST)
-
-    #     if col_target_name not in df.columns:
-    #         return Response({"file": f"Excel file missing column '{col_target_name}'"}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     # B. Parent Resolution Columns
-    #     # We resolve the immediate parent to attach the new node correctly.
-    #     parent_level = target_level.parent
-    #     col_parent_name = None
-        
-    #     if parent_level:
-    #         parent_key = parent_level.name # e.g., "Continent"
-    #         if parent_key in mapping:
-    #             col_parent_name = mapping[parent_key]
-    #             if col_parent_name not in df.columns:
-    #                  return Response({"file": f"Excel file missing column '{col_parent_name}' (required for Parent {parent_key})"}, status=status.HTTP_400_BAD_REQUEST)
-    #         else:
-    #             return Response({"file": f"Mapping missing key for '{parent_key}'."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     # 4. Prepare Schema for Attributes (Validation Setup)
-    #     schema = target_level.extra_fields_schema or []
-    #     valid_attr_keys = {col['name']: col['type'] for col in schema} # dict for fast lookup
-
-    #     summary = {"requested":0, "created": 0, "updated": 0, "errors": []}
-
-    #     if mapping.get("id") in ["", None]:
-    #         return Response({"mapping": "Missing 'ID' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     if mapping.get(target_level.name) in ["", None]:
-    #         return Response({"mapping": f"Missing '{target_level.name}' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     if mapping.get("code") in ["", None]:
-    #         return Response({"mapping": "Missing 'code' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        
-    #     if mapping.get("is_hidden") in ["", None]:
-    #         return Response({"mapping": "Missing 'is_hidden' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     if mapping.get("on_hold") not in ["", None]:
-    #     #     return Response({"error": "Missing 'on_hold' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
-    #     # else:
-    #         if mapping.get("hold_date") in ["", None]:
-    #             return Response({"mapping": "Missing 'hold_date' key in mapping."}, status=status.HTTP_400_BAD_REQUEST)
-        
-
-    #     # 5. Process Rows
-    #     try:
-    #         for index, row in df.iterrows():
-    #             row_index = index + 2
-    #             row_data = row.to_dict()
-
-    #             # Get Node ID
-    #             # print("Row Data:", row_data)
-    #             id_val = row_data.get("ID")
-    #             if id_val in ["", None]:
-    #                 id_val = None
-    #             else:    
-    #                 if isinstance(id_val, str) and id_val.isdigit():
-    #                     id_val = int(id_val)
-    #                 elif isinstance(id_val, float):
-    #                     id_val = int(id_val)
-    #                 elif not isinstance(id_val, int):
-    #                     id_val = None
-
-    #             # --- Step 1: Get Target Name ---
-    #             name_val = row_data.get(col_target_name)
-    #             if not name_val:
-    #                 continue # Skip empty 
-                
-    #             summary["requested"] += 1 # Track total number of item
-                
-    #             try:
-    #                 with transaction.atomic():
-    #                     # --- Step 2: Resolve Parent Node ---
-    #                     # parent_node = None
-    #                     # if parent_level:
-    #                     #     parent_name_val = row_data.get(col_parent_name)
-                            
-    #                     #     if not parent_name_val:
-    #                     #         summary["errors"].append(f"Row {row_index}: Missing parent '{parent_level.name}'.")
-    #                     #         continue
-    #                     #     print("Parent Name:", parent_name_val)
-    #                     #     # Find the parent node
-    #                     #     # We search for a Node with the Parent's Name + Parent's Level + Same Dimension
-    #                     #     parent_node = Node.objects.filter(
-    #                     #         name=parent_name_val,
-    #                     #         level=parent_level,
-    #                     #         dimension=target_level.dimension
-    #                     #     ).first()
-
-    #                     #     if not parent_node:
-    #                     #         # summary["errors"].append(f"Row {row_index}: Parent '{parent_level.name}' named '{parent_name_val}' not found.")
-    #                     #         raise Exception(f"Parent '{parent_level.name}' named '{parent_name_val}' not found. Cannot create row.")
-
-
-    #                     # --- Step 2: Resolve Parent Node (Full Hierarchy Lookup) ---
-    #                     parent_node = None
-    #                     if parent_level:
-    #                         parent_name_val = row_data.get(col_parent_name)
-                            
-    #                         if not parent_name_val:
-    #                             error_data = {
-    #                                 "message": f"Row {row_index}: Missing parent '{parent_level.name}'.",
-    #                                 "color": "red"
-    #                             }
-    #                             summary["errors"].append(error_data)
-    #                             continue
-                            
-    #                         # 1. Start building our dynamic query dictionary
-    #                         lookup_kwargs = {
-    #                             'dimension': target_level.dimension
-    #                         }
-                            
-    #                         # 2. Traverse UP the level hierarchy
-    #                         current_ancestor_level = parent_level
-    #                         prefix = "" # Starts as "", then becomes "parent__", then "parent__parent__", etc.
-    #                         missing_ancestor_data = False
-                            
-    #                         while current_ancestor_level:
-    #                             level_name = current_ancestor_level.name
-                                
-    #                             # If this ancestor level is mapped in our JSON (e.g., "Country")
-    #                             if level_name in mapping:
-    #                                 col_name = mapping[level_name]
-    #                                 ancestor_val = row_data.get(col_name)
-                                    
-    #                                 if not ancestor_val:
-    #                                     error_data = {
-    #                                         "message": f"Row {row_index}: Missing value for '{level_name}' in column '{col_name}'.",
-    #                                         "color": "red"
-    #                                     }
-    #                                     summary["errors"].append(error_data)
-    #                                     missing_ancestor_data = True
-    #                                     break
-                                    
-    #                                 # Add to our query: e.g., parent__name="China", parent__level=<Country Level>
-    #                                 lookup_kwargs[f"{prefix}name"] = ancestor_val
-    #                                 lookup_kwargs[f"{prefix}level"] = current_ancestor_level
-                                
-    #                             # Move up to the next parent level for the next loop iteration
-    #                             current_ancestor_level = current_ancestor_level.parent
-    #                             prefix += "parent__"
-
-    #                         if missing_ancestor_data:
-    #                             raise Exception(f"Row {row_index}: Missing required hierarchy data.")
-
-    #                         # 3. Execute the exact hierarchy query
-    #                         # E.g., Node.objects.filter(name="Gujrat", parent__name="China", parent__parent__name="Asia")
-    #                         # 3. Execute the exact hierarchy query
-    #                         parent_node = Node.objects.filter(**lookup_kwargs).first()
-
-    #                         if not parent_node:
-    #                             # UX UPGRADE: Build a visual path string to show the user exactly what failed
-    #                             attempted_path = []
-    #                             p_prefix = ""
-    #                             c_level = parent_level
-                                
-    #                             while c_level:
-    #                                 val = lookup_kwargs.get(f"{p_prefix}name")
-    #                                 if val:
-    #                                     attempted_path.insert(0, str(val))
-    #                                 c_level = c_level.parent
-    #                                 p_prefix += "parent__"
-                                
-    #                             path_str = " -> ".join(attempted_path)
-                                
-    #                             raise Exception(f"Hierarchy '{path_str}' not found in database. Please check your Excel file for typos!")
-                                
-    #                     # --- NEW Step 3: Find Existing Node (Determine Create vs Update) ---
-    #                     node = None
-    #                     # print("Id:", id_val)
-    #                     if id_val is not None:
-    #                         node = Node.objects.filter(id=id_val, level=target_level).first()
-    #                         # print("Node in condition: ", node)
-    #                         if not node:
-    #                             # raise Exception(f"Row {row_index}: Provided ID '{id_val}' does not exist.")
-    #                             # print(f"Row {row_index}: Provided ID '{id_val}' does not exist, so a new row will be created.")
-    #                             error_data = {
-    #                                 "message": f"Row {row_index}: Provided ID '{id_val}' does not exist so a new row will be created.",
-    #                                 "color": "blue"
-    #                             }
-    #                             summary["errors"].append(f"Row {row_index}: Provided ID '{id_val}' does not exist so a new row will be created.")
-                            
-    #                     # print("Node: ", node)
-
-    #                     # --- Step 3: Extract Standard Fields ---
-    #                     # Helper to safely get value based on mapping key
-    #                     def get_mapped_val(key, default=None):
-    #                         if key in mapping and mapping[key] in row_data:
-    #                             return row_data[mapping[key]]
-    #                         return default
-
-    #                     code_val = get_mapped_val('code')
-    #                     # print(f"Code: {code_val}, Type: {type(code_val)}")
-
-    #                     if code_val in ["", None]:
-    #                         raise Exception(f"Row {row_index}: Missing Code.")
-                        
-    #                     if type(code_val) not in [str, int]:
-    #                         raise Exception(f"Row {row_index}: Code '{code_val}' is not numeric.")
-
-                        
-    #                     if isinstance(code_val, str) and code_val.isdigit():
-    #                         code_val = int(code_val)
-
-    #                     if len(str(code_val)) > target_level.code_digits:
-    #                         raise Exception(f"Row {row_index}: Code '{code_val}' too long for level '{target_level.name}'.")
-                        
-    #                     # Validate Code
-    #                     if code_val <= 0:
-    #                         raise Exception(f"Row {row_index}: Code '{code_val}' is not positive.")
-                        
-    #                     collision_qs = Node.objects.filter(
-    #                         level=target_level,
-    #                         code=code_val,
-    #                         parent=parent_node
-    #                     ).exclude(name=name_val) # Exclude self if this is an update to existing node
-
-    #                     # Exclude self based on ID if updating, otherwise exclude by name
-    #                     if node:
-    #                         collision_qs = collision_qs.exclude(id=node.id)
-                        
-    #                     if collision_qs.exists():
-    #                         raise Exception(f"Row {row_index}: Code '{code_val}' already used by '{collision_qs.first().name}'.")
-                        
-
-    #                     is_hidden_raw = get_mapped_val('is_hidden', None)
-    #                     if is_hidden_raw is None:
-    #                         is_hidden = False
-    #                     else:
-    #                         is_hidden = check_bool_value(is_hidden_raw)
-    #                         if is_hidden is None:
-    #                             raise Exception(f"Row {row_index}: Invalid value for is_hidden: {is_hidden_raw}")
-                            
-    #                     on_hold_raw = get_mapped_val('on_hold', None)
-    #                     if on_hold_raw is None:
-    #                         on_hold = False
-    #                     else:
-    #                         on_hold = check_bool_value(on_hold_raw)
-    #                         if on_hold is None:
-    #                             raise Exception(f"Row {row_index}: Invalid value for on_hold: {on_hold_raw}")
-                            
-
-                    
-    #                     # Date parsing
-    #                     hold_date_raw = get_mapped_val('hold_date')
-    #                     hold_date_val = None
-    #                     if hold_date_raw:
-    #                         try:
-    #                             dt = pd.to_datetime(hold_date_raw, dayfirst=True)
-    #                             hold_date_val = dt.date()
-    #                         except:
-    #                             summary["errors"].append(f"Row {row_index}: Invalid date format for Hold Date.")
-    #                             continue
-
-    #                     # --- Step 4: Extract Attributes ---
-    #                     node_attributes = {}
-    #                     if 'attributes' in mapping and isinstance(mapping['attributes'], dict):
-    #                         for sys_attr, excel_header in mapping['attributes'].items():
-    #                             # Only process if this attribute is defined in the Level Schema
-    #                             if sys_attr in valid_attr_keys:
-    #                                 val = row_data.get(excel_header)
-    #                                 if val is not None:
-    #                                     node_attributes[sys_attr] = val
-
-
-    #                     # --- Step 6: Update or Create ---
-    #                     # node, created = Node.objects.update_or_create(
-    #                     #     name=name_val,
-    #                     #     level=target_level,
-    #                     #     parent=parent_node,
-    #                     #     defaults={
-    #                     #         "code": code_val,
-    #                     #         "is_hidden": is_hidden,
-    #                     #         "on_hold": on_hold,
-    #                     #         "hold_date": hold_date_val,
-    #                     #         "attributes": node_attributes,
-    #                     #         "dimension": target_level.dimension
-    #                     #     }
-    #                     # )
-
-    #                     # We avoid update_or_create so we can validate BEFORE hitting the DB
-    #                     # node = Node.objects.filter(
-    #                     #     name=name_val,
-    #                     #     level=target_level,
-    #                     #     parent=parent_node,
-    #                     #     dimension=target_level.dimension
-    #                     # ).first()
-
-    #                     # if id_val is not None:
-    #                     #     node = Node.objects.filter(id=id_val).first()
-    #                     # else:
-    #                     #     node = None
-
-    #                     created = False
-    #                     if not node:
-    #                         node = Node(
-    #                             name=name_val,
-    #                             code=code_val,
-    #                             is_hidden=is_hidden,
-    #                             on_hold=on_hold,
-    #                             hold_date=hold_date_val,
-    #                             level=target_level,
-    #                             parent=parent_node,
-    #                             dimension=target_level.dimension,
-    #                             attributes=node_attributes
-    #                         )
-    #                         created = True
-    #                     else:
-    #                         # FIX 2: Apply the updates to the existing node!
-    #                         node.name = name_val
-    #                         node.code = code_val
-    #                         node.is_hidden = is_hidden
-    #                         node.on_hold = on_hold
-    #                         node.hold_date = hold_date_val
-    #                         node.parent = parent_node
-    #                         node.attributes = node_attributes
-
-    #                     # --- Step 7: Validate (Model Logic) ---
-    #                     try:
-    #                         node.validate_attributes() 
-    #                         node.save()
-
-    #                     except ValidationError as e:
-    #                         # Since we are in atomic transaction, this exception will rollback the batch
-    #                         # If you prefer to skip rows instead of rollback, change this to `continue` 
-    #                         # and append to summary["errors"]
-    #                         # print("e.messages", e)
-    #                         clean_error_text = " ".join(e.messages)
-                            
-    #                         # Raise the exception with just the clean text
-    #                         # raise Exception(f"Row {row_index}: {clean_error_text}")
-    #                         return Response({"error": f"Row {row_index}: {clean_error_text}"}, status=status.HTTP_400_BAD_REQUEST)
-
-    #                     # Track this in your history API!
-    #                     reason = "Created via Excel Import" if created else "Updated via Excel Import"
-    #                     update_change_reason(node, reason)
-
-                
-    #                     if created: 
-    #                         summary["created"] += 1
-    #                     else: 
-    #                         summary["updated"] += 1
-
-    #             except IntegrityError as e:
-    #                 error_data = {
-    #                     "message": f"Row {row_index}: This data already exists.",
-    #                     "color": "red"
-    #                 }
-    #                 summary["errors"].append(error_data)
-    #             except ValidationError as e:
-    #                 clean_error_text = " ".join(e.messages)
-    #                 error_data = {
-    #                     "message": f"Row {row_index}: {clean_error_text}",
-    #                     "color": "red"
-    #                 }
-    #                 summary["errors"].append(error_data)
-    #             except Exception as e:
-    #                 error_data = {
-    #                     "message": f"Row {row_index}: {str(e)}",
-    #                     "color": "red"
-    #                 }
-    #                 summary["errors"].append(error_data)
-
-    #     except Exception as e:
-    #         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     if summary["errors"]:
-    #         return Response({"message": "Completed with errors", "summary": summary}, status=status.HTTP_200_OK)
-
-    #     return Response({"message": "Success", "summary": summary}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='upload-excel', parser_classes=[MultiPartParser, FormParser])
     def upload_excel(self, request):
-        room_id = f"import_{uuid.uuid4().hex}"
-
         file_obj = request.FILES.get('file')
         level_id = request.data.get('level_id')
         mapping_str = request.data.get('mapping')
 
-        # 1. Basic Validation (Fail fast before hitting background)
+        # 1. Basic Validation
         if not file_obj:
             return Response({"file": "File is required."}, status=status.HTTP_400_BAD_REQUEST)
         if not level_id:
@@ -1632,28 +1163,106 @@ class NodeViewSet(viewsets.ModelViewSet):
         except json.JSONDecodeError:
             return Response({"mapping": "Invalid JSON format."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Save the file temporarily
+        # Save the file temporarily
         # Generate a unique filename so concurrent uploads don't overwrite each other
         file_extension = file_obj.name.split('.')[-1]
         temp_file_name = f"tmp_imports/{uuid.uuid4().hex}.{file_extension}"
         
         saved_path = default_storage.save(temp_file_name, ContentFile(file_obj.read()))
 
-        # 3. Trigger the Celery Task
-        # Pass the path to the file, NOT the file object itself
-        task = process_excel_import.delay(
+        from configuration.tasks import task_validate_excel
+        
+        # Trigger the validation Celery Task
+        task = task_validate_excel.delay(
             file_path=saved_path, 
             level_id=level_id, 
             mapping_dict=mapping_dict,
-            user_id=request.user.id,
-            # room_name=room_id
+            user_id=request.user.id
         )
 
-        # 4. Return the Task ID to the frontend
         return Response({
-            "message": "Import started successfully. This will process in the background.",
+            "message": "Validation started successfully. This will process in the background.",
             "task_id": task.id
         }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'], url_path='commit-excel-import')
+    def commit_excel_import(self, request):
+        import_session_id = request.data.get('import_session_id')
+        if not import_session_id:
+            return Response({"error": "import_session_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from configuration.tasks import task_commit_excel
+        
+        # Trigger the commit Celery Task
+        task = task_commit_excel.delay(
+            import_session_id=import_session_id,
+            user_id=request.user.id
+        )
+        
+        return Response({
+            "message": "Commit started successfully. This will process in the background.",
+            "task_id": task.id
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['get'], url_path='download-template')
+    def download_template(self, request):
+        level_id = request.query_params.get('level_id')
+        if not level_id:
+            return Response({"error": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            target_level = Level.objects.get(id=level_id)
+            
+            # Gather ancestor levels
+            from configuration.utils import get_level_ancestors
+            ancestors = get_level_ancestors(target_level)
+            
+            headers = ["ID"]
+            for ancestor in ancestors:
+                headers.append(ancestor.name)
+            
+            headers.append(target_level.name)
+            headers.extend(["Code", "Is Hidden", "On Hold", "Hold Date"])
+            
+            if target_level.extra_fields_schema:
+                for col in target_level.extra_fields_schema:
+                    headers.append(col['name'])
+                    
+            import pandas as pd
+            from django.http import HttpResponse
+            import io
+            
+            df = pd.DataFrame(columns=headers)
+            
+            # Add a hint row
+            hint_row = ["(Leave blank for new)"]
+            for ancestor in ancestors:
+                hint_row.append("Exact Parent Name")
+            hint_row.append("Node Name")
+            hint_row.extend(["Positive Number", "TRUE/FALSE", "TRUE/FALSE", "YYYY-MM-DD"])
+            
+            if target_level.extra_fields_schema:
+                for col in target_level.extra_fields_schema:
+                    hint_row.append(f"{col['type']}")
+                    
+            df.loc[0] = hint_row
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name=target_level.name)
+                
+            output.seek(0)
+            response = HttpResponse(
+                output.read(), 
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename={target_level.name}_template.xlsx'
+            return response
+            
+        except Level.DoesNotExist:
+            return Response({"error": "Level not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["POST"], url_path="split")
     def split_node(self, request, pk):
@@ -1776,12 +1385,26 @@ class NodeViewSet(viewsets.ModelViewSet):
 
             # 4. Soft delete the original source node
 
+            # Reassign user node references to the first created node as default target
+            if created_nodes:
+                reassign_user_node_references([source_node], created_nodes[0])
+
             # Check if the source_node was updated/reused in any of the splits
             source_node_reused = any(n.id == source_node.id for n in created_nodes)
 
             # NEW: Log why this node is being deleted
             new_node_names = ", ".join([n.name for n in created_nodes])
             source_node._change_reason = f"Split into {len(created_nodes)} nodes: {new_node_names}"
+
+            for target in created_nodes:
+                NodeEventLog.objects.create(
+                    event_type='SPLIT',
+                    source_node=source_node,
+                    target_node=target,
+                    effective_date=split_date,
+                    performed_by=request.user,
+                    details=f"Split from original node {source_node.id}"
+                )
 
             if not source_node_reused:
                 # It was not reused, so we safely delete it
@@ -1797,138 +1420,16 @@ class NodeViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED)
 
 
-    # @action(detail=False, methods=['POST'], url_path='multiple-delete')
-    # def multiple_delete(self, request):
-    #     print("request.data", request.data)
-    #     level_id = request.data.get('level_id')
-    #     all_ids = request.data.get('all_ids', False)
-    #     ids = request.data.get('ids')
-
-    #     # -----------------------------
-    #     # Pick nodes + target_level
-    #     # -----------------------------
-    #     if all_ids and all_ids in ["true", "True", True]:
-    #         if not level_id:
-    #             return Response({"level_id": "level_id is required"}, status=400)
-
-    #         try:
-    #             target_level = Level.objects.select_related("dimension", "parent").get(id=level_id)
-    #         except Level.DoesNotExist:
-    #             return Response({"level_id": "Level not found"}, status=404)
-
-    #         # no fixed-depth select_related anymore
-    #         node_qs = Node.objects.filter(level=target_level)
-
-    #         if not node_qs.exists():
-    #             return Response({"level_id": "No nodes found."}, status=404)
-    #         # node_qs.update(is_deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
-
-    #     elif ids:
-    #         if not ids:
-    #             return Response({"ids": "No ids provided"}, status=400)
-            
-    #         if not isinstance(ids, list):
-    #             return Response({"ids": "ids must be a list"}, status=400)
-
-    #         node_qs = Node.objects.filter(id__in=ids)
-
-    #         if not node_qs.exists():
-    #             return Response({"ids": "No nodes found."}, status=404)
-
-    #         # nodes_qs.update(is_deleted=True, deleted_at=timezone.now(), deleted_by=request.user)
-
-    #     # Soft delete all provided nodes
-    #     if node_qs:
-    #         for node in node_qs:
-    #             node.soft_delete(user=request.user)
-
-    #     return Response({"message": "Nodes deleted successfully"}, status=200)
-
-    @action(detail=False, methods=['POST'], url_path='multiple-delete')
-    def multiple_delete(self, request):
-        level_id = request.data.get('level_id')
-        all_ids = request.data.get('all_ids', False)
-        ids = request.data.get('ids')
-
-        # -----------------------------
-        # 1. Pick nodes to delete
-        # -----------------------------
-        if all_ids and all_ids in ["true", "True", True]:
-            if not level_id:
-                return Response({"level_id": "level_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                target_level = Level.objects.get(id=level_id)
-                node_qs = Node.objects.filter(level=target_level, is_deleted=False)
-            except Level.DoesNotExist:
-                return Response({"level_id": "Level not found"}, status=status.HTTP_404_NOT_FOUND)
-        elif ids:
-            if not ids or not isinstance(ids, list):
-                return Response({"ids": "ids must be a valid list"}, status=status.HTTP_400_BAD_REQUEST)
-            node_qs = Node.objects.filter(id__in=ids, is_deleted=False)
-        else:
-            return Response({"error": "Either 'all_ids' or 'ids' parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not node_qs.exists():
-            return Response({"error": "No active rows found to delete."}, status=status.HTTP_404_NOT_FOUND)
-
-        # -------------------------------------------------------------
-        # 2. Dependency Check (Node by Node)
-        # -------------------------------------------------------------
-        try:
-            with transaction.atomic():
-                # Get a flat list of all IDs we are deleting
-                node_ids = list(node_qs.values_list('id', flat=True))
-                node_errors = []
-                dependent_nodes = []
-                for node in node_qs:
-                    # 1. Check for Dependencies
-                    # IMPORTANT: .exclude(id__in=node_ids) prevents blocking if the child is ALSO being deleted right now!
-                    child_nodes_count = Node.objects.filter(parent=node, is_deleted=False).exclude(id__in=node_ids).count()
-
-                    if child_nodes_count > 0:
-                        dependent_nodes.append(node.id)
-                        node_errors.append(f"'{node.name}' is referenced by {child_nodes_count} child row(s).")
-
-                # 2. Block Deletion if dependencies exist ANYWHERE in the selection
-                if node_errors:
-                    combined_error_msg = "Cannot delete the selected items, Please delete or reassign them first."
-                    
-                    raise DRFValidationError({
-                        "error": combined_error_msg,
-                        "node_ids": dependent_nodes,
-                        "details": node_errors, # Send array for the frontend to show a clean bulleted list
-                        "requires_resolution": True
-                    })
-
-                # -------------------------------------------------------------
-                # 3. Execute Soft Deletion
-                # -------------------------------------------------------------
-                for node in node_qs:
-                    node.soft_delete(user=request.user)
-                    # Optional: Log the deletion reason in history
-                    update_change_reason(node, "Deleted via bulk multiple-delete API")
-
-        except DRFValidationError as e:
-            # Safely pass our custom validation errors straight to the frontend
-            raise e
-            
-        except Exception as e:
-            # Log unexpected system crashes and return a generic error
-            level_logger.exception(f"Failed to bulk delete nodes: {e}")
-            raise DRFValidationError({"error": "Failed to delete. Please try again."})
-
-        return Response({"message": "Items deleted successfully"}, status=status.HTTP_200_OK)
-
-
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
 from collections import defaultdict
 
-class NodeSearchAPIView(APIView):
+class NodeSearchAPIView(AssignedNodeFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
+    include_ancestors = True
+    model = Node
     """
     POST /api/search/nodes/?dimension=1
     Body:
@@ -1940,6 +1441,7 @@ class NodeSearchAPIView(APIView):
     }
     """
     def post(self, request):
+        print("Logged user: ", request.user)
         # 1. Get Params
         dimension_id = request.query_params.get('dimension')
         if not dimension_id:
@@ -1978,7 +1480,7 @@ class NodeSearchAPIView(APIView):
 
         # 3. Step A: Find CANDIDATE Nodes first
         # We search for ANY node at Level="Country" that contains "In"
-        nodes = Node.objects.filter(
+        nodes = self.get_queryset().filter(
             dimension_id=dimension_obj,
             # level__name__iexact=target_level_name,
             # level__name__iexact=target_level_obj.name,
@@ -2092,7 +1594,7 @@ class NodeSearchAPIView(APIView):
                     formatted_item[level_name] = {
                         "id": node_obj.id,
                         "name": node_obj.name,
-                        "code": node_obj.code
+                        "code": str(node_obj.code).zfill(node_obj.level.code_digits)
                     }
 
                 # 3. [FIX] EXPLICITLY ADD THE TARGET NODE ITSELF
@@ -2100,7 +1602,7 @@ class NodeSearchAPIView(APIView):
                 formatted_item[target_level_name] = {
                     "id": node.id,
                     "name": node.name,
-                    "code": node.code
+                    "code": str(node.code).zfill(target_level_obj.code_digits)
                 }
                 
                 final_results.append(formatted_item)
@@ -2124,7 +1626,7 @@ class CustomColumnView(APIView):
     
     def post(self, request, pk):
         level = get_object_or_404(Level, pk=pk)
-        input_serializer = ColumnDefinitionSerializer(data=request.data, context={"level": level})
+        input_serializer = ColumnDefinitionSerializer(data=request.data, context={"level_obj": level})
         input_serializer.is_valid(raise_exception=True)
         
         new_col = input_serializer.validated_data
@@ -2227,20 +1729,45 @@ class CustomColumnView(APIView):
             new_max_length = validated_data.get('max_length', existing_max)
             print("new_max_length", new_max_length)
             
-        # if new_required and not existing_required:
-        #     if new_default_value in [None, ""]:
-        #         return Response(
-        #             {"default_value": "Required columns must have a default value"},
-        #             status=status.HTTP_400_BAD_REQUEST
-        #         )
+        if new_required:
+            node_count = Node.objects.filter(level=level).count()
+            if node_count > 0 and new_default_value in [None, ""]:
+                return Response(
+                    {"default_value": "You cannot mark a column as 'Required' without a 'Default Value' because data already exists."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
         # 5. Validate Consistency
         try:
-            new_default_value = validate_value_type(new_default_value, existing_type, new_max_length)
+            options = validated_data.get('options', existing_col.get('options'))
+            
+            # Check if any removed dropdown options are currently in use
+            if existing_type == 'dropdown' and 'options' in validated_data:
+                existing_options = set(existing_col.get('options', []))
+                new_options = set(validated_data['options'])
+                removed_options = existing_options - new_options
+                
+                if removed_options:
+                    query = Q()
+                    for opt in removed_options:
+                        query |= Q(**{f"attributes__{current_name}": opt})
+                    
+                    if Node.objects.filter(level=level).filter(query).exists():
+                        return Response(
+                            {"options": f"Cannot remove options {list(removed_options)} because they are currently used by one or more nodes."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+            new_default_value = validate_value_type(new_default_value, existing_type, new_max_length, options=options)
             print(f"New Default Value: {new_default_value}, Type: {type(new_default_value)}")
-        except (ValidationError, ValueError) as e: # FIX: Catch both error types
+        except (ValidationError, ValueError, DRFValidationError) as e: 
             # Unwrap the error message safely
-            msg = e.detail[0] if isinstance(e, ValidationError) and isinstance(e.detail, list) else str(e)
+            if hasattr(e, 'detail'):
+                msg = e.detail[0] if isinstance(e.detail, list) else str(e.detail)
+            elif hasattr(e, 'messages'):
+                msg = e.messages[0] if isinstance(e.messages, list) else str(e.messages)
+            else:
+                msg = str(e)
             return Response({"default_value": msg}, status=status.HTTP_400_BAD_REQUEST)
         
         # 6. Apply Updates
@@ -2248,6 +1775,8 @@ class CustomColumnView(APIView):
         existing_col['default_value'] = new_default_value
         existing_col['max_length'] = new_max_length
         existing_col['required'] = new_required
+        if existing_type == 'dropdown':
+            existing_col['options'] = options
         
         # 7. Save
         level.extra_fields_schema[target_index] = existing_col
@@ -2298,10 +1827,24 @@ class LevelHistoryDiffView(BaseHistoryDiffAPIViewMixin):
     model_class = Level
 
 
-class NodeRelationshipViewset(viewsets.ModelViewSet):
+class NodeRelationshipViewset(AssignedNodeFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = NodeRelationshipInputSerializer
     queryset = NodeRelationship.objects.all()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        
+        if not user or not user.is_authenticated:
+            return qs.none()
+
+        if self.bypass_for_super_admins and hasattr(user, 'is_super_admin') and user.is_super_admin():
+            return qs
+
+        from user.models import AdminResidentialNodeAssignment
+        assigned_node_ids = AdminResidentialNodeAssignment.objects.filter(user=user).values_list('node_id', flat=True)
+        return qs.filter(Q(territory_id__in=assigned_node_ids) | Q(controller_id__in=assigned_node_ids)).distinct()
 
     def get_serializer_class(self):
         if self.action in ["create", "update", "partial_update"]:
@@ -2316,7 +1859,7 @@ class NodeRelationshipViewset(viewsets.ModelViewSet):
         if not node_params:
             return Response({"error": "Node is required"}, status=status.HTTP_400_BAD_REQUEST)
         
-        query_set = NodeRelationship.objects.filter(
+        query_set = self.get_queryset().filter(
             Q(territory=node_params) | Q(controller=node_params)
         )
 

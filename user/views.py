@@ -9,14 +9,189 @@ from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from django.db.models.expressions import RawSQL
 import re
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
+
+from configuration.mixins import AssignedNodeFilterMixin
+from .mixins import AdminRoleFilterMixin, IsSuperAdmin, IsAdminRole
+from common.pagination import CommonPagination
 from .serializers import (
-    RegistrationInputSerializer, ResidentialTypeListSerializer, DocumentTypeListSerializer, UserSuggestionListSerializer,
-    UserDetailsOutputSerializer, RegistrationOutputSerializer, UserListSerializer, RelationTypeListSerializer
+    LoginInputSerializer,UserBasicDetailsOutputSerializer, LogoutInputSerializer,
+    ResidentialTypeDropdownSerializer, DocumentTypeDropdownSerializer, RelationTypeDropdownSerializer, DesignationTypeDropdownSerializer,
+    BusinessFamilyDropdownSerializer, BussinessFamilyDetailsOutputSerializer,
+    UserSuggestionDropdownSerializer, UserDetailsOutputSerializer,
+    RegistrationInputSerializer, RegistrationOutputSerializer, UserListSerializer, LoginPhoneInputSerializer,LoginPhoneOTPInputSerializer,
+    BusienssRegistrationInputSerializer, RoleDropdownSerializer,
+    BusinessMemberPayloadSuggestionSerializer, BusinessRegisterOutputSerializer
 )
 from .models import *
-from .utils import (map_family_internal_relations, map_relations_with_husband_user)
+from .utils import (map_family_internal_relations, map_relations_with_husband_user, build_family_tree, build_family_tree_by_pidhi, get_or_create_residential_details, get_all_role_descendant_names, get_residential_details_ids_by_code)
 # Create your views here.
+
+class LoginOTPView(APIView):
+    def post(self,request):
+        serializer_obj = LoginPhoneInputSerializer(data = request.data)
+
+        if serializer_obj.is_valid():
+            contact_no = serializer_obj.validated_data.get('contact_no')
+            try:
+                user_obj = User.objects.get(contact_no = contact_no)
+            except User.DoesNotExist:
+                message = {
+                    'error' : 'User does not exsist'
+                }
+                return Response(message,status=status.HTTP_400_BAD_REQUEST)
+            
+            message = {
+                'success' : 'otp sent successfully'
+            }
+            return Response(message, status=status.HTTP_200_OK)
+        return Response(serializer_obj.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginPhoneOTPView(APIView):
+    def post(self,request):
+        serializer_obj = LoginPhoneOTPInputSerializer(data=request.data)
+        if serializer_obj.is_valid():
+            contact_no = serializer_obj.validated_data.get('contact_no')
+            otp = serializer_obj.validated_data.get('otp')
+            try:
+                user_obj = User.objects.get(contact_no = contact_no)
+            except User.DoesNotExist:
+                message = {
+                    'error' : 'User does not exsist'
+                }
+                return Response(message,status=status.HTTP_400_BAD_REQUEST)    
+            if otp ==   1234:
+                    
+                refresh = RefreshToken.for_user(user_obj)
+                serializer_obj = UserBasicDetailsOutputSerializer(user_obj)
+                
+                # Sample testing notification
+                try:
+                    from notification.services.dispatcher import trigger_event
+                    trigger_event(
+                        template_name="user.login",
+                        user_id=user_obj.id,
+                        context_data={
+                            "full_name": user_obj.full_name or user_obj.email or "User"
+                        }
+                    )
+                except Exception as e:
+                    pass
+
+                return Response(
+                                {   
+                                    'message' : "Login successfully",
+                                    "refresh": str(refresh),
+                                    "access": str(refresh.access_token),
+                                    "user": serializer_obj.data
+                                },
+                            status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {
+                        "error" : 'Invalid otp'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(serializer_obj.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginView(APIView):
+    def post(self, request):
+        serializer = LoginInputSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        validated_data = serializer.validated_data
+        email = validated_data.get('email').strip()
+        password = validated_data.get('password')
+            
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Wrong Email or password"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not user.is_verified:
+            return Response(
+                {
+                    "error": "Your account is not verified"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not user.check_password(password):
+            return Response(
+                {"error": "Wrong Email or password"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        refresh = RefreshToken.for_user(user)
+        serializer = UserBasicDetailsOutputSerializer(user)
+        
+        try:
+            from notification.services.dispatcher import trigger_event
+            trigger_event(
+                template_name="user.login",
+                user_id=user.id,
+                context_data={
+                    "full_name": user.full_name or user.email or "User"
+                }
+            )
+        except Exception as e:
+            pass # Non-blocking error handling for notifications
+
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": serializer.data
+            },
+            status=status.HTTP_200_OK)
+        
+        
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = LogoutInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        refresh_token = serializer.validated_data.get('refresh')
+
+        # Attempt to blacklist the refresh token
+        try:
+            token = RefreshToken(refresh_token)
+        except (TokenError, InvalidToken):
+            # Invalid or malformed token
+            return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify token belongs to requesting user
+        user_id = int(token.payload.get('user_id'))
+        if user_id != request.user.id:
+            return Response(
+                {"error": "You are not authorized to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            token.blacklist()
+            # if blacklist is successful then return success response
+            return Response(
+                {
+                    "message": "Successfully logged out."
+                }, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            # Token already blacklisted or invalid
+            Response(
+                {"error": "Something went wrong", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class RegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -26,10 +201,14 @@ class RegistrationView(APIView):
         input_serializer.is_valid(raise_exception=True)
 
         validated_data = input_serializer.validated_data
+
         registration_user = validated_data.get('registration_user')
         user_category = validated_data.get('user_category')
         residential_type = validated_data.get('residential_type')
         residential_details_json = validated_data.get('residential_details')
+        stay_from = validated_data.get('stay_from')
+        stay_to = validated_data.get('stay_to')
+        company_name = validated_data.get("company")
         family_members = validated_data.get('family_members')
 
         if residential_type.name != "current" and not registration_user:
@@ -37,278 +216,477 @@ class RegistrationView(APIView):
                 "registration_user": "This field is required"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            created_users = []
-            created_user_ids = []
-            main_user_obj = None
-            main_user_residential_obj = None
-            husband_user = None
+        # Residential Details
+        # residential_obj = None
+        # if residential_details_json:
+        #     residential_obj, _ = ResidentialDetails.objects.get_or_create(
+        #         nodes=residential_details_json
+        #     )
+        
+        residential_obj, _ = get_or_create_residential_details(residential_details_json)
 
-            # Residential Details
-            user_residential_obj, _ = UserResidentialDetails.objects.get_or_create(
-                nodes=residential_details_json
-            )
+        try:
+            with transaction.atomic():
+                created_users = []
+                created_user_ids = []
+                main_user_obj = None
+                main_user_residential_obj = None
+                husband_user = None            
+                business_family_obj = None
+                business_family_cache = {}
+                business_family_member_cache = set()
 
+                for member in family_members:
+                    personal_details_json = member.pop('personal_details', {})
+                    professional_details_lst = member.pop('professional_details', [])
+                    existing_user_obj = member.pop('user_id')
+                    relation_obj = member.pop('relation')
 
-            for member in family_members:
-                personal_details_json = member.pop('personal_details', {})
-                existing_user_obj = member.pop('user_id')
-                relation_obj = member.pop('relation')
+                    self_relation = member.pop('self_relation', None)
+                    self_designation = member.pop('self_designation', None)
+                    self_relation_type_obj = None
+                    if self_relation:
+                        try:
+                            self_relation_type_obj = RelationType.objects.get(name=self_relation)
+                        except RelationType.DoesNotExist:
+                            raise ValidationError({
+                                "self_relation": "Invalid self relation."
+                            })
 
-                self_relation = member.pop('self_relation')
-                try:
-                    self_relation_type_obj = RelationType.objects.get(name=self_relation)
-                except RelationType.DoesNotExist:
-                    raise ValidationError({
-                        "self_relation": "Invalid self relation."
-                    })
+                    # User details
+                    full_name = member.pop('full_name')
+                    email = member.pop('email', None)
+                    contact_no = member.pop('contact_no')
+                    post_no = member.pop('post_no', None)
 
-                # User details
-                full_name = member.pop('full_name')
-                email = member.pop('email', None)
-                contact_no = member.pop('contact_no')
-
-                user_defaults = {
-                    "full_name": full_name,
-                    "email": email,
-                    "contact_no": contact_no,
-                    "user_category": user_category,
-                }
-
-                if existing_user_obj:
-                    user_obj, _ = User.objects.update_or_create(
-                        id=existing_user_obj.id,
-                        defaults=user_defaults
-                    )
-                    
-                else:
-                    user_obj = User.objects.create(
-                        full_name = full_name,
-                        email = email,
-                        contact_no = contact_no,
-                        user_category = user_category,
-                    )
-                
-                if residential_type.name == "current":
-                    user_obj.is_verified = True
-
-                user_obj.current_residential_details = user_residential_obj
-                
-                user_obj.save()
-
-                role, _ = UserRole.objects.get_or_create(
-                    name="user",
-                    display_name="User"
-                )
-                user_obj.roles.add(role)
-
-                # User Profile update or create
-                user_profile_obj, _ = UserProfile.objects.update_or_create(
-                    user = user_obj,
-                    defaults=member
-                )
-                
-
-                # Personal Details
-                # user_personal_obj, _ = UserPersonalDetails.objects.update_or_create(
-                #     user = user_obj,
-                #     defaults={
-                #         'nodes': personal_details_json
-                #     }
-                # )
-
-                try:
-                    user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
-                    user_personal_obj.nodes = personal_details_json
-                    user_personal_obj.save()
-                except UserPersonalDetails.DoesNotExist:
-                    user_personal_obj = UserPersonalDetails.objects.create(
-                        user = user_obj,
-                        nodes = personal_details_json
-                    )
-
-                if self_relation == "husband":
-                    husband_user = user_obj
-
-                # Add to created users
-                created_users.append(
-                    {
-                        "user": user_obj,
-                        "self_relation_type": self_relation_type_obj,
-                        "personal_details": user_personal_obj,
-                        "relation": relation_obj
+                    user_defaults = {
+                        "full_name": full_name,
+                        "email": email,
+                        "contact_no": contact_no,
+                        "user_category": user_category,
                     }
-                )
-                created_user_ids.append(user_obj.id)
 
-                if main_user_obj is None and self_relation == 'husband' and member.get('expired_date') is None:
-                    main_user_obj = user_obj
-                    main_user_residential_obj = user_residential_obj
-
-                elif main_user_obj is None and self_relation == 'wife' and member.get('expired_date') is None:
-                    main_user_obj = user_obj
-                    main_user_residential_obj = user_residential_obj
-
-
-            if not main_user_obj:
-                raise ValidationError({
-                    "error": "Main user not found"
-                })
-            
-            if residential_type.name == "current":
-                registration_user = main_user_obj
-             
-                main_user_family_member_obj = FamilyMember.objects.filter(
-                    user = main_user_obj,
-                    is_main_user = True
-                ).first()
-
-                if main_user_family_member_obj:
-                    family_obj = main_user_family_member_obj.family
-                else:
-                    family_obj = Family.objects.create(
-                    )
-
-                family_name = ""
-                for user in created_users:
-                    user_obj = user.get("user")
-                    FamilyMember.objects.get_or_create(
-                        family = family_obj,
-                        user = user_obj,
-                        self_relation_type = user.get("self_relation_type"),
-                        is_main_user = user_obj.id == main_user_obj.id
-                    )
-                    family_name += user_obj.full_name[0].upper()
-                
-                family_obj.name = family_name
-                family_obj.save()
-                
-                registration_user_family_obj = family_obj
-
-                try:
-                    with transaction.atomic():
-                        family_resident_obj, _ = FamilyResident.objects.get_or_create(
-                            family = family_obj,
-                            residential_details = user_residential_obj,
-                            residential_type = residential_type
+                    if existing_user_obj:
+                        user_obj, _ = User.objects.update_or_create(
+                            id=existing_user_obj.id,
+                            defaults=user_defaults
                         )
-                except IntegrityError:
-                    raise ValidationError({
-                        "residential_details": "For this residential details a family already exists."
-                    })
+                    
+                    else:                        
+                        user_obj = User.objects.create(
+                            full_name = full_name,
+                            email = email,
+                            contact_no = contact_no,
+                            user_category = user_category,
+                        )
+                
+                    if residential_type.name == "current":
+                        user_obj.is_verified = True
 
-            else:
-                current_residential_type_obj = ResidentialType.objects.get(name="current")
+                    user_obj.current_residential_details = residential_obj
+                
+                    user_obj.save()
 
-                main_user_family_members = FamilyMember.objects.filter(
-                    user = main_user_obj,
-                    is_main_user = True
-                )
-
-                if main_user_family_members.exists():
-                    main_user_family_obj = main_user_family_members.first().family
-                else:
-                    main_user_family_obj = Family.objects.create(
+                    role, _ = UserRole.objects.get_or_create(
+                        name="user",
+                        display_name="User"
                     )
+                    user_obj.roles.add(role)
+
+                    # User Profile update or create
+                    user_profile_obj, _ = UserProfile.objects.update_or_create(
+                        user = user_obj,
+                        defaults=member
+                    )
+                
+
+                    # Personal Details
+                    # user_personal_obj, _ = UserPersonalDetails.objects.update_or_create(
+                    #     user = user_obj,
+                    #     defaults={
+                    #         'nodes': personal_details_json
+                    #     }
+                    # )
+
+                    try:
+                        user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
+                    except UserPersonalDetails.DoesNotExist:
+                        user_personal_obj = UserPersonalDetails.objects.create(
+                            user = user_obj
+                        )
+                
+                    # Bulk create mapping for personal details
+                    user_personal_obj.node_mappings.all().delete()
+                    personal_mappings_to_create = []
+                    for level_id, node_id in personal_details_json.items():
+                        if level_id and node_id:
+                            personal_mappings_to_create.append(
+                                PersonalNodeMapping(
+                                    personal_detail=user_personal_obj, level_id=int(level_id), node_id=int(node_id)
+                                )
+                            )
+                    if personal_mappings_to_create:
+                        PersonalNodeMapping.objects.bulk_create(personal_mappings_to_create)
+                
+                    print("professional_details_lst", professional_details_lst)
+                    for professional_details in professional_details_lst:
+                        company_name = professional_details.get('company')
+                        residential_nodes = professional_details.get('residential_details', {})
+
+                        bussiness_residential_obj, _ = get_or_create_residential_details(residential_nodes)
+
+                        if company_name and company_name not in business_family_cache:
+                            try:
+                                temp_resident_mapping_obj = ResidentMapping.objects.get(
+                                    residential_details=bussiness_residential_obj,
+                                    residential_type__name="business",
+                                    business_family__name__iexact=company_name
+                                )
+                                business_family_obj = temp_resident_mapping_obj.business_family
+                            except ResidentMapping.DoesNotExist:
+                                business_family_obj = BusinessFamily.objects.create(name=company_name)
+                                business_residential_type_obj = ResidentialType.objects.get(name="business")
+
+                                ResidentMapping.objects.create(
+                                    residential_details=bussiness_residential_obj,
+                                    residential_type=business_residential_type_obj,
+                                    business_family=business_family_obj
+                                )
+                            business_family_cache[company_name] = business_family_obj
+                        elif company_name:
+                            business_family_obj = business_family_cache[company_name]
+                    
+
+
+                        designation_obj = professional_details.get('designation')
+                        personal_nodes = professional_details.get('personal_details', {})
+                        professional_nodes = professional_details.get('professional_details', {})
+                        profession_id = professional_details.get('id', None)
+                        is_active = professional_details.get('is_active', True)
+                    
+                        if profession_id:
+                            try:
+                                professional_details_obj = UserProfessionalDetails.objects.get(
+                                    id=profession_id,
+                                    user=user_obj
+                                )
+                                professional_details_obj.business_family = business_family_obj
+                                professional_details_obj.residential_details = bussiness_residential_obj
+                                professional_details_obj.designation = designation_obj
+                                professional_details_obj.is_active = is_active
+                                professional_details_obj.owner_name = professional_details.get('owner_name')
+                                professional_details_obj.owner_contact_no = professional_details.get('owner_contact_no')
+                                professional_details_obj.save()
+                            except UserProfessionalDetails.DoesNotExist:
+                                raise ValidationError({
+                                    "error": "Professional details not found"
+                                })
+
+                        else:
+                            professional_details_obj = UserProfessionalDetails.objects.create(
+                                user=user_obj,
+                                business_family = business_family_obj,
+                                residential_details=bussiness_residential_obj,
+                                designation=designation_obj,
+                                is_active=is_active,
+                                owner_name = professional_details.get('owner_name'),
+                                owner_contact_no = professional_details.get('owner_contact_no'),
+                            )
+
+                        if company_name and business_family_obj:
+                            business_family_member_key = (user_obj.id, business_family_obj.id)
+                            if business_family_member_key not in business_family_member_cache:
+                                BusinessFamilyMember.objects.get_or_create(
+                                    business_family=business_family_obj,
+                                    user=user_obj,
+                                    self_designation_type=designation_obj
+                                )
+                                business_family_member_cache.add(business_family_member_key)
+                        
+                        # Delete and recreate professional mappings
+                        professional_details_obj.professional_node_mappings.all().delete()
+                        prof_mappings_to_create = []
+                        for level_id, node_id in professional_nodes.items():
+                            if level_id and node_id:
+                                prof_mappings_to_create.append(ProfessionalNodeMapping(
+                                    professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                                ))
+                        if prof_mappings_to_create:
+                            ProfessionalNodeMapping.objects.bulk_create(prof_mappings_to_create)
+
+                        # Delete and recreate professional personal mappings
+                        professional_details_obj.personal_node_mappings.all().delete()
+                        prof_pers_mappings_to_create = []
+                        for level_id, node_id in personal_nodes.items():
+                            if level_id and node_id:
+                                prof_pers_mappings_to_create.append(ProfessionalPersonalNodeMapping(
+                                    professional_detail=professional_details_obj, level_id=int(level_id), node_id=int(node_id)
+                                ))
+                        if prof_pers_mappings_to_create:
+                            ProfessionalPersonalNodeMapping.objects.bulk_create(prof_pers_mappings_to_create)
+                    
+                    if self_relation == "husband":
+                        husband_user = user_obj
+
+                    # Add to created users
+                    created_users.append(
+                        {
+                            "user": user_obj,
+                            "self_relation_type": self_relation_type_obj if self_relation else None,
+                            "self_designation_type": self_designation,
+                            "personal_details": user_personal_obj,
+                            "relation": relation_obj,
+                            "post_no": post_no,
+                        }
+                    )
+                    created_user_ids.append(user_obj.id)
+
+                    if main_user_obj is None and self_relation == 'husband' and member.get('expired_date') is None:
+                        main_user_obj = user_obj
+                        main_user_residential_obj = residential_obj
+
+                    elif main_user_obj is None and self_relation == 'wife' and member.get('expired_date') is None:
+                        main_user_obj = user_obj
+                        main_user_residential_obj = residential_obj
+
+
+                if not main_user_obj and residential_type.name != "business":
+                    raise ValidationError({
+                        "error": "Main user not found"
+                    })
+            
+                if residential_type.name == "current":
+                    registration_user = main_user_obj
+
+                    main_user_family_member_obj = FamilyMember.objects.filter(
+                        user=main_user_obj,
+                        is_main_user=True
+                    ).first()
+
+                    if main_user_family_member_obj:
+                        family_obj = main_user_family_member_obj.family
+                    else:
+                        family_obj = Family.objects.create()
 
                     family_name = ""
                     for user in created_users:
                         user_obj = user.get("user")
-                        FamilyMember.objects.get_or_create(
-                            family = main_user_family_obj,
-                            user = user_obj,
-                            self_relation_type = user.get("self_relation_type"),
-                            is_main_user = user_obj.id == main_user_obj.id
+                        FamilyMember.objects.update_or_create(
+                            family=family_obj,
+                            user=user_obj,
+                            defaults={
+                                "self_relation_type": user.get("self_relation_type"),
+                                "post_no": user.get("post_no"),
+                                "is_main_user": user_obj.id == main_user_obj.id,
+                            }
                         )
                         family_name += user_obj.full_name[0].upper()
 
-                    main_user_family_obj.name = family_name
-                    main_user_family_obj.save()
+                    family_obj.name = family_name
+                    family_obj.save()
 
-                registration_user_family_member_obj = FamilyMember.objects.filter(
-                    user = registration_user,
-                    is_main_user = True
-                ).first()
+                    registration_user_family_obj = family_obj
 
-                if not registration_user_family_member_obj:
-                    raise ValidationError({
-                        "error": "Registration Family not found"
-                    })
-                
-                registration_user_family_obj = registration_user_family_member_obj.family
-
-                # try:
-                #     family_resident_obj = FamilyResident.objects.get(
-                #         family = main_user_family_obj,
-                #         residential_type = current_residential_type_obj
-                #     )
-                # except FamilyResident.DoesNotExist:
-                #     family_resident_obj = FamilyResident.objects.create(
-                #         family = main_user_family_obj,
-                #         residential_details = main_user_residential_obj,
-                #         residential_type = current_residential_type_obj
-                #     )
-                
-                # try:
-                #     family_resident_obj = FamilyResident.objects.get(
-                #         family = registration_user_family_obj,
-                #         residential_type = residential_type
-                #     )
-                # except FamilyResident.DoesNotExist:
-                #     family_resident_obj = FamilyResident.objects.create(
-                #         family = registration_user_family_obj,
-                #         residential_details = main_user_residential_obj,
-                #         residential_type = residential_type
-                #     )
-
-                # 1. Check for Main User Family Resident
-                # if FamilyResident.objects.filter(
-                #     residential_details=main_user_residential_obj, 
-                #     residential_type=current_residential_type_obj
-                # ).exists():
-                #     raise ValidationError({
-                #         "residential_details": "A family resident with these residential details and this family type already exists."
-                #     })
-
-                # 1. Check for Main User Family Resident
-                try:
-                    with transaction.atomic():
-                        family_resident_obj, created = FamilyResident.objects.get_or_create(
-                            family=main_user_family_obj,
-                            residential_type=current_residential_type_obj,
-                            defaults={'residential_details': main_user_residential_obj}
+                    try:
+                        ResidentMapping.objects.update_or_create(
+                            family=family_obj,
+                            residential_type=residential_type,
+                            defaults={
+                                'residential_details': residential_obj,
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
-                except IntegrityError:
-                    raise ValidationError({
-                        "residential_details": "For this residential details a family already exists."
-                    })
+                    except IntegrityError:
+                        raise ValidationError({
+                            "residential_details": "For this residential details a family already exists."
+                        })
+                    resident_types = [
+                        "current",
+                        "owner",
+                        "permanent",
+                        "native",
+                        "in_laws",
+                        "maternal",
+                    ]
 
-                # 2. Check for Registration User Family Resident
-                try:
-                    with transaction.atomic():
-                        registration_resident_obj, created = FamilyResident.objects.get_or_create(
+                    for type_name in resident_types:
+                        rt = ResidentialType.objects.filter(
+                            name=type_name,
+                            is_active=True
+                        ).first()
+
+                        if not rt:
+                            continue
+
+                        ResidentMapping.objects.get_or_create(
+                            family=registration_user_family_obj,
+                            residential_type=rt,
+                            defaults={
+                                "residential_details": residential_obj,
+                                "stay_from": stay_from,
+                                "stay_to": stay_to,
+                            }
+                        )
+                elif residential_type.name == "business":
+                    for user in created_users:
+                        user_obj = user.get("user")
+                        self_designation_type = user.get("self_designation_type")
+
+                        if business_family_obj is None:
+                            try:
+                                temp_resident_mapping_obj = ResidentMapping.objects.get(
+                                    residential_details=residential_obj,
+                                    residential_type=residential_type,
+                                    business_family__name__iexact=company_name
+                                )
+                                business_family_obj = temp_resident_mapping_obj.business_family
+                                business_family_obj.is_verified = False
+                                business_family_obj.save()
+
+                            except ResidentMapping.DoesNotExist:
+                                business_family_obj = BusinessFamily.objects.create(
+                                    name=company_name,
+                                    is_verified=False
+                                )
+
+                        BusinessFamilyMember.objects.get_or_create(
+                            business_family=business_family_obj,
+                            user=user_obj,
+                            self_designation_type=self_designation_type
+                        )
+                else:
+                    print("created users", created_users)
+
+                    main_user_family_members = FamilyMember.objects.filter(
+                        user=main_user_obj,
+                        is_main_user=True
+                    )
+
+                    if main_user_family_members.exists():
+                        main_user_family_obj = main_user_family_members.first().family
+                    else:
+                        main_user_family_obj = Family.objects.create()
+
+                    family_name = ""
+                    for user in created_users:
+                        user_obj = user.get("user")
+                        FamilyMember.objects.update_or_create(
+                            family=main_user_family_obj,
+                            user=user_obj,
+                            defaults={
+                                "self_relation_type": user.get("self_relation_type"),
+                                "post_no": user.get("post_no"),
+                                "is_main_user": user_obj.id == main_user_obj.id,
+                            }
+                        )
+                        family_name += user_obj.full_name[0].upper()
+
+                        print("member", member)
+                        main_user_family_obj.name = family_name
+                        main_user_family_obj.save()
+
+                    registration_user_family_member_obj = FamilyMember.objects.filter(
+                        user=registration_user,
+                        is_main_user=True
+                    ).first()
+
+                    if not registration_user_family_member_obj:
+                        raise ValidationError({
+                            "error": "Registration Family not found"
+                        })
+
+                    registration_user_family_obj = registration_user_family_member_obj.family
+
+                    resident_types = [
+                        "current",
+                        "owner",
+                        "permanent",
+                        "native",
+                        "in_laws",
+                        "maternal",
+                    ]
+
+                    for type_name in resident_types:
+                        rt = ResidentialType.objects.filter(
+                            name=type_name,
+                            is_active=True
+                        ).first()
+
+                        if not rt:
+                            continue
+
+                        ResidentMapping.objects.get_or_create(
+                            family=main_user_family_obj,
+                            residential_type=rt,
+                            defaults={
+                                "residential_details": residential_obj,
+                                "stay_from": stay_from,
+                                "stay_to": stay_to,
+                            }
+                        )
+
+                    try:
+                        ResidentMapping.objects.update_or_create(
                             family=registration_user_family_obj,
                             residential_type=residential_type,
-                            defaults={'residential_details': main_user_residential_obj}
+                            defaults={
+                                'residential_details': main_user_residential_obj,
+                                'stay_from': stay_from,
+                                'stay_to': stay_to
+                            }
                         )
-                except IntegrityError:
-                    raise ValidationError({
-                        "residential_details": "For this residential details a family already exists."
-                    })
+                    except IntegrityError:
+                        raise ValidationError({
+                            "residential_details": "For this residential details a family already exists."
+                        })
             
-            # Map family internal relations
-            map_family_internal_relations(created_users)
+                # Map family internal relations
+                if residential_type.name != "business":
+                    map_family_internal_relations(created_users)
 
-            # Map relations, native, inlaws, maternal
-            map_relations_with_husband_user(registration_user_family_obj, created_users)
+                    # Map relations, native, inlaws, maternal
+                    map_relations_with_husband_user(registration_user_family_obj, created_users)
             
+        except ValidationError as e:
+            if hasattr(e, 'detail'):
+                return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response({
+        # return Response({
+        #     "message": "User created successfully",
+        #     "registration_user": registration_user.id if registration_user else None,
+        #     "main_user": main_user_obj.id if main_user_obj else None,
+        #     "user_ids": created_user_ids
+        # }, status=status.HTTP_201_CREATED)
+
+        # --- NEW: Serialize and return the created data ---
+        if residential_type.name == "business":
+            target_instance = business_family_obj
+        else:
+            target_instance = registration_user_family_obj
+
+        # Use the exact same serializer and context as your GET request
+        serializer = RegistrationOutputSerializer(
+            target_instance,
+            context={
+                "residential_type": residential_type,
+                "registration_user": registration_user,
+                "residential_details": residential_obj
+            }
+        )
+
+        # Optional: You can wrap the serialized data with your success message and user_ids
+        # so the frontend still gets everything it expects.
+        response_data = {
             "message": "User created successfully",
             "registration_user": registration_user.id if registration_user else None,
-            "main_user": main_user_obj.id,
-            "user_ids": created_user_ids
-        }, status=status.HTTP_201_CREATED)
+            "main_user": main_user_obj.id if main_user_obj else None,
+            "user_ids": created_user_ids,
+            "data": serializer.data  # <--- The full GET response is now embedded here
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
     
 
     def get(self, request):
@@ -339,7 +717,16 @@ class RegistrationView(APIView):
                 return Response({
                     "registration_user": "Invalid registration_user id format"
                 }, status=status.HTTP_400_BAD_REQUEST)
-            registration_user_obj = get_object_or_404(User, id=registration_user)
+            
+            try:
+                registration_user_obj = User.objects.get(id=registration_user)
+            except User.DoesNotExist:
+                return Response({
+                    "registration_user": "Invalid registration_user id"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # registration_user_obj = get_object_or_404(User, id=registration_user)
+            print("registration_user_obj:", registration_user_obj)
         else:
             registration_user_obj = None
         
@@ -358,14 +745,14 @@ class RegistrationView(APIView):
                 "details": "registration_user is required when residential_type is not 'current'"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if registration_user_obj:
+        if registration_user_obj and residential_type != "business":
             try:
                 family_member_obj = FamilyMember.objects.get(user=registration_user_obj, is_main_user=True)
                 family_obj = family_member_obj.family
 
                 try:
-                    residential_obj = FamilyResident.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
-                except FamilyResident.DoesNotExist:
+                    residential_obj = ResidentMapping.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
+                except ResidentMapping.DoesNotExist:
                     return Response({
                         "error": "Something went wrong. Please try again.",
                         "details": "Residential details not found"
@@ -377,8 +764,8 @@ class RegistrationView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 try:
-                    family_obj = FamilyResident.objects.get(residential_details=residential_obj, residential_type__name="current").family
-                except FamilyResident.DoesNotExist:
+                    family_obj = ResidentMapping.objects.get(residential_details=residential_obj, residential_type__name="current").family
+                except ResidentMapping.DoesNotExist:
                     return Response({
                         "error": "Something went wrong. Please try again.",
                         "details": "Family not found"
@@ -406,6 +793,53 @@ class RegistrationView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         
 
+        if registration_user_obj and residential_type == "business":
+            try:
+                family_member_obj = BusinessFamilyMember.objects.get(
+                    business_family__is_verified=True,
+                    user=registration_user_obj, 
+                    is_active=True
+                )
+            except BusinessFamilyMember.DoesNotExist:
+                try:
+                    family_member_obj = BusinessFamilyMember.objects.get(
+                    user=registration_user_obj, 
+                    is_active=True
+                )
+                except BusinessFamilyMember.DoesNotExist:
+                    return Response({
+                        "error": "Something went wrong. Please try again.",
+                        "details": "Family member not found"
+                })
+
+                business_family_obj = family_member_obj.business_family
+                try:
+                    business_residential_obj = ResidentMapping.objects.get(business_family=business_family_obj, residential_type=residential_type_obj).residential_details
+                except ResidentMapping.DoesNotExist:
+                    return Response({
+                        "error": "Something went wrong. Please try again.",
+                        "details": "Residential details not found"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    return Response({
+                        "error": "Something went wrong. Please try again.",
+                        "details": str(e)
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+
+            serializer = RegistrationOutputSerializer(
+                business_family_obj,
+                context = {
+                    "residential_type": residential_type_obj,
+                    "registration_user": registration_user_obj,
+                    "residential_details": business_residential_obj
+                }
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+                
+
+        
+
         # Get all family members whis has user == user_id
         family_member_qs = FamilyMember.objects.filter(user=user_obj)
         if not family_member_qs.exists():
@@ -430,8 +864,8 @@ class RegistrationView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            residential_obj = FamilyResident.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
-        except FamilyResident.DoesNotExist:
+            residential_obj = ResidentMapping.objects.get(family=family_obj, residential_type=residential_type_obj).residential_details
+        except ResidentMapping.DoesNotExist:
             return Response({
                 "error": "Something went wrong. Please try again.",
                 "details": "Residential details not found"
@@ -452,21 +886,22 @@ class RegistrationView(APIView):
 
 
 
-class ResidentialTypeListView(APIView):
-    permission_classes = [IsAuthenticated]
+class ResidentialTypeDropdownView(APIView):
+    permission_classes = []
 
     def get(self, request):
-        residential_type_qs = ResidentialType.objects.filter(is_active=True)
-        serializer = ResidentialTypeListSerializer(residential_type_qs, many=True)
+        role_name = request.query_params.get('role', 'user').strip()
+        residential_type_qs = ResidentialType.objects.filter(is_active=True, roles__name=role_name)
+        serializer = ResidentialTypeDropdownSerializer(residential_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class DocumentTypeListView(APIView):
+class DocumentTypeDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         document_type_qs = DocumentType.objects.filter(is_active=True)
-        serializer = DocumentTypeListSerializer(document_type_qs, many=True)
+        serializer = DocumentTypeDropdownSerializer(document_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -575,6 +1010,12 @@ class MultiUserDocumentUploadView(APIView):
                         # Move to the next document, do not process file uploads
                         continue 
 
+                    # Regex Validation for document_no
+                    if document_type.regex_pattern and document_no:
+                        if not re.match(document_type.regex_pattern, document_no):
+                            error_msg = document_type.regex_error_message or f"Invalid format for {document_type.display_name}."
+                            errors.append({err_key: error_msg})
+                            continue
 
                     # File required Validation
                     if not file:
@@ -633,7 +1074,51 @@ class MultiUserDocumentUploadView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class UserSuggestionsListView(APIView):
+class BusinessMemberSuggestionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        business_id = request.query_params.get('business_id')
+        residential_code = request.query_params.get('residential_code')
+
+        if not business_id and not residential_code:
+            return Response({
+                "suggestions": []
+            }, status=status.HTTP_200_OK)
+
+        filters = Q(is_active=True)
+
+        conditions = Q()
+        if business_id:
+            conditions |= Q(business_family_id=business_id)
+        if residential_code:
+            # residential_code is a computed @property, not a DB column.
+            # Resolve matching ResidentialDetails IDs first, then filter.
+            matching_residential_ids = get_residential_details_ids_by_code(residential_code)
+            conditions |= Q(residential_details_id__in=matching_residential_ids)
+        
+        filters &= conditions
+        
+        prof_qs = UserProfessionalDetails.objects.filter(filters).values_list('user_id', flat=True)
+        
+        # Only suggest active users not already deleted
+        suggestions = User.objects.filter(
+            id__in=prof_qs, 
+            is_deleted=False
+        ).distinct()
+
+        user_suggestions_serializer = BusinessMemberPayloadSuggestionSerializer(
+            suggestions, 
+            many=True,
+            context={'business_id': business_id, 'residential_code': residential_code}
+        )
+
+        return Response({
+            "suggestions": user_suggestions_serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class UserSuggestionsDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_id=None):
@@ -657,7 +1142,7 @@ class UserSuggestionsListView(APIView):
                 filters
             ).distinct()[:10]
 
-            user_suggestions_seriaizer = UserSuggestionListSerializer(suggestions, many=True)
+            user_suggestions_seriaizer = UserSuggestionDropdownSerializer(suggestions, many=True)
 
             return Response({
                 "suggestions": user_suggestions_seriaizer.data
@@ -678,19 +1163,30 @@ class UserSuggestionsListView(APIView):
 
 
 
-class UserListView(APIView):
+class UserListView(AssignedNodeFilterMixin, AdminRoleFilterMixin, APIView):
     permission_classes = [IsAuthenticated]
+    model = User
+    node_filter_field = "current_residential_details__node_mappings__node_id__in"
 
     def get(self, request):
-        user_role = request.query_params.get('user_role', "user").strip()
+        role_name = request.query_params.get('role', "user").strip()
+
+        role_ids, error_response = self.get_allowed_role_ids(request, role_name)
+        if error_response:
+            return error_response
         
         # 1. Apply select_related early! 
         # This forces Django to JOIN the residential and personal tables immediately,
         # which is required because RawSQL needs those tables to exist in the SQL query.
-        user_qs = User.objects.filter(roles__name=user_role).select_related(
-            'current_residential_details', 
-            'personal_details', 
-            'profile'
+        
+        user_qs = (
+            self.get_queryset().filter(roles__id__in=role_ids)
+            .distinct()
+            .select_related(
+                "current_residential_details",
+                "personal_details",
+                "profile",
+            )
         )
 
         for key, value in request.query_params.items():
@@ -704,36 +1200,994 @@ class UserListView(APIView):
             if key.startswith("res_"):
                 json_key = key.replace("res_", "")
 
-                user_qs = user_qs.annotate(
-                    res_json_val=RawSQL(
-                        f"JSON_EXTRACT(user_userresidentialdetails.nodes, '$.\"{json_key}\"')",
-                        []
-                    )
-                ).filter(res_json_val=parsed_value)
+                user_qs = user_qs.filter(
+                    current_residential_details__node_mappings__level_id=int(json_key),
+                    current_residential_details__node_mappings__node_id=parsed_value
+                )
             
             # 3. Apply to Personal Filters
             elif key.startswith("per_"):
                 json_key = key.replace("per_", "")
                 
-                # Assuming your app name is 'user', the table name is 'user_userpersonaldetails'
-                user_qs = user_qs.annotate(
-                    per_json_val=RawSQL(
-                        f"JSON_EXTRACT(user_userpersonaldetails.nodes, '$.\"{json_key}\"')",
-                        []
-                    )
-                ).filter(per_json_val=parsed_value)
+                user_qs = user_qs.filter(
+                    personal_details__node_mappings__level_id=int(json_key),
+                    personal_details__node_mappings__node_id=parsed_value
+                )
 
-        serializer = UserListSerializer(user_qs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        paginator = CommonPagination()
+        paginated_qs = paginator.paginate_queryset(user_qs, request, view=self)
+        serializer = UserListSerializer(paginated_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
-class RelationTypeListView(APIView):
+class RelationTypeDropdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        relation_type_qs = RelationType.objects.filter(is_active=True).exclude(
-            name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
-        )
-        serializer = RelationTypeListSerializer(relation_type_qs, many=True)
+
+        category_param = request.query_params.get('category', '').strip()
+        role_param = request.query_params.get('role', 'user').strip()
+
+        if category_param:
+            relation_type_qs = RelationType.objects.filter(is_active=True, category=category_param, role__name=role_param).exclude(
+                name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+            )
+        else:
+            relation_type_qs = RelationType.objects.filter(
+                is_active=True, 
+                category='general', 
+                role__name=role_param,
+                name__in=["husband", "wife", "son", "daughter", "guest", "worker"]
+            )
+
+        serializer = RelationTypeDropdownSerializer(relation_type_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DesignationTypeDropdownView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        designation_type_qs = DesignationType.objects.filter(is_active=True)
+        serializer = DesignationTypeDropdownSerializer(designation_type_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BusinessFamilyDropdownView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        business_family_qs = BusinessFamily.objects.all()
+
+        search_name = request.query_params.get("search", "").strip()
+        if search_name:
+            business_family_qs = business_family_qs.filter(name__icontains=search_name)[:10]
+
+        serializer = BusinessFamilyDropdownSerializer(business_family_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+from django.utils import timezone    
+
+class DeleteUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        print(int(timezone.now().timestamp()))
+        user_id = request.data.get("user_id")
+        want_continue = request.data.get("want_to_continue", False)
+
+        if not user_id:
+            return Response({"user_id": "User ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not isinstance(user_id, int):
+            return Response({"user_id": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if want_continue and not isinstance(want_continue, bool):
+            return Response({"want_continue": "Invalid format"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_obj = get_object_or_404(User, id=user_id)
+
+        # Safety Check: Prevent the user from deleting themselves
+        if user_obj.id == request.user.id:
+            return Response({"error": "You cannot delete yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            existing_main_member_obj = FamilyMember.objects.select_related(
+                "family",
+                "user",
+                "self_relation_type"
+            ).get(user=user_obj, is_main_user=True)
+
+            family_obj = existing_main_member_obj.family
+            member_count = family_obj.members.filter(user__is_deleted=False).count()
+
+            warning_relation = None
+            if existing_main_member_obj.self_relation_type.name == "husband":
+                warning_relation = "Wife"
+                # Look for a valid spouse (Fetch directly excluding deleted users)
+                future_main_member_obj = FamilyMember.objects.filter(
+                    family=family_obj, 
+                    self_relation_type__name="wife",
+                    user__is_deleted=False
+                ).select_related(
+                    "user__profile",
+                    "self_relation_type"
+                ).first()
+            else:
+                warning_relation = "Husband"
+                # Look for a valid spouse (Fetch directly excluding deleted users)
+                future_main_member_obj = FamilyMember.objects.filter(
+                    family=family_obj, 
+                    self_relation_type__name="husband",
+                    user__is_deleted=False
+                ).select_related(
+                    "user__profile",
+                    "self_relation_type"
+                ).first()
+
+            print("future_main_member_obj:", future_main_member_obj)
+            if future_main_member_obj is None:
+                if not want_continue and member_count > 1:
+                    return Response({"warning": f"{warning_relation} is not found for this user family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+                for member in family_obj.members.all():
+                    member.user.soft_delete(user=request.user)
+                return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
+
+
+            if future_main_member_obj.user.profile.expired_date:
+                if not want_continue:
+                    return Response({"warning": f"{future_main_member_obj.self_relation_type.display_name}-{future_main_member_obj.user.full_name} is expired of this family so after delete then whole family will be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+                for member in family_obj.members.all():
+                    member.user.soft_delete(user=request.user)
+                return Response({"message": "Successfully deleted."}, status=status.HTTP_200_OK)
+                
+
+            if not want_continue:
+                return Response({"warning": f"After delete {existing_main_member_obj.user.full_name} {warning_relation}: '{future_main_member_obj.user.full_name}' will be main user."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            existing_main_member_obj.is_main_user = False
+            existing_main_member_obj.save()
+
+            future_main_member_obj.is_main_user = True
+            future_main_member_obj.save()
+
+        except FamilyMember.DoesNotExist:
+            pass
+        except Exception as e:
+            print(e)
+            return Response({"error": "Something went wrong. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        # Call custom Soft Delete method to preserve the Audit Trail
+        user_obj.soft_delete(user=request.user)
+
     
+        return Response({
+            "message": f"Successfully deleted.",
+        }, status=status.HTTP_200_OK)
+
+
+class FamilyTreeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        data = build_family_tree(user)
+
+        return Response(data)   
+
+
+
+
+class FamilyTreeByPidhiView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        """
+        GET /api/family-tree-by-pidhi/<user_id>/
+        """
+
+        main_member = FamilyMember.objects.filter(
+            user=user_id,
+            is_main_user=True
+        ).first()
+
+        if main_member:
+            member = main_member
+        else:
+            member = FamilyMember.objects.filter(
+                user=user_id
+            ).first()
+
+
+        if not member:
+            return Response(
+                {"error": "Family not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        family_id = member.family_id
+
+        data = build_family_tree_by_pidhi(family_id)
+
+        return Response(data, status=200)
+    
+
+class BusinessView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id=None):
+        if id:
+            business_family = get_object_or_404(BusinessFamily, id=id)
+            business_family_serializer = BusinessRegisterOutputSerializer(business_family)
+            return Response(business_family_serializer.data, status=status.HTTP_200_OK)
+        
+        role_name = request.query_params.get('role', '').strip()
+        if not role_name:
+            return Response({"error": "Role is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        business_family_qs = BusinessFamily.objects.filter(role__name=role_name).order_by('-id')
+
+        search_name = request.query_params.get("search", "").strip()
+        if search_name:
+            business_family_qs = business_family_qs.filter(name__icontains=search_name)
+            
+        business_type = request.query_params.get("business_type", "").strip()
+        if business_type:
+            business_family_qs = business_family_qs.filter(business_type=business_type)
+            
+        company_type = request.query_params.get("company_type", "").strip()
+        if company_type:
+            business_family_qs = business_family_qs.filter(company_type=company_type)
+            
+        company_size = request.query_params.get("company_size", "").strip()
+        if company_size:
+            business_family_qs = business_family_qs.filter(company_size=company_size)
+            
+        is_verified_str = request.query_params.get("is_verified")
+        if is_verified_str is not None:
+            is_verified = is_verified_str.lower() in ['true', '1', 't', 'y', 'yes']
+            business_family_qs = business_family_qs.filter(is_verified=is_verified)
+
+        for key, value in request.query_params.items():
+            if value.isdigit():
+                parsed_value = int(value)
+            else:
+                parsed_value = value
+
+            if key.startswith("pro_"):
+                json_key = key.replace("pro_", "")
+                business_family_qs = business_family_qs.filter(
+                    professional_node_mappings__level_id=int(json_key),
+                    professional_node_mappings__node_id=parsed_value
+                )
+            
+            elif key.startswith("res_"):
+                json_key = key.replace("res_", "")
+                business_family_qs = business_family_qs.filter(
+                    residents__residential_details__node_mappings__level_id=int(json_key),
+                    residents__residential_details__node_mappings__node_id=parsed_value
+                )
+
+        business_family_qs = business_family_qs.distinct()
+
+        paginator = CommonPagination()
+        paginated_qs = paginator.paginate_queryset(business_family_qs, request, view=self)
+        
+        serializer = BusinessFamilyDropdownSerializer(paginated_qs, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+    """
+    POST /api/users/business/register/
+
+    Registers a new Business (BusinessFamily) along with its members.
+
+    Expected payload (validated by BusienssRegistrationInputSerializer):
+    {
+        "role": "<role_name>",
+        "sub_role": <sub_role_id>,
+        "residential_type": <residential_type_id>,
+        "business_family": {
+            "name": "",
+            "company_type": "",
+            "registration_no": "",
+            "pan_no": "",
+            "gstin": "",
+            "business_type": "",
+            "company_size": "",
+            "email": "",
+            "contact_no": "",
+            "website": "",
+            "established_year": null,
+            "latitude": null,
+            "longitude": null,
+            "residential_details": {"<level_id>": <node_id>, ...},
+            "professional_details": {"<level_id>": <node_id>, ...},
+            "operating_hours": [
+                {"day_of_week": "monday", "open_time": "09:00", "close_time": "18:00"},
+                ...
+            ]
+        },
+        "business_members": [
+            {
+                "user_id": null,
+                "self_designation_type": <designation_type_id>,
+                "contact_no": "",
+                "email": "",
+                "full_name": "",
+                ...<profile fields>...,
+                "personal_details": {"<level_id>": <node_id>, ...},
+                "residential_details": {"<level_id>": <node_id>, ...},
+                "professional_details": {
+                    "id": null,                        # null = new, or PK of existing UserProfessionalDetails
+                    "designation": <designation_id>,   # designation within the business
+                    "professional_details": {"<level_id>": <node_id>, ...},
+                    "joined_date": "YYYY-MM-DD",
+                    "left_date": null,
+                    "experience": "",
+                    "is_active": true
+                }
+            },
+            ...
+        ]
+    }
+    """
+
+    def post(self, request):
+        input_serializer = BusienssRegistrationInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        validated_data = input_serializer.validated_data
+
+        role_obj = validated_data.get('role')
+        sub_role_obj = validated_data.get('sub_role')
+        residential_type = validated_data.get('residential_type')
+        business_data = validated_data.get('business_family')
+        business_members = validated_data.get('business_members')
+
+        with transaction.atomic():
+            # ------------------------------------------------------------------
+            # 1. Build / update BusinessFamily
+            # ------------------------------------------------------------------
+            operating_hours_data = business_data.pop('operating_hours', [])
+            residential_details_json = business_data.pop('residential_details', {})
+            professional_details_json = business_data.pop('professional_details', {})
+
+            business_family_id = business_data.pop('id', None)
+
+            business_family_defaults = {
+                **business_data,
+                'role': role_obj,
+                'sub_role': sub_role_obj,
+            }
+
+            if business_family_id:
+                try:
+                    business_family_obj = BusinessFamily.objects.get(id=business_family_id)
+                    for attr, value in business_family_defaults.items():
+                        setattr(business_family_obj, attr, value)
+                    business_family_obj.save()
+                except BusinessFamily.DoesNotExist:
+                    raise ValidationError({"business_family": "Business family not found."})
+            else:
+                business_family_obj = BusinessFamily.objects.create(**business_family_defaults)
+
+            # ------------------------------------------------------------------
+            # 2. Operating Hours – replace all for idempotency
+            # ------------------------------------------------------------------
+            if operating_hours_data:
+                BusinessOperatingHours.objects.filter(business_family=business_family_obj).delete()
+                hours_to_create = [
+                    BusinessOperatingHours(
+                        business_family=business_family_obj,
+                        day_of_week = hours['day_of_week'],
+                        open_time = hours['open_time'],
+                        close_time = hours['close_time'],
+                    )
+                    for hours in operating_hours_data
+                ]
+                BusinessOperatingHours.objects.bulk_create(hours_to_create)
+
+            # ------------------------------------------------------------------
+            # 3. Residential Details for the business
+            # ------------------------------------------------------------------
+            from .utils import get_or_create_residential_details
+            business_residential_obj, _ = get_or_create_residential_details(residential_details_json)
+
+            # Link the business to the residential address via ResidentMapping
+            resident_mapping, _ = ResidentMapping.objects.get_or_create(
+                business_family = business_family_obj,
+                residential_type = residential_type,
+                defaults={'residential_details': business_residential_obj},
+            )
+            # If an existing mapping exists, update the residential details
+            if resident_mapping.residential_details != business_residential_obj:
+                resident_mapping.residential_details = business_residential_obj
+                resident_mapping.save()
+
+            # ------------------------------------------------------------------
+            # 4. Professional Node Mappings for the business itself
+            # ------------------------------------------------------------------
+            business_family_obj.professional_node_mappings.all().delete()
+            prof_mappings = [
+                BusinessFamilyProfessionalNodeMapping(
+                    business_family=business_family_obj,
+                    level_id=int(level_id),
+                    node_id=int(node_id),
+                )
+                for level_id, node_id in professional_details_json.items()
+                if level_id and node_id
+            ]
+            if prof_mappings:
+                BusinessFamilyProfessionalNodeMapping.objects.bulk_create(prof_mappings)
+
+            # ------------------------------------------------------------------
+            # 5. Business Members
+            # ------------------------------------------------------------------
+            for member_data in business_members:
+                existing_user_obj = member_data.pop('user_id', None)
+                designation_type_obj = member_data.pop('self_designation_type')
+                post_no = member_data.pop('post_no', None)
+
+                # Personal / residential node JSONs
+                personal_details_json = member_data.pop('personal_details', {}) or {}
+                residential_details_json_member = member_data.pop('residential_details', {}) or {}
+
+                # --- NEW: professional_details is now a nested validated dict ---
+                prof_details_data = member_data.pop('professional_details', {}) or {}
+
+                # Unpack the nested professional details
+                prof_id = prof_details_data.get('id')           # UserProfessionalDetails instance or None
+                prof_nodes_json = prof_details_data.get('professional_details', {}) or {}
+                prof_designation = prof_details_data.get('designation')  # DesignationType instance
+                prof_joined_date = prof_details_data.get('joined_date')
+                prof_left_date = prof_details_data.get('left_date')
+                prof_experience = prof_details_data.get('experience')
+                prof_is_active = prof_details_data.get('is_active', True)
+                prof_owner_name = prof_details_data.get('owner_name')
+                prof_owner_contact_no = prof_details_data.get('owner_contact_no')
+                # Use prof_designation if provided, otherwise fall back to self_designation_type
+                effective_designation = prof_designation or designation_type_obj
+
+                # User-level fields
+                full_name = member_data.pop('full_name')
+                email = member_data.pop('email', None)
+                contact_no = member_data.pop('contact_no')
+
+                user_defaults = {
+                    'full_name': full_name,
+                    'email': email,
+                    'contact_no': contact_no,
+                }
+
+                if existing_user_obj:
+                    user_obj, _ = User.objects.update_or_create(
+                        id=existing_user_obj.id,
+                        defaults=user_defaults,
+                    )
+                else:
+                    user_obj = User.objects.create(**user_defaults)
+
+                user_role_obj = UserRole.objects.get(name="user")
+                # Assign role to the user
+                user_obj.roles.add(user_role_obj)
+                user_obj.save()
+
+                # User Profile (remaining profile fields after popping all non-profile keys)
+                UserProfile.objects.update_or_create(
+                    user = user_obj,
+                    defaults = member_data,
+                )
+
+                # ----------------------------------------------------------
+                # Personal Details + node mappings
+                # ----------------------------------------------------------
+                try:
+                    user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
+                except UserPersonalDetails.DoesNotExist:
+                    user_personal_obj = UserPersonalDetails.objects.create(user=user_obj)
+
+                if personal_details_json:
+                    user_personal_obj.node_mappings.all().delete()
+                    personal_mappings = [
+                        PersonalNodeMapping(
+                            personal_detail = user_personal_obj,
+                            level_id = int(level_id),
+                            node_id = int(node_id),
+                        )
+                        for level_id, node_id in personal_details_json.items()
+                        if level_id and node_id
+                    ]
+                    if personal_mappings:
+                        PersonalNodeMapping.objects.bulk_create(personal_mappings)
+
+                # ----------------------------------------------------------
+                # Residential Details for the member's workplace address
+                # ----------------------------------------------------------
+                member_residential_obj, _ = get_or_create_residential_details(
+                    residential_details_json_member
+                )
+
+                # ----------------------------------------------------------
+                # UserProfessionalDetails — update existing record by ID or
+                # get-or-create against the (user, business_family) pair
+                # ----------------------------------------------------------
+                prof_detail_defaults = {
+                    'residential_details': member_residential_obj,
+                    'designation': effective_designation,
+                    'joined_date': prof_joined_date,
+                    'left_date': prof_left_date,
+                    'experience': prof_experience,
+                    'is_active': prof_is_active,
+                    'owner_name': prof_owner_name,
+                    'owner_contact_no': prof_owner_contact_no,
+                }
+
+                if prof_id:
+                    # Serializer resolved the PK to a UserProfessionalDetails instance
+                    professional_details_obj = prof_id
+                    if professional_details_obj.user != user_obj or \
+                       professional_details_obj.business_family != business_family_obj:
+                        raise ValidationError({
+                            "professional_details": "Professional details record does not belong to this user/business."
+                        })
+                    for attr, val in prof_detail_defaults.items():
+                        setattr(professional_details_obj, attr, val)
+                    professional_details_obj.save()
+                else:
+                    professional_details_obj, created = UserProfessionalDetails.objects.get_or_create(
+                        user = user_obj,
+                        business_family = business_family_obj,
+                        defaults = prof_detail_defaults,
+                    )
+                    if not created:
+                        for attr, val in prof_detail_defaults.items():
+                            setattr(professional_details_obj, attr, val)
+                        professional_details_obj.save()
+
+                # Professional node mappings for the member
+                if prof_nodes_json:
+                    professional_details_obj.professional_node_mappings.all().delete()
+                    member_prof_mappings = [
+                        ProfessionalNodeMapping(
+                            professional_detail=professional_details_obj,
+                            level_id=int(level_id),
+                            node_id=int(node_id),
+                        )
+                        for level_id, node_id in prof_nodes_json.items()
+                        if level_id and node_id
+                    ]
+                    if member_prof_mappings:
+                        ProfessionalNodeMapping.objects.bulk_create(member_prof_mappings)
+
+                # ----------------------------------------------------------
+                # BusinessFamilyMember link
+                # ----------------------------------------------------------
+                business_member_obj, created = BusinessFamilyMember.objects.get_or_create(
+                    business_family=business_family_obj,
+                    user=user_obj,
+                    defaults={
+                        'self_designation_type': designation_type_obj,
+                        'post_no': post_no or 0,
+                        'is_active': True,
+                    },
+                )
+                if not created:
+                    business_member_obj.self_designation_type = designation_type_obj
+                    if post_no is not None:
+                        business_member_obj.post_no = post_no
+                    business_member_obj.save()
+
+        # ------------------------------------------------------------------
+        # 6. Return response
+        # ------------------------------------------------------------------
+        serializer = BusinessRegisterOutputSerializer(business_family_obj)
+        return Response(
+            {
+                "message": "Business registered successfully.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+
+from .serializers import AdminRegistrationInputSerializer, AdminRegistrationOutputSerializer
+
+class AdminRegistrationView(AdminRoleFilterMixin, APIView):
+    """
+    Hierarchical admin management:
+    - Any user in the admin role hierarchy can GET / POST.
+    - POST is scoped: a caller can only assign roles that are
+      descendants of their own admin role.
+      e.g. system_admin → can register group_admin / subgroup_admin
+           group_admin   → can register subgroup_admin only
+    """
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        admin_role = get_object_or_404(
+            UserRole,
+            name="admin",
+            is_active=True
+        )
+
+        sub_role = request.query_params.get("sub_role")
+        user_id = request.query_params.get("user_id")
+
+        role_ids, error_response = self.get_allowed_role_ids(request, "admin")
+        if error_response:
+             return error_response
+
+        if sub_role:
+            role = get_object_or_404(
+                UserRole,
+                name=sub_role,
+                is_active=True
+            )
+            
+            if role.id not in role_ids:
+                return Response({"error": "You don't have permission to view this role."}, status=status.HTTP_403_FORBIDDEN)
+
+            user_objs = User.objects.filter(
+                roles=role,
+                is_deleted=False
+            ).distinct()
+
+        else:
+            user_objs = User.objects.filter(
+                roles__in=role_ids,
+                is_deleted=False
+            ).distinct()
+
+        if user_id:
+            user_objs = user_objs.filter(id=user_id)
+
+        output_data = {
+            "role": admin_role,
+            "users": user_objs
+        }
+
+        serializer = AdminRegistrationOutputSerializer(output_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+    def post(self, request):
+        # ------------------------------------------------------------------
+        # Scope check: determine which child roles this caller may assign.
+        # get_allowed_role_ids returns the IDs of all roles that are
+        # descendants of the caller's own admin role.
+        # ------------------------------------------------------------------
+        allowed_role_ids, scope_error = self.get_allowed_role_ids(request, "admin")
+        if scope_error:
+            return scope_error
+
+        if not allowed_role_ids:
+            return Response(
+                {"error": "You do not have permission to register admin users."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = AdminRegistrationInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+        role_obj = validated_data.get('role')
+        admin_members = validated_data.get('admin_members', [])
+
+        # Validate each member's sub-role is within the caller's allowed scope
+        scope_errors = {}
+        for index, member in enumerate(admin_members):
+            sub_role = member.get('self_sub_role')
+            if sub_role and sub_role.id not in allowed_role_ids:
+                scope_errors[index] = {
+                    "self_sub_role": (
+                        f"You do not have permission to assign the role "
+                        f"'{sub_role.display_name}'. You can only assign roles "
+                        f"below your own level in the admin hierarchy."
+                    )
+                }
+        if scope_errors:
+            return Response(
+                {"admin_members": scope_errors},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        registered_users = []
+
+        try:
+            with transaction.atomic():
+                for member_data in admin_members:
+                    existing_user_obj = member_data.pop('user_id', None)
+                    sub_role_obj = member_data.pop('self_sub_role')
+
+                    # Personal / residential node JSONs
+                    personal_details_json = member_data.pop('personal_details', {}) or {}
+                    residential_details_json_member = member_data.pop('residential_details', {}) or {}
+
+                    # Professional details nested dict
+                    prof_details_data = member_data.pop('professional_details', {}) or {}
+
+                    prof_id = prof_details_data.get('id')           
+                    prof_nodes_json = prof_details_data.get('professional_details', {}) or {}
+                    prof_designation = prof_details_data.get('designation') 
+                    prof_salary = prof_details_data.get('salary')  
+                    prof_joined_date = prof_details_data.get('joined_date')
+                    prof_left_date = prof_details_data.get('left_date')
+                    prof_experience = prof_details_data.get('experience')
+                    prof_is_active = prof_details_data.get('is_active', True)
+
+                    # User-level fields
+                    full_name = member_data.pop('full_name')
+                    email = member_data.pop('email', None)
+                    contact_no = member_data.pop('contact_no')
+
+                    user_defaults = {
+                        'full_name': full_name,
+                        'email': email,
+                        'contact_no': contact_no,
+                    }
+
+                    if existing_user_obj:
+                        user_obj, _ = User.objects.update_or_create(
+                            id=existing_user_obj.id,
+                            defaults=user_defaults,
+                        )
+                    else:
+                        user_obj = User.objects.create(**user_defaults)
+
+                    # Assign the admin role and sub_role to the user
+                    if existing_user_obj:
+                        admin_role_names = get_all_role_descendant_names('admin')
+                        admin_sub_roles = user_obj.roles.filter(name__in=admin_role_names)
+                        if admin_sub_roles.exists():
+                            user_obj.roles.remove(*admin_sub_roles)
+
+                    user_obj.roles.add(sub_role_obj)
+                    user_obj.is_verified = True
+                    user_obj.save()
+                    
+                    registered_users.append(user_obj)
+
+                    # User Profile 
+                    UserProfile.objects.update_or_create(
+                        user = user_obj,
+                        defaults = member_data,
+                    )
+
+                    # Personal Details 
+                    try:
+                        user_personal_obj = UserPersonalDetails.objects.get(user=user_obj)
+                    except UserPersonalDetails.DoesNotExist:
+                        user_personal_obj = UserPersonalDetails.objects.create(user=user_obj)
+
+                    if personal_details_json:
+                        user_personal_obj.node_mappings.all().delete()
+                        personal_mappings = [
+                            PersonalNodeMapping(
+                                personal_detail = user_personal_obj,
+                                level_id = int(level_id),
+                                node_id = int(node_id),
+                            )
+                            for level_id, node_id in personal_details_json.items()
+                            if level_id and node_id
+                        ]
+                        if personal_mappings:
+                            PersonalNodeMapping.objects.bulk_create(personal_mappings)
+
+                    # Residential Details 
+                    from .utils import get_or_create_residential_details
+                    member_residential_obj, _ = get_or_create_residential_details(
+                        residential_details_json_member
+                    )
+
+                    # Professional Details (Not linked to a BusinessFamily)
+                    prof_detail_defaults = {
+                        'residential_details': member_residential_obj,
+                        'designation': prof_designation,
+                        'salary': prof_salary,
+                        'joined_date': prof_joined_date,
+                        'left_date': prof_left_date,
+                        'experience': prof_experience,
+                        'is_active': prof_is_active,
+                    }
+
+                    if prof_id:
+                        professional_details_obj = prof_id
+                        if professional_details_obj.user != user_obj:
+                            raise ValidationError({
+                                "professional_details": "Professional details record does not belong to this user."
+                            })
+                        for attr, val in prof_detail_defaults.items():
+                            setattr(professional_details_obj, attr, val)
+                        professional_details_obj.save()
+                    else:
+                        professional_details_obj, created = UserProfessionalDetails.objects.get_or_create(
+                            user = user_obj,
+                            business_family = None,
+                            defaults = prof_detail_defaults,
+                        )
+                        if not created:
+                            for attr, val in prof_detail_defaults.items():
+                                setattr(professional_details_obj, attr, val)
+                            professional_details_obj.save()
+
+                    if prof_nodes_json:
+                        professional_details_obj.professional_node_mappings.all().delete()
+                        member_prof_mappings = [
+                            ProfessionalNodeMapping(
+                                professional_detail=professional_details_obj,
+                                level_id=int(level_id),
+                                node_id=int(node_id),
+                            )
+                            for level_id, node_id in prof_nodes_json.items()
+                            if level_id and node_id
+                        ]
+                        if member_prof_mappings:
+                            ProfessionalNodeMapping.objects.bulk_create(member_prof_mappings)
+
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        output_data = {
+            "role": role_obj,
+            "users": registered_users
+        }
+        
+        output_serializer = AdminRegistrationOutputSerializer(output_data)
+        
+        return Response({
+            "message": "Admin registration successful.",
+            "data": output_serializer.data
+        }, status=status.HTTP_201_CREATED)
+    
+
+class UserRoleDropdownView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_all_descendants(self, role_name):
+        descendant_ids = set()
+        roles_to_check = list(UserRole.objects.filter(parent__name=role_name, is_active=True).values_list('id', flat=True))
+        
+        while roles_to_check:
+            current_id = roles_to_check.pop(0)
+            descendant_ids.add(current_id)
+            children = list(UserRole.objects.filter(parent_id=current_id, is_active=True).values_list('id', flat=True))
+            roles_to_check.extend(children)
+            
+        return descendant_ids
+
+    def get(self, request):
+        role_name = request.query_params.get('role', '').strip()
+
+        role_qs = UserRole.objects.filter(is_active=True).exclude(name='super_admin')
+        if role_name:
+            descendant_ids = self.get_all_descendants(role_name)
+            role_qs = role_qs.filter(id__in=descendant_ids).order_by('id')
+
+        serializer = RoleDropdownSerializer(role_qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+from .serializers import AdminResidentialNodeAssignmentInputSerializer, AdminResidentialNodeAssignmentOutputSerializer
+from configuration.models import Level, Node
+
+class AdminResidentialNodeAssignmentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({"error": "user_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user_id)
+        serializer = AdminResidentialNodeAssignmentOutputSerializer(assignments, many=True)
+        return Response({"user_id": int(user_id), "assignments": serializer.data}, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = AdminResidentialNodeAssignmentInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.validated_data['user_id']
+        assignments = serializer.validated_data['assignments']
+
+        processed_ids = []
+        
+        try:
+            with transaction.atomic():
+                for item in assignments:
+                    # Serializer uses source='level' and source='node'
+                    level_obj = item['level']
+                    node_obj = item['node']
+
+                    assignment_obj, created = AdminResidentialNodeAssignment.objects.get_or_create(
+                        user=user,
+                        level=level_obj,
+                        node=node_obj,
+                    )
+                    processed_ids.append(assignment_obj.id)
+                
+                # Remove assignments that were not included in the payload
+                AdminResidentialNodeAssignment.objects.filter(user=user).exclude(id__in=processed_ids).delete()
+                
+        except Exception as e:
+             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        updated_assignments = AdminResidentialNodeAssignment.objects.select_related('level', 'node').filter(user_id=user.id)
+        out_serializer = AdminResidentialNodeAssignmentOutputSerializer(updated_assignments, many=True)
+        return Response({"message": "Admin node assignments updated successfully.", "user_id": user.id, "assignments": out_serializer.data}, status=status.HTTP_200_OK)
+
+class NodeSummaryView(APIView):
+    def get(self, request, *args, **kwargs):
+        dimension = request.query_params.get('dimension', '').strip()
+        node_ids_str = request.query_params.get('node_ids')
+
+        if not dimension or not node_ids_str:
+            return Response({"error": "Both 'dimension' and 'node_ids' are required parameters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            node_ids = [int(n.strip()) for n in node_ids_str.split(',') if n.strip().isdigit()]
+        except ValueError:
+            return Response({"error": "Invalid node_ids format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not node_ids:
+            return Response({"error": "No valid node_ids provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        node_objs = Node.objects.filter(id__in=node_ids)
+        node_map = {node_obj.id: node_obj for node_obj in node_objs}
+
+        response_data = {}
+
+        for node_id in node_ids:
+            if node_id not in node_map:
+                response_data[str(node_id)] = {
+                    "error": "Node not found"
+                }
+                continue
+
+            node_obj = node_map[node_id]
+
+            # Immediate child nodes only (e.g. Talukas directly under a District)
+            total_child_nodes = Node.objects.filter(
+                parent_id=node_obj.id,
+                is_deleted=False
+            ).count()
+
+            if dimension == 'residential':
+                # Find all descendant nodes including itself to match address correctly
+                descendant_nodes = Node.objects.filter(
+                    Q(hierarchy_path=node_obj.hierarchy_path) | Q(hierarchy_path__startswith=f"{node_obj.hierarchy_path}/"),
+                    dimension=node_obj.dimension,
+                    is_deleted=False
+                )
+
+                # Total users which exist in a family, and that family uses this node (or descendants) in their current residential address
+                total_users = User.objects.filter(
+                    familymember__family__residents__residential_type__name__iexact='current',
+                    familymember__family__residents__residential_details__node_mappings__node__in=descendant_nodes,
+                    is_deleted=False
+                ).distinct().count()
+                print("count perform")
+            else:
+                print("count not perform")
+                total_users = 0
+
+            response_data[str(node_id)] = {
+                "total_users": total_users,
+                "total_child_nodes": total_child_nodes
+            }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
