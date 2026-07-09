@@ -611,11 +611,6 @@ class ResidentMapping(AuditMixin):
                 name='unique_business_residential_details',
                 violation_error_message="This business is already mapped to this residential details."
             ),
-            models.UniqueConstraint(
-                fields=['residential_details', 'residential_type'],
-                name='unique_resident_residential_type',
-                violation_error_message="A record with this residential details and family type already exists."
-            )
         ]
 
     def __str__(self):
