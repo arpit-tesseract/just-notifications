@@ -341,7 +341,10 @@ class RegistrationView(APIView):
                             )
                             business_family_obj = temp_resident_mapping_obj.business_family
                         except ResidentMapping.DoesNotExist:
-                            business_family_obj = BusinessFamily.objects.create(name=company_name)
+                            business_family_obj = BusinessFamily.objects.create(
+                                name=company_name,
+                                contact_no=professional_details.get('owner_contact_no')
+                            )
                             business_residential_type_obj = ResidentialType.objects.get(name="business")
 
                             ResidentMapping.objects.create(
@@ -368,6 +371,8 @@ class RegistrationView(APIView):
                                 professional_details_obj.residential_details = bussiness_residential_obj
                                 professional_details_obj.designation = designation_obj
                                 professional_details_obj.is_active = is_active
+                                professional_details_obj.owner_name = professional_details.get('owner_name')
+                                professional_details_obj.owner_contact_no = professional_details.get('owner_contact_no')
                                 professional_details_obj.save()
                             except UserProfessionalDetails.DoesNotExist:
                                 raise ValidationError({
@@ -380,7 +385,9 @@ class RegistrationView(APIView):
                                 business_family = business_family_obj,
                                 residential_details=bussiness_residential_obj,
                                 designation=designation_obj,
-                                is_active=is_active
+                                is_active=is_active,
+                                owner_name = professional_details.get('owner_name'),
+                                owner_contact_no = professional_details.get('owner_contact_no'),
                             )
                         
                         # Delete and recreate professional mappings
@@ -509,7 +516,8 @@ class RegistrationView(APIView):
                         except ResidentMapping.DoesNotExist:
                             business_family_obj = BusinessFamily.objects.create(
                                 name = company_name, 
-                                is_verified = False
+                                is_verified = False,
+                                contact_no = registration_user.contact_no if registration_user else created_users[0]['user'].contact_no
                             )
 
                             ResidentMapping.objects.create(
@@ -1617,7 +1625,8 @@ class BusinessView(APIView):
                 prof_left_date = prof_details_data.get('left_date')
                 prof_experience = prof_details_data.get('experience')
                 prof_is_active = prof_details_data.get('is_active', True)
-
+                prof_owner_name = prof_details_data.get('owner_name')
+                prof_owner_contact_no = prof_details_data.get('owner_contact_no')
                 # Use prof_designation if provided, otherwise fall back to self_designation_type
                 effective_designation = prof_designation or designation_type_obj
 
@@ -1691,6 +1700,8 @@ class BusinessView(APIView):
                     'left_date': prof_left_date,
                     'experience': prof_experience,
                     'is_active': prof_is_active,
+                    'owner_name': prof_owner_name,
+                    'owner_contact_no': prof_owner_contact_no,
                 }
 
                 if prof_id:
