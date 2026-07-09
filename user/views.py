@@ -459,12 +459,14 @@ class RegistrationView(APIView):
                     family_name = ""
                     for user in created_users:
                         user_obj = user.get("user")
-                        FamilyMember.objects.get_or_create(
-                            family = family_obj,
-                            user = user_obj,
-                            self_relation_type = user.get("self_relation_type"),
-                            post_no = user.get("post_no"),
-                            is_main_user = user_obj.id == main_user_obj.id
+                        FamilyMember.objects.update_or_create(
+                            family=family_obj,
+                            user=user_obj,
+                            defaults={
+                                "self_relation_type": user.get("self_relation_type"),
+                                "post_no": user.get("post_no"),
+                                "is_main_user": user_obj.id == main_user_obj.id,
+                            }
                         )
                         family_name += user_obj.full_name[0].upper()
                 
@@ -542,12 +544,14 @@ class RegistrationView(APIView):
                     family_name = ""
                     for user in created_users:
                         user_obj = user.get("user")
-                        member = FamilyMember.objects.get_or_create(
-                            family = main_user_family_obj,
-                            user = user_obj,
-                            self_relation_type = user.get("self_relation_type"),
-                            post_no = user.get("post_no"),
-                            is_main_user = user_obj.id == main_user_obj.id
+                        FamilyMember.objects.update_or_create(
+                            family=family_obj,
+                            user=user_obj,
+                            defaults={
+                                "self_relation_type": user.get("self_relation_type"),
+                                "post_no": user.get("post_no"),
+                                "is_main_user": user_obj.id == main_user_obj.id,
+                            }
                         )
                         family_name += user_obj.full_name[0].upper()
                     
