@@ -79,11 +79,16 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, contact_no, password=None, **extra_fields):
-        role, _ = UserRole.objects.get_or_create(
+        admin_role_obj, created = UserRole.objects.get_or_create(
             name="admin",
             display_name="Admin"
         )
-        extra_fields.setdefault("user_roles", [role])
+        super_admin_role_obj, created = UserRole.objects.get_or_create(
+            name="super_admin",
+            display_name="Super Admin",
+            parent=admin_role_obj
+        )
+        extra_fields.setdefault("user_roles", [super_admin_role_obj])
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_verified", True)
@@ -595,7 +600,7 @@ class ResidentMapping(AuditMixin):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['family', 'residential_details'],
+                fields=['family', 'residential_details', 'residential_type'],
                 name='unique_family_residential_details',
                 violation_error_message="This family is already mapped to this residential details."
             ),
@@ -604,11 +609,6 @@ class ResidentMapping(AuditMixin):
                 name='unique_business_residential_details',
                 violation_error_message="This business is already mapped to this residential details."
             ),
-            models.UniqueConstraint(
-                fields=['residential_details', 'residential_type'],
-                name='unique_resident_residential_type',
-                violation_error_message="A record with this residential details and family type already exists."
-            )
         ]
 
     def __str__(self):
