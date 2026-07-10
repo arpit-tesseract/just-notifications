@@ -85,11 +85,12 @@ class UserProfessionalDetailsInputSerializer(serializers.Serializer):
         queryset = DesignationType.objects.filter(is_active=True),
         required=True, allow_null=True 
     )
-    owner_name = serializers.CharField(max_length=50, required=False, allow_null=True)
+    owner_name = serializers.CharField(max_length=50, required=True, allow_null=True)
     owner_contact_no = PhoneNumberField(max_length=50, required=True, allow_null=False)
     joined_date = serializers.DateField(required=True, allow_null=True)
     left_date = serializers.DateField(required=False, allow_null=True)
     experience = serializers.CharField(required=False, allow_null=True)
+    salary = serializers.DecimalField(max_digits=12, decimal_places=2, required=True, allow_null=True)
     is_active = serializers.BooleanField(required=False)
 
     def validate_id(self, value):
@@ -548,9 +549,20 @@ class RegistrationOutputSerializer(serializers.Serializer):
 
 
 class UserSuggestionDropdownSerializer(serializers.ModelSerializer):
+    photo = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'contact_no']
+        fields = ['id', 'full_name', 'contact_no', 'photo']
+
+    def get_photo(self, obj):
+        request = self.context.get('request')
+        if hasattr(obj, 'profile') and obj.profile.photo:
+            photo_url = obj.profile.photo.url
+            if request:
+                return request.build_absolute_uri(photo_url)
+            return photo_url
+        return None
 
 
 class UserDocumentOutputSerializer(serializers.ModelSerializer):
