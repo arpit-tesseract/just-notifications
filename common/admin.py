@@ -6,5 +6,5 @@ admin.site.register(StatusModelName)
 
 @admin.register(Status)
 class StatusAdmin(admin.ModelAdmin):
-    list_display = ("name", "model", "is_active", "time_stamp")
+    list_display = ('id', "name", "model", "is_active", "time_stamp")
     list_filter = ("model", "is_active")

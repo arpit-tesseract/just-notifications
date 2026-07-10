@@ -11,7 +11,7 @@ from .models import (
 
 @admin.register(UserRole)
 class UserRoleAdmin(SimpleHistoryAdmin):
-    list_display = ('name', 'display_name', 'parent', 'is_active')
+    list_display = ('id', 'name', 'display_name', 'parent', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
@@ -24,7 +24,7 @@ class ResidentialDetailsAdmin(SimpleHistoryAdmin):
 
 @admin.register(User)
 class UserAdmin(SimpleHistoryAdmin):
-    list_display = ('full_name', 'contact_no', 'is_deleted', 'is_verified', 'created_at')
+    list_display = ('id', 'full_name', 'contact_no', 'is_deleted', 'is_verified', 'created_at')
     search_fields = ('full_name', 'contact_no', 'email')
     list_filter = ('is_deleted', 'is_verified', 'roles')
     
@@ -37,21 +37,21 @@ class UserAdmin(SimpleHistoryAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(SimpleHistoryAdmin):
-    list_display = ('user', 'gender', 'blood_group', 'marital_status', 'dob')
+    list_display = ('id', 'user', 'gender', 'blood_group', 'marital_status', 'dob')
     search_fields = ('user__full_name', 'user__contact_no', 'pet_name', 'father_name')
     list_filter = ('gender', 'blood_group', 'marital_status')
 
 
 @admin.register(DocumentType)
 class DocumentTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('name', 'display_name', 'is_required', 'is_active')
+    list_display = ('id', 'name', 'display_name', 'is_required', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_required', 'is_active')
 
 
 @admin.register(UserDocument)
 class UserDocumentAdmin(SimpleHistoryAdmin):
-    list_display = ('user', 'document_type', 'document_no', 'is_deleted', 'created_at')
+    list_display = ('id', 'user', 'document_type', 'document_no', 'is_deleted', 'created_at')
     search_fields = ('user__full_name', 'user__contact_no', 'document_no')
     list_filter = ('document_type', 'is_deleted')
 
@@ -61,19 +61,19 @@ class UserDocumentAdmin(SimpleHistoryAdmin):
 
 @admin.register(UserProfessionalDetails)
 class UserProfessionalDetailsAdmin(SimpleHistoryAdmin):
-    list_display = ('user', 'created_at', 'updated_at')
+    list_display = ('id', 'user', 'created_at', 'updated_at')
     search_fields = ('user__full_name', 'user__contact_no')
 
 
 @admin.register(UserPersonalDetails)
 class UserPersonalDetailsAdmin(SimpleHistoryAdmin):
-    list_display = ('user', 'created_at', 'updated_at')
+    list_display = ('id', 'user', 'created_at', 'updated_at')
     search_fields = ('user__full_name', 'user__contact_no')
 
 
 @admin.register(ResidentialType)
 class ResidentialTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('name', 'display_name', 'is_active')
+    list_display = ('id', 'name', 'display_name', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
@@ -84,7 +84,7 @@ class FamilyAdmin(SimpleHistoryAdmin):
 
 @admin.register(FamilyMember)
 class FamilyMemberAdmin(SimpleHistoryAdmin):
-    list_display = ('family', 'user', 'self_relation_type', 'is_main_user', 'is_verified')
+    list_display = ('id', 'family', 'user', 'self_relation_type', 'is_main_user', 'is_verified')
     search_fields = ('user__full_name', 'user__contact_no')
     list_filter = ('family', 'is_main_user')
 
@@ -95,56 +95,56 @@ class BusinessFamilyAdmin(SimpleHistoryAdmin):
 
 @admin.register(BusinessFamilyMember)
 class BusinessFamilyMemberAdmin(SimpleHistoryAdmin):
-    list_display = ('business_family', 'user', 'self_designation_type', 'is_verified', 'created_at')
+    list_display = ('id', 'business_family', 'user', 'self_designation_type', 'is_verified', 'created_at')
     search_fields = ('user__full_name', 'user__contact_no')
     list_filter = ('business_family', )
 
 
 @admin.register(ResidentMapping)
 class ResidentMappingAdmin(SimpleHistoryAdmin):
-    list_display = ('family', 'business_family', 'residential_details', 'residential_type', 'created_at')
+    list_display = ('id', 'family', 'business_family', 'residential_details', 'residential_type', 'created_at')
     list_filter = ('family', 'residential_type')
 
 
 @admin.register(RelationType)
 class RelationTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'is_active','post_no', 'role')
+    list_display = ('id', 'display_name', 'name', 'is_active','post_no', 'role')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
 
 @admin.register(DesignationType)
 class DesignationTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'is_active')
+    list_display = ('id', 'display_name', 'name', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
 
 @admin.register(UserRelations)
 class UserRelationsAdmin(SimpleHistoryAdmin):
-    list_display = ('from_user', 'relation_type', 'to_user', 'created_at')
+    list_display = ('id', 'from_user', 'relation_type', 'to_user', 'created_at')
 
 
 @admin.register(ResidentialNodeMapping)
 class ResidentialNodeMappingAdmin(SimpleHistoryAdmin):
-    list_display = ('residential_detail', 'level', 'node')
+    list_display = ('id', 'residential_detail', 'level', 'node')
 
 @admin.register(PersonalNodeMapping)
 class PersonalNodeMappingAdmin(SimpleHistoryAdmin):
-    list_display = ('personal_detail', 'level', 'node')
+    list_display = ('id', 'personal_detail', 'level', 'node')
 
 @admin.register(ProfessionalPersonalNodeMapping)
 class ProfessionalPersonalNodeMappingAdmin(SimpleHistoryAdmin):
-    list_display = ('professional_detail', 'level', 'node')
+    list_display = ('id', 'professional_detail', 'level', 'node')
 
 @admin.register(ProfessionalNodeMapping)
 class ProfessionalNodeMappingAdmin(SimpleHistoryAdmin):
-    list_display = ('professional_detail', 'level', 'node')
+    list_display = ('id', 'professional_detail', 'level', 'node')
 
 
 
 @admin.register(AdminResidentialNodeAssignment)
 class AdminResidentialNodeAssignmentAdmin(SimpleHistoryAdmin):
-    list_display = ('user', 'level', 'node', 'assigned_by', 'created_at')
+    list_display = ('id', 'user', 'level', 'node', 'assigned_by', 'created_at')
     search_fields = ('user__full_name', 'level__name', 'node__name', 'assigned_by__full_name')
     list_filter = ('level',)

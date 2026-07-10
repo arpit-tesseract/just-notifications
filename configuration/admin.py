@@ -5,7 +5,7 @@ from simple_history.admin import SimpleHistoryAdmin
 
 @admin.register(Dimension)
 class DimensionAdmin(SimpleHistoryAdmin):
-    list_display = ['name', 'is_active', 'created_at', 'updated_at']
+    list_display = ['id', 'name', 'is_active', 'created_at', 'updated_at']
     
 @admin.register(Level)
 class LevelAdmin(SimpleHistoryAdmin):
@@ -28,23 +28,23 @@ class NodeAdmin(SimpleHistoryAdmin):
 
 @admin.register(NodeAlias)
 class NodeAliasAdmin(SimpleHistoryAdmin):
-    list_display = ['node', 'name']
+    list_display = ['id', 'node', 'name']
 
 @admin.register(NodeEventLog)
 class NodeEventLogAdmin(admin.ModelAdmin):
-    list_display = ['event_type', 'source_node', 'target_node', 'effective_date', 'performed_by', 'created_at']
+    list_display = ['id', 'event_type', 'source_node', 'target_node', 'effective_date', 'performed_by', 'created_at']
     list_filter = ['event_type', 'effective_date']
     search_fields = ['source_node__name', 'target_node__name']
 
 @admin.register(NodeClosure)
 class NodeClosureAdmin(admin.ModelAdmin):
-    list_display = ['ancestor', 'descendant', 'depth']
+    list_display = ['id', 'ancestor', 'descendant', 'depth']
     list_filter = ['ancestor__level', 'ancestor__level__dimension__name']
 
 
 @admin.register(NodeRelationship)
 class NodeRelationshipAdmin(SimpleHistoryAdmin):
-    list_display = ['territory', 'relationship_type', 'controller', 'is_deleted']
+    list_display = ['id', 'territory', 'relationship_type', 'controller', 'is_deleted']
     def get_queryset(self, request):
         return self.model.all_objects.all()
 
