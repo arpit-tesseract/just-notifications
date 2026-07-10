@@ -1580,6 +1580,8 @@ class BusinessView(APIView):
             else:
                 business_family_obj = BusinessFamily.objects.create(**business_family_defaults)
 
+            business_family_obj.is_verified = True
+            business_family_obj.save()
             # ------------------------------------------------------------------
             # 2. Operating Hours – replace all for idempotency
             # ------------------------------------------------------------------
