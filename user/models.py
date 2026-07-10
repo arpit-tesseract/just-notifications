@@ -548,6 +548,7 @@ class FamilyMember(AuditMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_no = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     is_main_user = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
 
     history = HistoricalRecords()
 
@@ -561,7 +562,7 @@ class BusinessFamilyMember(AuditMixin):
     self_designation_type = models.ForeignKey(DesignationType, on_delete=models.PROTECT)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     post_no = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
-    is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(default=False)
 
     history = HistoricalRecords()
 
@@ -607,10 +608,10 @@ class ResidentMapping(AuditMixin):
                 violation_error_message="This family is already mapped to this residential details."
             ),
             models.UniqueConstraint(
-                fields=['business_family', 'residential_details'],
-                name='unique_business_residential_details',
-                violation_error_message="This business is already mapped to this residential details."
-            ),
+                fields=['business_family'], 
+                name='unique_business_family',
+                violation_error_message="This business already has a residential address mapped to it."
+            )
         ]
 
     def __str__(self):

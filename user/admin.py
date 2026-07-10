@@ -11,7 +11,7 @@ from .models import (
 
 @admin.register(UserRole)
 class UserRoleAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'parent', 'is_active')
+    list_display = ('name', 'display_name', 'parent', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
@@ -44,7 +44,7 @@ class UserProfileAdmin(SimpleHistoryAdmin):
 
 @admin.register(DocumentType)
 class DocumentTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'is_required', 'is_active')
+    list_display = ('name', 'display_name', 'is_required', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_required', 'is_active')
 
@@ -73,7 +73,7 @@ class UserPersonalDetailsAdmin(SimpleHistoryAdmin):
 
 @admin.register(ResidentialType)
 class ResidentialTypeAdmin(SimpleHistoryAdmin):
-    list_display = ('display_name', 'name', 'is_active')
+    list_display = ('name', 'display_name', 'is_active')
     search_fields = ('name', 'display_name')
     list_filter = ('is_active',)
 
@@ -84,18 +84,18 @@ class FamilyAdmin(SimpleHistoryAdmin):
 
 @admin.register(FamilyMember)
 class FamilyMemberAdmin(SimpleHistoryAdmin):
-    list_display = ('family', 'user', 'self_relation_type', 'is_main_user', 'created_at')
+    list_display = ('family', 'user', 'self_relation_type', 'is_main_user', 'is_verified')
     search_fields = ('user__full_name', 'user__contact_no')
     list_filter = ('family', 'is_main_user')
 
 
 @admin.register(BusinessFamily)
 class BusinessFamilyAdmin(SimpleHistoryAdmin):
-    list_display = ('id', 'name', 'created_at')
+    list_display = ('id', 'name', 'sub_role', 'business_type', 'is_verified', 'created_at')
 
 @admin.register(BusinessFamilyMember)
 class BusinessFamilyMemberAdmin(SimpleHistoryAdmin):
-    list_display = ('business_family', 'user', 'self_designation_type', 'created_at')
+    list_display = ('business_family', 'user', 'self_designation_type', 'is_verified', 'created_at')
     search_fields = ('user__full_name', 'user__contact_no')
     list_filter = ('business_family', )
 

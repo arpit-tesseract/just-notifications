@@ -798,13 +798,13 @@ class RegistrationView(APIView):
                 family_member_obj = BusinessFamilyMember.objects.get(
                     business_family__is_verified=True,
                     user=registration_user_obj, 
-                    is_active=True
+                    is_verified=True
                 )
             except BusinessFamilyMember.DoesNotExist:
                 try:
                     family_member_obj = BusinessFamilyMember.objects.get(
                     user=registration_user_obj, 
-                    is_active=True
+                    is_verified=True
                 )
                 except BusinessFamilyMember.DoesNotExist:
                     return Response({
@@ -1427,7 +1427,7 @@ class BusinessView(APIView):
     def get(self, request, id=None):
         if id:
             business_family = get_object_or_404(BusinessFamily, id=id)
-            business_family_serializer = BusinessRegisterOutputSerializer(business_family)
+            business_family_serializer = BusinessRegisterOutputSerializer(business_family, context={'request': request})
             return Response(business_family_serializer.data, status=status.HTTP_200_OK)
         
         role_name = request.query_params.get('role', '').strip()
@@ -1777,7 +1777,7 @@ class BusinessView(APIView):
                     defaults={
                         'self_designation_type': designation_type_obj,
                         'post_no': post_no or 0,
-                        'is_active': True,
+                        'is_verified': True,
                     },
                 )
                 if not created:

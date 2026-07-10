@@ -1167,7 +1167,19 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
         }
 
     def get_business_members(self, obj):
+        if not obj.is_verified:
+            return []
+            
         members = BusinessFamilyMember.objects.filter(business_family=obj, user__is_deleted=False)
+        
+        request = self.context.get('request')
+        if request:
+            member_verified_flag = request.query_params.get('member_verified')
+            if member_verified_flag and member_verified_flag.lower() in ['true', '1', 't', 'y', 'yes']:
+                members = members.filter(is_verified=True)
+            if member_verified_flag and member_verified_flag.lower() in ['false', '0', 'f', 'n', 'no']:
+                members = members.filter(is_verified=False)
+                
         result = []
         for member in members:
             user = member.user
@@ -1197,6 +1209,7 @@ class BusinessRegisterOutputSerializer(serializers.ModelSerializer):
             
             member_data = {
                 "user_id": user.id,
+                "is_verified": member.is_verified,
                 "self_designation_type": member.self_designation_type.id if member.self_designation_type else None,
                 "post_no": member.post_no,
                 "full_name": user.full_name,
@@ -1278,6 +1291,7 @@ class BusinessMemberPayloadSuggestionSerializer(serializers.ModelSerializer):
 
         member_data = {
             "user_id": user.id,
+            "is_verified": member.is_verified if member else False,
             "self_designation_type": member.self_designation_type.id if (member and member.self_designation_type) else None,
             "post_no": member.post_no if member else 0,
             "full_name": user.full_name,
