@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'common',
     'wallet',
     'notification',
+    'ecommerce',
 
     'channels',
     'simple_history',
