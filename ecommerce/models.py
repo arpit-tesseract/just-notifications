@@ -100,6 +100,7 @@ class ProductTemplateAttribute(AuditMixin):
     attribute_template = models.ForeignKey(AttributeTemplate, on_delete=models.CASCADE)
     is_required = models.BooleanField(default=False)
     display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
     
     history = HistoricalRecords()
 
@@ -109,6 +110,21 @@ class ProductTemplateAttribute(AuditMixin):
 
     def __str__(self):
         return f"{self.product_template.name} - {self.attribute_template.name}"
+
+
+class ProductNodeMapping(AuditMixin):
+    product_template = models.ForeignKey(ProductTemplate, on_delete=models.CASCADE, related_name='node_mappings')
+    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
+    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
+    
+    history = HistoricalRecords()
+
+    class Meta:
+        unique_together = ('product_template', 'level')
+
+    def __str__(self):
+        return f"{self.product_template.name} - {self.node.name}"
+
 
 # --- Product Catalog ---
 
@@ -145,19 +161,6 @@ class Product(AuditMixin, SoftDeleteMixin):
 
     def __str__(self):
         return self.name
-
-class ProductNodeMapping(AuditMixin):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='node_mappings')
-    level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
-    node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)
-    
-    history = HistoricalRecords()
-
-    class Meta:
-        unique_together = ('product', 'level')
-
-    def __str__(self):
-        return f"{self.product.name} - {self.node.name}"
 
 
 class ProductVariants(AuditMixin):
