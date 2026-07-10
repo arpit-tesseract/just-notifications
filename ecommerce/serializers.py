@@ -32,6 +32,36 @@ class AttributeTemplateSerializer(serializers.ModelSerializer):
         model = AttributeTemplate
         fields = ['id', 'name', 'display_name', 'input_type', 'value_data_type', 'config', 'is_active', 'units', 'options']
 
+    def validate_units(self, value):
+        if not value:
+            return value
+        seen_names = set()
+        for unit in value:
+            name = unit.get('name')
+            if name:
+                name_lower = name.lower().strip()
+                if name_lower in seen_names:
+                    raise serializers.ValidationError(f"Duplicate unit name '{name}' found in the payload.")
+                seen_names.add(name_lower)
+        return value
+
+    def validate_options(self, value):
+        if not value:
+            return value
+        seen_options = set()
+        for option in value:
+            val = option.get('value', '').strip()
+            unit_id = option.get('unit_id')
+            unit_name = option.get('unit_name', '')
+            if unit_name:
+                unit_name = unit_name.strip().lower()
+                
+            key = (val.lower(), unit_id, unit_name)
+            if key in seen_options:
+                raise serializers.ValidationError(f"Duplicate option '{val}' for the same unit found in the payload.")
+            seen_options.add(key)
+        return value
+
 
 class AttributeTemplateListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -70,8 +100,19 @@ class ProductTemplateInputSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'display_name', 'commission_type', 'commission_value', 'description', 'is_active', 'attributes', 'professional_details']
 
     def validate_professional_details(self, value):
-        dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
-        return validate_dimension_nodes(value, dimension_obj)
+        if value:
+            dimension_obj, _ = Dimension.objects.get_or_create(name="Professional")
+            return validate_dimension_nodes(value, dimension_obj)
+        return value
+
+    def validate_attributes(self, value):
+        seen_ids = set()
+        for attr in value:
+            attr_id = attr.get('attribute_template_id')
+            if attr_id in seen_ids:
+                raise serializers.ValidationError(f"Duplicate attribute_template_id '{attr_id}' found in the payload. A template can only be mapped once.")
+            seen_ids.add(attr_id)
+        return value
 
 
 class ProductTemplateAttributeListSerializer(serializers.ModelSerializer):

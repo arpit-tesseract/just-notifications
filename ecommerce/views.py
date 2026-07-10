@@ -165,6 +165,11 @@ class AttributeTemplateAPIView(APIView):
                 {"error": "Cannot delete this template because it is already used in a merchant product."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+        if ProductTemplateAttribute.objects.filter(attribute_template=template).exists():
+            return Response(
+                {"error": "Cannot delete this template because it is currently assigned to a Product Template."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         template.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
