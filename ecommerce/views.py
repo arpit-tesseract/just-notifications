@@ -1,9 +1,11 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+
 from common.pagination import CommonPagination
 from .models import (
     AttributeTemplate, Unit, AttributeOption, ProductVariantAttributeValue,
@@ -20,6 +22,7 @@ from .serializers import (
 )
 
 class AttributeTemplateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request, pk=None):
         if pk:
             template = get_object_or_404(AttributeTemplate, pk=pk)
@@ -174,6 +177,7 @@ class AttributeTemplateAPIView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class AttributeTemplateDropdownAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         queryset = AttributeTemplate.objects.filter(is_active=True).order_by('-created_at')
         
@@ -191,6 +195,7 @@ class AttributeTemplateDropdownAPIView(APIView):
 
 
 class ProductTemplateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request, pk=None):
         if pk:
             template = get_object_or_404(ProductTemplate, pk=pk)
@@ -315,6 +320,7 @@ class ProductTemplateAPIView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ProductTemplateDropdownAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         queryset = ProductTemplate.objects.filter(is_active=True).order_by('-created_at')
         
