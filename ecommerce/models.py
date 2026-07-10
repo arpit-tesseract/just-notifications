@@ -112,7 +112,7 @@ class ProductTemplateAttribute(AuditMixin):
         return f"{self.product_template.name} - {self.attribute_template.name}"
 
 
-class ProductNodeMapping(AuditMixin):
+class ProductTemplateNodeMapping(AuditMixin):
     product_template = models.ForeignKey(ProductTemplate, on_delete=models.CASCADE, related_name='node_mappings')
     level = models.ForeignKey('configuration.Level', on_delete=models.CASCADE)
     node = models.ForeignKey('configuration.Node', on_delete=models.PROTECT)

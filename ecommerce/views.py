@@ -7,7 +7,7 @@ from django.db.models import Q
 from common.pagination import CommonPagination
 from .models import (
     AttributeTemplate, Unit, AttributeOption, ProductVariantAttributeValue,
-    ProductTemplate, ProductTemplateAttribute, Product, ProductNodeMapping
+    ProductTemplate, ProductTemplateAttribute, Product, ProductTemplateNodeMapping
 )
 from .serializers import (
     AttributeTemplateSerializer,
@@ -238,7 +238,7 @@ class ProductTemplateAPIView(APIView):
                 if professional_details:
                     for level_id, node_id in professional_details.items():
                         if level_id and node_id:
-                            ProductNodeMapping.objects.create(
+                            ProductTemplateNodeMapping.objects.create(
                                 product_template=template,
                                 level_id=int(level_id),
                                 node_id=int(node_id)
@@ -292,10 +292,10 @@ class ProductTemplateAPIView(APIView):
                             attr_obj.save()
                             
                 if professional_details is not None:
-                    ProductNodeMapping.objects.filter(product_template=template).delete()
+                    ProductTemplateNodeMapping.objects.filter(product_template=template).delete()
                     for level_id, node_id in professional_details.items():
                         if level_id and node_id:
-                            ProductNodeMapping.objects.create(
+                            ProductTemplateNodeMapping.objects.create(
                                 product_template=template,
                                 level_id=int(level_id),
                                 node_id=int(node_id)

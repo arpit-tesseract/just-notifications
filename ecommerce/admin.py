@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     TaxCategory, Tax,
     AttributeTemplate, Unit, AttributeOption,
-    ProductTemplate, ProductTemplateAttribute, ProductNodeMapping,
+    ProductTemplate, ProductTemplateAttribute, ProductTemplateNodeMapping,
     Product, ProductVariants, ProductImage, ProductVariantAttributeValue
 )
 
@@ -48,8 +48,8 @@ class ProductTemplateAttributeAdmin(admin.ModelAdmin):
     search_fields = ('product_template__name', 'attribute_template__name')
     list_filter = ('is_required', 'is_active')
 
-@admin.register(ProductNodeMapping)
-class ProductNodeMappingAdmin(admin.ModelAdmin):
+@admin.register(ProductTemplateNodeMapping)
+class ProductTemplateNodeMappingAdmin(admin.ModelAdmin):
     list_display = ('product_template', 'level', 'node')
     search_fields = ('product_template__name', 'node__name')
     list_filter = ('level',)
