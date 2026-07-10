@@ -184,7 +184,6 @@ class AttributeTemplateDropdownAPIView(APIView):
             )
             
         paginator = CommonPagination()
-        paginator.page_size = 10
         
         paginated_queryset = paginator.paginate_queryset(queryset, request)
         serializer = AttributeTemplateDropdownSerializer(paginated_queryset, many=True)
@@ -326,7 +325,6 @@ class ProductTemplateDropdownAPIView(APIView):
             )
             
         paginator = CommonPagination()
-        paginator.page_size = 10
         
         paginated_queryset = paginator.paginate_queryset(queryset, request)
         serializer = ProductTemplateDropdownSerializer(paginated_queryset, many=True)
