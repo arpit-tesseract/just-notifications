@@ -209,10 +209,10 @@ class UserDetailsInputSerializer(serializers.Serializer):
     
 
         if self_relation:
-            if gender == 'male' and self_relation not in ['husband', 'guest', 'workers', 'son']:
+            if gender == 'male' and self_relation not in ['husband', 'guest', 'worker', 'son']:
                 raise serializers.ValidationError({"gender": "Invalid gender."})
 
-            if gender == 'female' and self_relation not in ['wife', 'guest', 'workers', 'daughter']:
+            if gender == 'female' and self_relation not in ['wife', 'guest', 'worker', 'daughter']:
                 raise serializers.ValidationError({"gender": "Invalid gender."})
         
         dob = attrs.get('dob')
